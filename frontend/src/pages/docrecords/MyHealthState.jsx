@@ -193,15 +193,28 @@ export default function MyHealthState() {
 
   // Skeleton primer fetch (si quieres, pon un loader)
   if (isLoading && !data) return null;
+  const Header = ({ subtitleText }) => (
+    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">{t("navbar.myHealthState")}</h1>
+        <p className="text-sm text-gray-600">{subtitleText}</p>
+      </div>
+
+      <Link
+        to="/docrecords/myhealthinfo"
+        className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+      >
+        {t("navbar.myHealthInfo")}
+      </Link>
+    </div>
+  );
+
 
   // Sin diagnósticos y sin filtros
   if (!isLoading && !hasAnyFilter && items.length === 0) {
     return (
       <main className="mx-auto max-w-6xl p-4">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-gray-900">{t("navbar.myHealthState")}</h1>
-          <p className="text-sm text-gray-600">{t("diagnoses.empty.title")}</p>
-        </div>
+        <Header subtitleText={t("diagnoses.empty.title")} />
         <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-600">
           <EmptyHealthStateCard />
         </div>
@@ -212,20 +225,8 @@ export default function MyHealthState() {
   return (
     <main className="mx-auto max-w-6xl p-4">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{t("navbar.myHealthState")}</h1>
-          <p className="text-sm text-gray-600">{subtitle}</p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            to="/docrecords/myhealthinfo"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            {t("navbar.myHealthInfo")}
-          </Link>
-        </div>
-      </div>
+      <Header subtitleText={subtitle} />
+      
 
       {/* Filters (mismo layout que DiagnosesByPatient) */}
       <section className="mb-6">
