@@ -1,0 +1,612 @@
+{
+  "home": {
+    "title": "DR VIPS — Medical Records, Simplified",
+    "tagline": "Everyone is a VIP",
+    "description": {
+      "general": "A secure and modern workspace for health information management. Doctors optimize their practice while patients take control of their history.",
+      "patient": "View your diagnoses from all your doctors in one secure place. Simple filters and clear history.",
+      "doctor": "Manage patients and diagnoses in a clean, secure dashboard. Fast search, quick edits, clear history."
+    },
+    "cta": {
+      "checking": "Checking session...",
+      "patient": "Go to My Health State",
+      "doctor": "Go to Patients",
+      "signIn": "Sign in to continue"
+    },
+    "noAccount": "Don't have an account?",
+    "createAccount": "Create one",
+    "workspace": {
+      "title": "Your medical workspace",
+      "subtitle": "Patients • Diagnoses • History"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "emailLabel": "Email",
+      "emailPlaceholder": "youremail@example.com",
+      "passwordLabel": "Password",
+      "forgotLink": "Forgot password?",
+      "button": "Login",
+      "divider": "or",
+      "google": "Login with Google",
+      "noAccount": "Don’t have an account?",
+      "registerLink": "Register",
+      "errors": {
+        "captcha": "Please complete the reCAPTCHA."
+      }
+    },
+    "signup": {
+      "title": "Create account",
+      "usernameLabel": "Username",
+      "usernamePlaceholder": "yourname",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Password",
+      "passwordHint": "Minimum 6 characters.",
+      "roleQuestion": "I am a:",
+      "roleDoctor": "Doctor / Staff",
+      "rolePatient": "Patient",
+      "button": "Register",
+      "divider": "or",
+      "google": "Sign up with Google",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Log in",
+      "errors": {
+        "weakPassword": "Password must meet all requirements.",
+        "captcha": "Please complete the reCAPTCHA."
+      }
+    },
+    "forgot": {
+      "title": "Forgot password",
+      "intro": "Enter your email address and we'll send you a reset link.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "button": "Send reset link",
+      "remember": "Remembered it?",
+      "backToLogin": "Back to login",
+      "sentTitle1": "If an account exists for ",
+      "resendPrompt": "Didn’t get it?",
+      "resendLink": "Resend email",
+      "codeIntro": "Enter the 6-digit code we sent to your email.",
+      "verifyBtn": "Continue",
+      "sentTitle2": "you will receive a code to reset your password shortly."
+    },
+    "reset": {
+      "title": "Reset password",
+      "newPasswordLabel": "New password",
+      "confirmPasswordLabel": "Confirm new password",
+      "button": "Set new password",
+      "errors": {
+        "weakPassword": "Password must meet all requirements.",
+        "mismatch": "Passwords do not match"
+      }
+    },
+    "verify": {
+      "title": "Verify your email",
+      "intro": "Enter the 6-digit code we sent to your email.",
+      "button": "Verify Email",
+      "resend": "Resend"
+    },
+    "eligibility": {
+      "title": "Access restricted to healthcare domains",
+      "p1": "To use this system, sign up or sign in with your work email from an allowed healthcare domain, or with an approved email address.",
+      "p2": "If your organization should be allowed, please contact support to add your domain."
+    },
+    "chooseRole": {
+      "title": "Choose your role",
+      "newAccount": "New Google account",
+      "continuePatient": "Continue as Patient",
+      "continueDoctor": "Continue as Doctor",
+      "doctorNotAllowed": "Your email/domain is not authorized for Doctor accounts.",
+      "genericError": "Failed"
+    },
+    "profile": {
+      "title": "Profile",
+      "emailLabel": "Email (read-only)",
+      "nameLabel": "Name",
+      "photoLabel": "Profile photo",
+      "changePhoto": "Change photo",
+      "useLink": "Use link",
+      "useFile": "Use file",
+      "remove": "Remove",
+      "avatarUrlLabel": "Avatar URL",
+      "saveButton": "Save",
+      "dangerTitle": "Danger zone",
+      "dangerPatient": "Deleting your account will remove your profile and access to your records in this app. Records created by your doctors are not deleted, but you will no longer be able to view them here.",
+      "dangerDoctor": "Deleting your account will permanently remove your profile and all records you created (patients and diagnoses).",
+      "confirmPlaceholder": "Type \"DELETE\" to confirm",
+      "deleteButton": "Delete my account",
+      "deleteConfirmValue": "DELETE",
+      "errors": {
+        "confirmDelete": "Type \"DELETE\" to confirm",
+        "maxSize": "Max 2MB"
+      }
+    },
+    "toasts": {
+      "loginSuccess": "Welcome back",
+      "loginFailed": "Login failed",
+      "signupSuccess": "Account created. Check your email",
+      "signupFailed": "Signup failed",
+      "accessRestricted": "Access restricted to healthcare domains/emails.",
+      "userExists": "User already exists",
+      "logout": "Logged out",
+      "emailVerified": "Email verified",
+      "verificationFailed": "Verification failed",
+      "codeResent": "Verification code resent",
+      "codeResendFailed": "Could not resend code",
+      "forgotSent": "If the email exists, we sent a reset link",
+      "forgotFailed": "Error sending email",
+      "passwordUpdated": "Password updated",
+      "resetFailed": "Reset failed",
+      "profileUpdated": "Profile updated",
+      "updateFailed": "Update failed",
+      "accountDeleted": "Account deleted",
+      "deleteFailed": "Delete failed",
+      "photoUpdated": "Photo updated",
+      "uploadFailed": "Upload failed",
+      "importFailed": "Import failed",
+      "googleFailed": "Google login failed",
+      "rateLimitedShort": "Too many requests. Try again later.",
+      "rateLimitedWithTime": "Too many requests. Try again in", 
+      "useGoogle": "This account uses Google. Sign in with Google.",
+      "usePassword": "This account was created with a password. Sign in with email and password.",
+      "googleMismatch": "This email is linked to a different Google account. Use the original method."
+    
+
+
+    }
+  },
+  "navbar": {
+  "whoCanAccess": "Who can access?",
+  "login": "Login",
+  "register": "Register",
+  "myHealthInfo": "My health info",
+  "hi": "Hi,",
+  "verifyEmail": "Verify email",
+  "myHealthState": "My health state",
+  "profile": "Profile",
+  "patients": "Patients",
+  "logout": "Logout"
+},
+
+"password": {
+  "strengthLabel": "Password strength",
+  "levels": {
+    "veryWeak": "Very weak",
+    "weak": "Weak",
+    "fair": "Fair",
+    "good": "Good",
+    "strong": "Strong"
+  },
+  "rules": {
+    "minLen": "At least 6 characters",
+    "hasCase": "Uppercase & lowercase",
+    "hasNumber": "At least one number",
+    "hasSpecial": "Special character"
+  }
+},
+"patients": {
+  "title": "Patients",
+
+  "empty": {
+    "title": "No patients yet",
+    "description": "Start by creating your first patient to manage records and diagnoses.",
+    "cta": "Add patient"
+  },
+
+  "list": {
+    "searchPlaceholder": "Search by name, email or phone...",
+    "subtitleDefault": "Showing {{count}} patients · Page {{page}} of {{pages}}",
+    "subtitleFilters": "{{summary}} — {{count}} found · Page {{page}} of {{pages}}",
+
+    "filters": {
+      "more": "More filters",
+      "clear": "Clear",
+      "ageCategory": "Age category",
+      "status": "Status",
+      "bloodType": "Blood type",
+      "country": "Country",
+      "weight": "Weight",
+      "gender": "Gender",
+      "organDonor": "Organ donor",
+      "bloodDonor": "Blood donor",
+      "diseases": "Diseases",
+      "allergies": "Allergies",
+      "medications": "Medications",
+
+      "options": {
+        "all": "All",
+        "yes": "Yes",
+        "no": "No",
+        "alive": "Alive",
+        "deceased": "Deceased",
+        "underweight": "Underweight",
+        "healthy": "Healthy",
+        "overweight": "Overweight",
+        "male": "Male",
+        "female": "Female"
+      }
+    },
+
+    "noMatch": {
+      "title": "No matching patients",
+      "description": "Try adjusting your search, age category, blood type, gender or donor filters.",
+      "clear": "Clear filters"
+    },
+
+    "pagination": {
+      "prev": "Prev",
+      "next": "Next",
+      "label": "Page {{page}} of {{pages}}"
+    },
+
+    "ageCategories": {
+      "child": "Child",
+      "teenager": "Teenager",
+      "adult": "Adult",
+      "senior": "Senior"
+    }
+  },
+
+  "card": {
+    "age": "Age",
+    "country": "Country",
+    "blood": "Blood",
+    "email": "Email",
+    "phone": "Phone",
+    "gender": "Gender",
+    "genderMale": "Male",
+    "genderFemale": "Female",
+    "status": "Status",
+    "statusDeceased": "Deceased",
+    "causeOfDeath": "Cause of death",
+    "viewDiagnoses": "View diagnoses",
+    "edit": "Edit patient",
+    "delete": "Delete patient",
+    "confirmDelete": "Delete this patient? This cannot be undone."
+  },
+
+  "create": {
+    "title": "Create Patient",
+    "back": "Back to Patients",
+    "fullname": "Fullname",
+    "email": "Email",
+    "phone": "Phone",
+    "age": "Age",
+    "bloodType": "Blood type",
+    "country": "Country",
+    "state": "State/Province",
+    "city": "City",
+    "hasDiseases": "Has diseases?",
+    "diseasesPlaceholder": "Hypertension, Diabetes",
+    "hasAllergies": "Has allergies?",
+    "allergiesPlaceholder": "Peanuts, Penicillin",
+    "hasMedications": "Takes medications?",
+    "medicationsPlaceholder": "Metformin, Atorvastatin",
+    "gender": "Gender",
+    "organDonor": "Organ donor",
+    "bloodDonor": "Blood donor",
+    "measurementSystem": "Measurement system",
+    "systemMetric": "International (m/kg)",
+    "systemImperial": "English (ft/lb)",
+    "heightLabel": "Height",
+    "weightLabel": "Weight",
+    "requiredMark": "*",
+    "yes": "Yes",
+    "no": "No",
+    "invalidEmail": "Invalid email format.",
+    "ageOutOfRange": "Age must be between {{min}} and {{max}}.",
+    "heightWeightTooHigh": "Please keep height ≤ {{maxH}} {{hUnit}} and weight ≤ {{maxW}} {{wUnit}}.",
+    "phoneInvalidAdult": "Phone must have exactly 10 digits (area + number), excluding country code.",
+    "phoneInvalidMinor": "Phone must be 10 digits or empty for minors.",
+    "diseasesRequired": "Please enter at least one disease or select 'No'.",
+    "allergiesRequired": "Please enter at least one allergy or select 'No'.",
+    "medicationsRequired": "Please enter at least one medication or select 'No'.",
+    "countryRequired": "Country is required.",
+    "stateRequired": "State/Province is required.",
+    "cityRequired": "City is required.",
+    "submit": "Create",
+    "submitting": "Creating...",
+    "phoneAreaDigitsPlaceholder": "Area + number (digits only)",
+    "selectCountryFirst": "Select country first",
+    "phoneDigitsCounter": "Digits (area + number)",
+    "selectCountryOption": "Select a country…",
+    "selectStateOption": "Select a state…",
+    "selectCityOption": "Select a city…",
+    "fullnamePlaceholder": "John Doe",
+    "emailExample": "subject@domain.com"
+  },
+
+  "edit": {
+    "title": "Edit Patient",
+    "back": "Back",
+    "backToPatients": "Back to patients",
+    "cancel": "Cancel",
+    "save": "Save changes",
+    "saving": "Saving...",
+    "notFoundTitle": "Patient not found",
+    "notFoundText": "It may have been deleted or you don’t have access.",
+    "status": "Status",
+    "alive": "Alive",
+    "deceased": "Deceased",
+    "causeOfDeath": "Cause of death",
+    "invalidEmail": "Invalid email format.",
+    "ageOutOfRange": "Age must be between {{min}} and {{max}}.",
+    "heightWeightPositive": "Height and weight must be greater than 0.",
+    "heightWeightTooHigh": "Please keep height ≤ {{maxH}} {{hUnit}} and weight ≤ {{maxW}} {{wUnit}}.",
+    "causeRequired": "Please enter a cause of death.",
+    "countryRequired": "Please select a country.",
+    "emailImmutable": "The email cannot be modified once registered."
+  },
+
+  "detail": {
+    "back": "Back to Patients",
+    "loading": "Loading patient…",
+    "notFoundTitle": "Patient not found",
+    "notFoundText": "It may have been deleted or you don’t have access.",
+    "category": "Category",
+    "email": "Email",
+    "phone": "Phone",
+    "height": "Height",
+    "weight": "Weight",
+    "bmi": "BMI",
+      "bmiCategories": {
+        "underweight": "Underweight",
+        "normal": "Healthy",
+        "overweight": "Overweight"
+       },
+    "bmiCategoryParen": "({{category}})",
+    "causeOfDeath": "Cause of death",
+    "diseases": "Diseases",
+    "allergies": "Allergies",
+    "medications": "Medications",
+    "created": "Created",
+    "updated": "Updated",
+    "edit": "Edit",
+    "viewDiagnoses": "View diagnoses",
+    "backButton": "Back",
+    "delete": "Delete"
+  },
+
+  "toasts": {
+    "loadFailed": "Failed to load patients",
+    "loadOneFailed": "Failed to load patient",
+    "createSuccess": "Patient created",
+    "createFailed": "Failed to create patient",
+    "updateSuccess": "Patient updated",
+    "updateFailed": "Failed to update patient",
+    "deleteSuccess": "Patient deleted",
+    "deleteFailed": "Failed to delete patient",
+    "approveHealthInfoSuccess": "Your information was applied to all your doctors.",
+    "approveHealthInfoFailed": "We couldn't approve your information.",
+    "conflictPendingPortal": "This patient has a pending profile in the portal. Please resolve it first.",
+    "rejectHealthInfoSuccess": "We kept your previous information.",
+    "rejectHealthInfoFailed": "We couldn't reject this information."
+  }
+},
+"diagnoses": {
+  "list": {
+    "title": "Diagnoses",
+    "searchPlaceholder": "Search by diagnosis name...",
+    "subtitleDefault": "Showing {{count}} diagnoses · Page {{page}} of {{pages}}",
+    "subtitleFilters": "{{summary}} — {{count}} found · Page {{page}} of {{pages}}",
+    "filters": {
+      "more": "More filters",
+      "clear": "Clear",
+      "date": "On date",
+      "medicines": "Medicines",
+      "treatments": "Treatments",
+      "operations": "Operations",
+      "today": "Today",
+      "backToPatient": "Back to patient",
+      "options": {
+        "all": "All",
+        "yes": "Yes",
+        "no": "No"
+      }
+    },
+    "noMatch": {
+      "title": "No matching diagnoses",
+      "description": "Try adjusting your search or date and treatment filters.",
+      "clear": "Clear filters"
+    },
+    "pagination": {
+      "prev": "Prev",
+      "next": "Next",
+      "label": "Page {{page}} of {{pages}}"
+    }
+  },
+  "empty": {
+    "title": "No diagnoses yet",
+    "description": "Create the first diagnosis for this patient to start their history."
+  },
+  "card": {
+    "newOptimistic": "New diagnosis (pending sync)",
+    "updated": "Updated",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete this diagnosis? This cannot be undone."
+  },
+  "detail": {
+    "notFoundTitle": "Diagnosis not found",
+    "backToList": "Back to diagnoses",
+    "description": "Description",
+    "medicines": "Medicines",
+    "treatments": "Treatments",
+    "operations": "Operations",
+    "created": "Created",
+    "updated": "Updated",
+    "edit": "Edit",
+    "back": "Back",
+    "delete": "Delete",
+    "untitled": "Untitled"
+  },
+  "form": {
+    "titleLabel": "Title",
+    "titlePlaceholder": "e.g., Hypertension",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Notes…",
+    "requiresMeds": "Requires medicine?",
+    "requiresTx": "Requires treatment?",
+    "requiresOps": "Requires operation?",
+    "medsLabel": "Medications (comma-separated)",
+    "txLabel": "Treatments (comma-separated)",
+    "opsLabel": "Operations (comma-separated)",
+    "medsPlaceholder": "Metformin, Atorvastatin",
+    "txPlaceholder": "Physiotherapy, Diet plan",
+    "opsPlaceholder": "Appendectomy, Cataract surgery",
+    "yes": "Yes",
+    "no": "No",
+    "errors": {
+      "titleRequired": "Diagnosis title is required",
+      "descriptionRequired": "Description is required",
+      "medsRequired": "Please enter at least one medicine or select 'No'.",
+      "txRequired": "Please enter at least one treatment or select 'No'.",
+      "opsRequired": "Please enter at least one operation or select 'No'."
+    }
+  },
+  "create": {
+    "title": "Create Diagnosis",
+    "back": "Back to diagnoses",
+    "submit": "Create",
+    "creating": "Creating...",
+    "cta": "Create diagnosis"
+  },
+  "edit": {
+    "title": "Edit Diagnosis",
+    "back": "Back",
+    "cancel": "Cancel",
+    "save": "Save changes",
+    "saving": "Saving..."
+  },
+  
+  "toasts": {
+  "loadFailed": "Failed to load diagnoses",
+  "loadOneFailed": "Failed to load diagnosis",
+  "createSuccess": "Diagnosis created",
+  "createFailed": "Failed to create diagnosis",
+  "updateSuccess": "Diagnosis updated",
+  "updateFailed": "Failed to update diagnosis",
+  "deleteSuccess": "Diagnosis deleted",
+  "deleteFailed": "Failed to delete diagnosis",
+  "loadMineFailed": "Failed to load your diagnoses"
+  }
+},
+"myHealthState": {
+  "list": {
+    "searchPlaceholder": "Search by diagnosis name, doctor name or email...",
+    "empty": {
+      "title": "No health records yet",
+      "description": "When your doctors register diagnoses, they will appear here."
+    }
+  },
+  "detail": {
+    "backToState": "Back to My Health State",
+    "createdBy": "Created by",
+    "unknownDoctor": "Unknown doctor"
+  }
+},
+
+"myHealthInfo": {
+  "loading": "Loading your health information...",
+   "changes": {
+      "previouslyApproved": "Previously approved",
+      "removedComparedToApproved": "Removed compared to approved version"
+    },
+  "error": {
+    "title": "We couldn't load your data.",
+    "description": "Please try again in a moment. If the problem continues, contact your doctor.",
+    "back": "Back"
+  },
+  "empty": {
+    "description": "None of your doctors have registered a personal profile for you yet. Once a doctor creates or updates your information, you'll be able to review and approve it here.",
+    "backToState": "Back to my diagnoses"
+  },
+  "header": {
+    "description": "This is how your doctors have registered your personal information.",
+    "allUpToDate": "All your information is up to date. There is nothing pending to approve.",
+    "lastUpdate": "Last update request:",
+    "backToState": "Back to my diagnoses",
+    "updatedBy": "Performed by:",
+    "doctor": "Doctor",
+    "email": "Email"
+  },
+  "multiDoctor": {
+    "title": "You've visited more than one doctor.",
+    "body": "If different doctors recorded different details (age, phone, countries, allergies, etc.), we show a combined view here. When you approve, the selected version will be applied to all your doctors. If something looks wrong, reject this version and we will keep your previous information."
+  },
+  "sections": {
+    "basic": {
+      "title": "Basic information",
+      "description": "Name, age, contact details and donation preferences.",
+      "fullname": "Full name",
+      "age": "Age",
+      "ageWithYears": "{{age}} years",
+      "gender": "Gender",
+      "bloodType": "Blood type",
+      "location": "Country / State / City",
+      "phone": "Phone",
+      "organDonor": "Organ donor",
+      "bloodDonor": "Blood donor",
+      "status": "Status",
+      "causeOfDeath": "Cause of death"
+    },
+    "anthropometrics": {
+      "title": "Height, weight & BMI",
+      "description": "Only the most recent values are shown. Approving will apply these values to all your doctors.",
+      "height": "Height",
+      "weight": "Weight",
+      "bmi": "BMI"
+    },
+    "conditions": {
+      "title": "Conditions & allergies",
+      "description": "We show your most recent doctor's version. If there are differences between doctors, we also show what they agreed on before and any extra items.",
+      "diseases": "Diseases",
+      "allergies": "Allergies"
+    },
+    "medications": {
+      "title": "Medications",
+      "description": "These are the medications that appear in your doctors' records.",
+      "medications": "Medications"
+    }
+  },
+  "common": {
+    "notSpecified": "Not specified",
+    "notCalculated": "Not calculated",
+    "unknownDate": "Unknown date",
+    "noneRecorded": "None recorded.",
+    "previouslyRecorded": "Previously recorded {{label}}:",
+    "previouslyRecordedGeneric": "Previously recorded values:",
+    "previouslyRecordedLocations": "Previously recorded locations:",
+    "alive": "Alive",
+    "deceased": "Deceased",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "conflicts": {
+    "differentField": "Different doctors recorded different {{field}}. This is the version you are about to keep.",
+    "previouslyAllAgreed": "Previously, all doctors agreed on:",
+    "newInLatest": "New in your most recent doctor's version:",
+    "othersStillPresentDiseases": "Other diseases still present in some doctors' records:",
+    "othersStillPresentAllergies": "Other allergies still present in some doctors' records:",
+    "othersStillPresentMedications": "Other medications still present in some doctors' records:",
+    "diseasesWarning": "Different doctors have registered different diseases. If you approve, only the first list will be kept.",
+    "allergiesWarning": "Different doctors have registered different allergies. If you approve, only the first list will be kept.",
+    "medicationsWarning": "Different doctors have registered different medications. If you approve, only the first list will be kept."
+  },
+  "actions": {
+    "approveIntro": "If everything on this page looks correct, approve this version so all your doctors use the same information. If something is wrong, reject it and we will keep your previous data.",
+    "approve": "Approve and share with all doctors",
+    "reject": "Reject this version",
+    "approving": "Approving...",
+    "rejecting": "Rejecting..."
+  }
+}
+
+
+
+
+
+
+}
