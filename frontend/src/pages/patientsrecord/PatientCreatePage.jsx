@@ -518,7 +518,7 @@ const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
             <Input
               label={`${t("patients.create.heightLabel")} (${system === "imperial" ? "ft" : "m"})`}
               type="number"
-              step="any"
+              step="0.1"
               min={0}
               max={system === "imperial" ? MAX.imperial.h : MAX.metric.h}
               required
