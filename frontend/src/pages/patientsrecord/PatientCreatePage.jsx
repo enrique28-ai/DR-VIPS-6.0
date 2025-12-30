@@ -133,6 +133,42 @@ const H = Number(height);
 const W = Number(weight);
 const isHeightInvalidForBtn = !Number.isFinite(H) || H <= 0 || H > lim.h;
 const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
+
+const DEC = {
+  metric:   { h: 2, w: 2 },
+  imperial: { h: 2, w: 2 },
+};
+
+const fmt = (n, d) => {
+  if (!Number.isFinite(n)) return "";
+  return String(Number(n.toFixed(d))); // quita decimales basura
+};
+
+// Cambiar sistema convirtiendo valores actuales del form (igual que Edit)
+const handleSystem = (next) => {
+  if (next === system) return;
+
+  // parseFloat("") => NaN (bien). Number("") => 0 (malo).
+  const curH = parseFloat(height);
+  const curW = parseFloat(weight);
+
+  if (system === "metric" && next === "imperial") {
+    // m -> ft
+    if (Number.isFinite(curH)) setHeight(fmt(curH / 0.3048, DEC.imperial.h));
+    // kg -> lb
+    if (Number.isFinite(curW)) setWeight(fmt(curW * 2.2046226218, DEC.imperial.w));
+  } else if (system === "imperial" && next === "metric") {
+    // ft -> m
+    if (Number.isFinite(curH)) setHeight(fmt(curH * 0.3048, DEC.metric.h));
+    // lb -> kg
+    if (Number.isFinite(curW)) setWeight(fmt(curW * 0.45359237, DEC.metric.w));
+  }
+
+  setSystem(next);
+};
+
+
+
   
   
 
@@ -510,15 +546,28 @@ const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
                {t("patients.create.measurementSystem")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
-              <Button type="button" variant={system === "metric" ? "primary" : "secondary"} onClick={() => setSystem("metric")}>{t("patients.create.systemMetric")}</Button>
-              <Button type="button" variant={system === "imperial" ? "primary" : "secondary"} onClick={() => setSystem("imperial")}>{t("patients.create.systemImperial")}</Button>
+             <Button
+                type="button"
+                variant={system === "metric" ? "primary" : "secondary"}
+                onClick={() => handleSystem("metric")}
+              >
+                  {t("patients.create.systemMetric")}
+              </Button>
+
+            <Button
+              type="button"
+              variant={system === "imperial" ? "primary" : "secondary"}
+              onClick={() => handleSystem("imperial")}
+            >
+              {t("patients.create.systemImperial")}
+            </Button>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label={`${t("patients.create.heightLabel")} (${system === "imperial" ? "ft" : "m"})`}
               type="number"
-              step="0.1"
+              step="any"
               min={0}
               max={system === "imperial" ? MAX.imperial.h : MAX.metric.h}
               required

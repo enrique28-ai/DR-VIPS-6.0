@@ -140,15 +140,28 @@ const W = Number(weight);
 const isHeightInvalidForBtn = !Number.isFinite(H) || H <= 0 || H > lim.h;
 const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
 
+const DEC = {
+  metric:   { h: 2, w: 2 },  // altura 2 decimales, peso 1
+  imperial: { h: 2, w: 2 },
+};
+
+const fmt = (v, decimals) => {
+  if (v === "" || v == null) return "";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "";
+  return String(Number(n.toFixed(decimals))); // quita basura tipo 1.00000000001
+};
+
+
 
 // Cambiar sistema convirtiendo valores actuales del form
-const handleSystem = (next) => {
+/*const handleSystem = (next) => {
   if (next === system) return; // no-op
-  const curH = parseFloat(height);
-  const curW = parseFloat(weight);
+  const curH = Number(height);
+  const curW = Number(weight);
 
   // Si no hay números válidos, solo cambia el sistema y labels
-  if (Number.isNaN(curH) || Number.isNaN(curW)) {
+  if (Number.isFinite(curH) || Number.isFinite(curW)) {
     setSystem(next);
     return;
   }
@@ -156,15 +169,38 @@ const handleSystem = (next) => {
   // Convierte de sistema actual → próximo
   if (system === "metric" && next === "imperial") {
     // m → ft, kg → lb
-    setHeight(String(curH / 0.3048));
-    setWeight(String(curW * 2.2046226218));
+    setHeight(fmt(curH / 0.3048, DEC.imperial.h));
+    setWeight(fmt(curW * 2.2046226218, DEC.imperial.w));
   } else if (system === "imperial" && next === "metric") {
     // ft → m, lb → kg
-    setHeight(String(curH * 0.3048));
-    setWeight(String(curW * 0.45359237));
+    setHeight(fmt(curH * 0.3048, DEC.metric.h));
+    setWeight(fmt(curW * 0.45359237, DEC.metric.w));
   }
   setSystem(next);
+};*/
+
+const handleSystem = (next) => {
+  if (next === system) return;
+
+  // OJO: parseFloat("") => NaN (bien). Number("") => 0 (mal para esto)
+  const curH = parseFloat(height);
+  const curW = parseFloat(weight);
+
+  if (system === "metric" && next === "imperial") {
+    // m -> ft
+    if (Number.isFinite(curH)) setHeight(fmt(curH / 0.3048, DEC.imperial.h));
+    // kg -> lb
+    if (Number.isFinite(curW)) setWeight(fmt(curW * 2.2046226218, DEC.imperial.w));
+  } else if (system === "imperial" && next === "metric") {
+    // ft -> m
+    if (Number.isFinite(curH)) setHeight(fmt(curH * 0.3048, DEC.metric.h));
+    // lb -> kg
+    if (Number.isFinite(curW)) setWeight(fmt(curW * 0.45359237, DEC.metric.w));
+  }
+
+  setSystem(next);
 };
+
 
 
 
@@ -197,7 +233,7 @@ const handleSystem = (next) => {
   } else if (patient?.heightM != null) {
     hInit = isImp ? (patient.heightM / 0.3048) : patient.heightM; // m→ft si imperial
   }
-  setHeight(hInit !== "" ? String(hInit) : "");
+  setHeight(fmt(hInit, DEC[sys].h));
 
   // peso
   let wInit = "";
@@ -206,7 +242,7 @@ const handleSystem = (next) => {
   } else if (patient?.weightKg != null) {
     wInit = isImp ? (patient.weightKg * 2.2046226218) : patient.weightKg; // kg→lb si imperial
   }
-  setWeight(wInit !== "" ? String(wInit) : "");
+  setWeight(fmt(wInit, DEC[sys].w));
   // Life status
   setLife(patient?.isDeceased ? "deceased" : "alive");
   setCause(patient?.causeOfDeath || "");
@@ -736,6 +772,7 @@ setForm((f) => ({ ...f, phone: restPhone }));
               required
               value={height}
               onChange={(e) => setHeight(e.target.value)}
+              placeholder={system === "imperial" ? "e.g. 5.8" : "e.g. 1.73"}
             />
             <Input
               label={`${t("patients.create.weightLabel")} (${system === "imperial" ? "lb" : "kg"})`}
@@ -746,6 +783,7 @@ setForm((f) => ({ ...f, phone: restPhone }));
               required
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
+              placeholder={system === "imperial" ? "e.g. 150" : "e.g. 68"}
             />
           </div>
 

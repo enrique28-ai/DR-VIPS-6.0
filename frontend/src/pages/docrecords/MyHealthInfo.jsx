@@ -349,13 +349,13 @@ const prevLocations =
   const weightDisplay =
     typeof snapshot.weightKg === "number"
       ? useMetric
-        ? `${snapshot.weightKg.toFixed(1)} kg`
-        : `${(snapshot.weightKg / 0.45359237).toFixed(1)} lb`
+        ? `${snapshot.weightKg.toFixed(2)} kg`
+        : `${(snapshot.weightKg / 0.45359237).toFixed(2)} lb`
       : t("myHealthInfo.common.notSpecified");
 
   const bmiDisplay =
     typeof snapshot.bmi === "number"
-      ? `${snapshot.bmi.toFixed(1)}${
+      ? `${snapshot.bmi.toFixed(2)}${
           snapshot.bmiCategory ? ` (${bmiCategoryLabel()})` : ""
         }`
       : t("myHealthInfo.common.notCalculated");
@@ -757,8 +757,8 @@ const prevLocations =
                   formatter={(v) => {
                   if (typeof v !== "number") return t("myHealthInfo.common.notSpecified");
                 return useMetric
-                ? `${v.toFixed(1)} kg`
-                : `${(v / 0.45359237).toFixed(1)} lb`;
+                ? `${v.toFixed(2)} kg`
+                : `${(v / 0.45359237).toFixed(2)} lb`;
               }}
           />
                 <ConflictNote
@@ -781,7 +781,7 @@ const prevLocations =
                   formatter={(v) => {
                     if (typeof v !== "number")
                       return t("myHealthInfo.common.notCalculated");
-                    return v.toFixed(1);
+                    return v.toFixed(2);
                   }}
                 />
               </div>

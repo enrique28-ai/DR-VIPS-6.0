@@ -192,14 +192,14 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
           {weightDisplayUI != null && (
             <>
               <dt className="font-medium">{t("patients.detail.weight")}</dt>
-              <dd>{Number(weightDisplayUI).toFixed(1)} {weightUnitUI}</dd>
+              <dd>{Number(weightDisplayUI).toFixed(2)} {weightUnitUI}</dd>
             </>
           )}
           {patient?.bmi != null && (
             <>
               <dt className="font-medium">{t("patients.detail.bmi")}</dt>
               <dd>
-                {Number(patient.bmi).toFixed(1)}{" "}
+                {Number(patient.bmi).toFixed(2)}{" "}
                 {bmiLabel && <span className="text-gray-600">{t("patients.detail.bmiCategoryParen", {
                       category: bmiLabel,
                     })}</span>}
