@@ -512,7 +512,8 @@
   "loading": "Loading your health information...",
    "changes": {
       "previouslyApproved": "Previously approved",
-      "removedComparedToApproved": "Removed compared to approved version"
+      "removedComparedToApproved": "Removed compared to approved version",
+      "unitsChanged": "Units changed: {{from}} → {{to}}"
     },
   "error": {
     "title": "We couldn't load your data.",
@@ -574,6 +575,8 @@
   "common": {
     "notSpecified": "Not specified",
     "notCalculated": "Not calculated",
+    "metric": "Metric (m, kg)",
+    "imperial": "Imperial (ft, lb)",
     "unknownDate": "Unknown date",
     "noneRecorded": "None recorded.",
     "previouslyRecorded": "Previously recorded {{label}}:",

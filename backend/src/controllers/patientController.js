@@ -613,6 +613,15 @@ setArrayBaseline("medications", "medicationsCombined", "commonMedications", "med
     // status wrapper en tu UI representa “deceased/alive”
     attachPrev(snapshot.status, prev.isDeceased);
 
+    if (!snapshot.measurementSystemWrapper || typeof snapshot.measurementSystemWrapper !== "object") {
+  snapshot.measurementSystemWrapper = {
+    value: snapshot.measurementSystem ?? null,
+    conflict: false,
+    alternatives: [snapshot.measurementSystem ?? null],
+  };
+}
+attachPrev(snapshot.measurementSystemWrapper, prev.measurementSystem);
+
     // antropometría (wrappers separados)
     attachPrev(snapshot.heightWrapper, prev.heightM);
     attachPrev(snapshot.weightWrapper, prev.weightKg);

@@ -279,6 +279,7 @@ const hasNumericConflict = (field) => {
     heightWrapper: pickScalar("heightM"),
     weightWrapper: pickScalar("weightKg"),
     bmiWrapper: pickScalar("bmi"),
+    measurementSystemWrapper: pickScalar("measurementSystem"),
     
 
     // Antropometría (tomada del registro más reciente)

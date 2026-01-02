@@ -58,7 +58,7 @@ function ConflictNote({ fieldLabel, wrapper, t }) {
   );
 }
 
-function ScalarHistory({ label, wrapper, formatter, t, useMetric, isHeight, isWeight }) {
+/*function ScalarHistory({ label, wrapper, formatter, t, useMetric, isHeight, isWeight,  decimals = 2 }) {
   if (!wrapper || !Array.isArray(wrapper.alternatives) || wrapper.alternatives.length < 2) {
     return null;
   }
@@ -79,6 +79,63 @@ function ScalarHistory({ label, wrapper, formatter, t, useMetric, isHeight, isWe
     
     return v !== cur;
   });
+
+  if (prevList.length === 0) return null;*/
+
+  function ScalarHistory({
+  label,
+  wrapper,
+  formatter,
+  t,
+  useMetric,
+  isHeight,
+  isWeight,
+  decimals = 2, // <-- usamos 2 para height/weight
+}) {
+  if (!wrapper || !Array.isArray(wrapper.alternatives) || wrapper.alternatives.length < 2) {
+    return null;
+  }
+
+  const curRaw = wrapper.value ?? null;
+
+  const toNum = (x) => {
+    const n = typeof x === "number" ? x : Number(x);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // Convierte a lo que se muestra (m->ft o kg->lb si useMetric=false)
+  const toDisplay = (n) => {
+    if (isHeight) return useMetric ? n : n / 0.3048;
+    if (isWeight) return useMetric ? n : n / 0.45359237;
+    return n;
+  };
+
+  // Key para comparar “igualdad visual” (lo que el usuario ve)
+  const displayKey = (x) => {
+    const n = toNum(x);
+    if (n == null) return null;
+    if (isHeight || isWeight) return toDisplay(n).toFixed(decimals);
+    return String(n);
+  };
+
+  const curKey = displayKey(curRaw);
+
+  // Dedupe por “key visual” y excluye el valor actual “visual”
+  const seen = new Set();
+  const prevList = [];
+
+  for (const v of wrapper.alternatives.slice(1)) {
+    if (v === null || v === undefined || v === "") continue;
+
+    const k = displayKey(v);
+    if (k == null) continue;
+
+    if (curKey != null && k === curKey) continue; // si se ve igual, no lo muestres
+    if (seen.has(k)) continue;
+
+    seen.add(k);
+    prevList.push(v);
+  }
 
   if (prevList.length === 0) return null;
 
@@ -322,6 +379,54 @@ const prevLocations =
   const causeOfDeath = snapshot.causeOfDeath?.trim?.() || null;
 
   const useMetric = snapshot.measurementSystem === "metric";
+
+  //
+// ... después de const useMetric = ...
+
+  // --- Lógica para detectar cambio de unidades ---
+  const measurementSystemWrapper = snapshot.measurementSystemWrapper;
+  // Reutilizamos tu función getAlts existente
+  const msAlts = getAlts(measurementSystemWrapper); 
+
+  const curSystem = scalarValue(measurementSystemWrapper) ?? snapshot.measurementSystem ?? null;
+  // Si hay más de 1 alternativa, la segunda (índice 1) es la anterior
+  const prevSystem = msAlts.length > 1 ? msAlts[1] : null;
+
+  const systemLabel = (sys) => {
+    const k = String(sys || "").toLowerCase();
+    // Puedes ajustar estos textos o usar t("key") si las agregas a tu JSON
+    if (k === "metric") return t("myHealthInfo.common.metric") || "Métrico (m, kg)";
+    if (k === "imperial") return t("myHealthInfo.common.imperial") || "Imperial (ft, lb)";
+    return sys ? String(sys) : t("myHealthInfo.common.notSpecified");
+  };
+
+  const unitsChanged =
+    prevSystem != null &&
+    curSystem != null &&
+    String(prevSystem) !== String(curSystem);
+
+  const unitsChangeText = (() => {
+  if (!unitsChanged) return null;
+
+  const from = systemLabel(prevSystem);
+  const to = systemLabel(curSystem);
+
+  const translated = t("myHealthInfo.changes.unitsChanged", { from, to });
+  return translated !== "myHealthInfo.changes.unitsChanged"
+    ? translated
+    : `Units Changed: ${from} → ${to}`;
+})();
+
+
+  const UnitChangeMessage = () => {
+  if (!pendingDecision || !unitsChangeText) return null;
+  return (
+    <p className="mt-1 flex items-center gap-1 text-xs text-blue-600">
+      <Info className="h-3 w-3" />
+      {unitsChangeText}
+    </p>
+  );
+};
 
   const bmiCategoryLabel = () => {
     const cat = snapshot.bmiCategory;
@@ -734,7 +839,9 @@ const prevLocations =
               ? `${v.toFixed(2)} m`
               : `${(v / 0.3048).toFixed(2)} ft`;
                }}
-            />
+              />
+
+              <UnitChangeMessage />
                 <ConflictNote
                   fieldLabel={t("myHealthInfo.sections.anthropometrics.height")}
                   wrapper={heightWrapper || heightConflict}
@@ -761,6 +868,7 @@ const prevLocations =
                 : `${(v / 0.45359237).toFixed(2)} lb`;
               }}
           />
+            <UnitChangeMessage />
                 <ConflictNote
                   fieldLabel={t("myHealthInfo.sections.anthropometrics.weight")}
                   wrapper={weightWrapper || weightConflict}

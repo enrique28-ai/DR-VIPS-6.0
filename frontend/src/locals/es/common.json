@@ -502,7 +502,7 @@
   "error": {
     "title": "No pudimos cargar sus datos.",
     "description": "Inténtelo de nuevo en unos momentos. Si el problema continúa, contacte a su médico.",
-    "back": "Volver"
+    "unitsChanged": "Unidades cambiadas: {{from}} → {{to}}"
   },
   "empty": {
     "description": "Ninguno de sus médicos ha registrado todavía un perfil personal para usted. Una vez que un médico cree o actualice su información, podrá revisarla y aprobarla aquí.",
@@ -559,6 +559,8 @@
   "common": {
     "notSpecified": "No especificado",
     "notCalculated": "No calculado",
+    "metric": "Métrico (m, kg)",
+    "imperial": "Imperial (ft, lb)",
     "unknownDate": "Fecha desconocida",
     "noneRecorded": "No hay registros.",
     "previouslyRecorded": "Valores registrados anteriormente para {{label}}:",
