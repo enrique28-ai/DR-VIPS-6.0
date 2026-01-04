@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
-import { useDiagnosis, useDeleteDiagnosis } from "../../features/diagnostics/dhooks.js";
+import { useDiagnosis } from "../../features/diagnostics/dhooks.js";
 import { CalendarClock, Pill, Syringe, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -10,7 +10,7 @@ export default function DiagnosisDetailPage() {
   const navigate = useNavigate();
 
   const { data: diag, isLoading, isError } = useDiagnosis(diagnosisId);
-  const del = useDeleteDiagnosis();
+
 
   // Evita flash en primer fetch
   if (isLoading && !diag) return null;
@@ -34,13 +34,6 @@ export default function DiagnosisDetailPage() {
   const tx   = Array.isArray(diag.treatment) ? diag.treatment : [];
   const ops  = Array.isArray(diag.operation) ? diag.operation : [];
 
-  const handleDelete = () => {
-    if (!window.confirm(t("diagnoses.card.confirmDelete"))) return;
-    del.mutate(
-      { id: diagnosisId, patientId },
-      { onSuccess: () => navigate(`/diagnosis/patient/${patientId}`, { replace: true }) }
-    );
-  };
 
   return (
     <main className="mx-auto max-w-3xl p-4">
@@ -122,16 +115,13 @@ export default function DiagnosisDetailPage() {
 
 
         
-        <div className="mt-6 grid w-full max-w-md grid-cols-3 gap-3">
+        <div className="mt-6 grid w-full max-w-md grid-cols-2 gap-3">
           <Link to={`/diagnosis/patient/${patientId}/${diagnosisId}/edit`}>
             <Button full={false} className="w-full">{t("diagnoses.detail.edit")}</Button>
           </Link>
           <Link to={`/diagnosis/patient/${patientId}`}>
             <Button  full={false} variant="secondary" className="w-full">{t("diagnoses.detail.back")}</Button>
           </Link>
-          <Button full={false} className="w-full" onClick={handleDelete} loading={del.isPending}>
-            {t("diagnoses.detail.delete")}
-          </Button>
         </div>
       </section>
     </main>

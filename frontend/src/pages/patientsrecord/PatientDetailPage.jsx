@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
-import { usePatient, useDeletePatient } from "../../features/patients/phooks.js";
+import { usePatient } from "../../features/patients/phooks.js";
 import { Droplet, Globe, User2, Activity, Heart, Pill, CalendarClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName, localizeStateName, localizeCityName } from "../../utilsfront/geoLabels.js";
@@ -53,7 +53,6 @@ export default function PatientDetailPage() {
   const navigate = useNavigate();
 
   const { data: patient, isLoading, isError } = usePatient(id);
-  const del = useDeletePatient();
 
   const categoryLabel = useMemo(() => {
     if (!patient) return null;
@@ -124,15 +123,6 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
     : patient?.bmiCategory; // fallback: muestra el texto crudo si no se reconoce
 
 
-  const handleDelete = () => {
-   
-      if (!window.confirm(t("patients.card.confirmDelete"))) return;
-  del.mutate(id, {
-    onSuccess: () => {
-      navigate("/patients", { replace: true });
-    },
-  });
-  };
 
   return (
     <main className="mx-auto max-w-3xl p-4">
@@ -262,9 +252,6 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
           </Button>
           <Button full={false} variant="secondary" onClick={() => navigate("/patients")}>
              {t("patients.detail.backButton")}
-          </Button>
-          <Button full={false} onClick={handleDelete} loading={del.isPending}>
-             {t("patients.detail.delete")}
           </Button>
         </div>
       </section>

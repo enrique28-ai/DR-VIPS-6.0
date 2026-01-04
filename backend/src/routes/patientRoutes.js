@@ -7,7 +7,6 @@ import {
   getMyPatients,
   getPatientById,
   updatePatient,
-  deletePatient,
   getMyHealthInfo,
   approvePatientProfile,
  rejectPatientProfile,
@@ -23,6 +22,5 @@ router.post("/me/health-info/approve/:id", protect, requireVerified, requireRole
 router.post("/me/health-info/reject/:id", protect, requireVerified, requireRole("patient"), writeLimiter, rejectPatientProfile);
 router.get("/:id",protect, requireVerified, requireRole("doctor"), readLimiter, getPatientById);
 router.put("/:id",protect, requireVerified, requireRole("doctor"), writeLimiter, updatePatient);
-router.delete("/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, deletePatient);
 
 export default router;

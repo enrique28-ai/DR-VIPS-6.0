@@ -200,6 +200,12 @@ patientSchema.index({ createdBy: 1, bmiCategory: 1 });
 patientSchema.index({ createdBy: 1, organDonor: 1, bloodDonor: 1 });
 patientSchema.index({ createdBy: 1, country: 1 });
 patientSchema.index({ createdBy: 1, phoneDigits: 1 });
+// ✅ ÚNICO GLOBAL por email (cuando exista)
+patientSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: "string", $ne: "" } } }
+);
+
 
 
 const Patient = mongoose.model("Patient", patientSchema);

@@ -636,14 +636,7 @@ export const deleteMe = async (req, res) => {
     // limpia el avatar si era local (antes de borrar al usuario)
     if (u) removeLocalAvatarIfAny(u.avatar);
 
-    // 1) Borra todos los diagnósticos creados por el usuario
-    await Diagnosis.deleteMany({ createdBy: uid });
-
-    // 2) Borra todos los pacientes creados por el usuario
-    //    (si tu modelo Diagnosis también referencia patient, con el paso 1 ya limpiaste diagnósticos)
-    await Patient.deleteMany({ createdBy: uid });
-
-    // 3) Borra al usuario
+    // Borra al usuario
     await User.deleteOne({ _id: uid });
 
     // 4) Limpia cookie de sesión

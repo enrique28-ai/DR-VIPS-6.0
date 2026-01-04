@@ -83,8 +83,13 @@ export function useCreatePatient() {
    },
     onError: (e) => {
       const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
 
       if (status === 409) {
+        if (code === "PATIENT_EMAIL_EXISTS") {
+          toast.error(i18n.t("patients.toasts.conflictEmailExists"));
+          return;
+        }
         // Mensaje del backend: paciente tiene versión pendiente en el portal
         toast.error(i18n.t("patients.toasts.conflictPendingPortal"));
         return;
@@ -190,7 +195,7 @@ export function useUpdatePatient(id) {
  }
 
 
-export function useDeletePatient() {
+/*export function useDeletePatient() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.delete(`/patients/${id}`), // 204
@@ -219,7 +224,7 @@ export function useDeletePatient() {
      //setTimeout(() => qc.invalidateQueries({ queryKey: ["patients"] }), 300);
    },
   });
-}
+}*/
 
 // === Patient portal: aggregated health info for the logged-in patient ===
 export function useMyHealthInfo() {

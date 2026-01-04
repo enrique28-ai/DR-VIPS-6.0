@@ -203,7 +203,7 @@ export const updateDiagnosis = async (req, res, next) => {
 };
 
 // DELETE /api/diagnoses/:id
-export const deleteDiagnosis = async (req, res, next) => {
+/*export const deleteDiagnosis = async (req, res, next) => {
   try {
     const d = await Diagnosis.findOne({
       _id: req.params.id,
@@ -220,7 +220,7 @@ export const deleteDiagnosis = async (req, res, next) => {
     console.error("deleteDiagnosis error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
-};
+};*/
 
 // GET /api/diagnoses/mine?q=&date=&hasMedicines=&hasTreatments=&hasOperations=&page=&limit=
 export const getMyDiagnosesPortal = async (req, res) => {

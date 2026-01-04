@@ -78,16 +78,34 @@ export const createPatient = async (req, res) => {
       return res.status(400).json({ error: "Phone is required for adults" });
     }
 
+    if (normalizedEmail) {
+      const existing = await Patient.findOne({ email: normalizedEmail })
+        .select("_id createdBy")
+        .lean();
+
+      if (existing) {
+        return res.status(409).json({
+          errorCode: "PATIENT_EMAIL_EXISTS",
+          error:
+            "A patient with this email already exists. You cannot create a duplicate patient.",
+          // opcional, por si luego quieres navegar al detalle (aunque hoy el createdBy lo bloquearía)
+          patientId: existing._id,
+        });
+      }
+    }
+
         // 🔒 Control: si el paciente ya tiene una versión pendiente en el portal,
     // ningún doctor puede crear otro perfil hasta que el paciente decida.
     if (normalizedEmail) {
       const locked = await hasPendingHealthDecisionForEmail(normalizedEmail);
       if (locked) {
         return res.status(409).json({
-          error:
-            "This patient has a pending profile in the portal. Wait until the patient approves or rejects it before creating a new version.",
-        });
+        errorCode: "PENDING_PORTAL",
+        error:
+        "This patient has a pending profile in the portal. Wait until the patient approves or rejects it before creating a new version.",
+    });
       }
+
     }
 
 
@@ -103,9 +121,16 @@ export const createPatient = async (req, res) => {
     return res.status(201).json(doc);
   } catch (err) {
     // índices únicos compuestos (createdBy+email/phone/fullname) -> E11000
-    if (err?.code === 11000) {
-      return res.status(400).json({ error: "Duplicate key: patient already exists for this user" });
-    }
+   if (err?.code === 11000) {
+  const isEmailDup = !!err?.keyPattern?.email || !!err?.keyValue?.email;
+  return res.status(409).json({
+    errorCode: isEmailDup ? "PATIENT_EMAIL_EXISTS" : "PATIENT_DUPLICATE",
+    error: isEmailDup
+      ? "A patient with this email already exists."
+      : "Duplicate patient data.",
+  });
+}
+
     console.error("createPatient error:", err);
     return res.status(500).json({ error: "Server error" });
   }
@@ -425,7 +450,7 @@ export const updatePatient = async (req, res) => {
   }
 };
 
-export const deletePatient = async (req, res) => {
+/*export const deletePatient = async (req, res) => {
   try {
     // 1) Asegura ownership (solo puedes borrar tus pacientes)
     const patient = await Patient.findOne({
@@ -448,7 +473,7 @@ export const deletePatient = async (req, res) => {
     console.error("deletePatient error:", err);
     return res.status(500).json({ error: "Server error" });
   }
-};
+};*/
 
 
 // === GET /api/patients/me/health-info ===

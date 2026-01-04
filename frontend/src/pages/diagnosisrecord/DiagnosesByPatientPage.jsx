@@ -7,7 +7,6 @@ import EmptyDiagnoses from "../../components/diagnostic/EmptyDiagnoses.jsx";
 import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx";
 import {
   useDiagnosesByPatient,
-  useDeleteDiagnosis,
   buildDiagnosisParams,
 } from "../../features/diagnostics/dhooks.js";
 import { SlidersHorizontal, ChevronDown } from "lucide-react";
@@ -175,9 +174,7 @@ const subtitlePages = pages > 0 ? pages : pagesSnapshot;
     setShowNoMatch(false);
   };
 
-  const del = useDeleteDiagnosis();
-  const handleDelete = (id) => del.mutate({ id, patientId });
-  const deletingId = del.variables?.id;
+ 
 
   // al cambiar texto/fecha → vuelve a page 1
   useEffect(() => setPage(1), [raw, onDate, hasMeds, hasTx, hasOps]);
@@ -418,8 +415,6 @@ const subtitlePages = pages > 0 ? pages : pagesSnapshot;
           key={d._id}
           diagnosis={d}
           patientId={patientId}
-          onDeleted={handleDelete}
-          isDeleting={del.isPending && deletingId === d._id}
         />
       ))}
     </div>

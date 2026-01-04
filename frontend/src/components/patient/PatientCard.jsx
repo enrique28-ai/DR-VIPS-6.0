@@ -1,23 +1,15 @@
 // src/components/patient/PatientCard.jsx
 import { Link } from "react-router-dom";
-import { Pencil, Trash2 } from "lucide-react";
-import React, { useCallback } from "react";
+import { Pencil } from "lucide-react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName } from "../../utilsfront/geoLabels";
 
 
 
-  function PatientCard({ patient, onDeleted, isDeleting }) {
+  function PatientCard({ patient }) {
   const { t, i18n } = useTranslation();
    const countryText = localizeCountryName(patient?.country, i18n.language);
-    const handleDelete = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isDeleting) return;
-    if (!window.confirm(t("patients.card.confirmDelete"))) return;
-    // La mutación (React Query) viene del padre vía onDeleted
-   onDeleted?.(patient._id);
-}, [isDeleting, onDeleted, patient?._id, t]);
 
 
   return (
@@ -63,17 +55,6 @@ import { localizeCountryName } from "../../utilsfront/geoLabels";
             <Pencil className="w-5 h-5" />
             </button>
           </Link>
-
-          <button
-            type="button"
-            onClick={handleDelete}
-            title={t("patients.card.delete")}
-            className="hover:text-red-600 disabled:opacity-50"
-            disabled={isDeleting}
-            aria-label={t("patients.card.delete")}
-          >
-            <Trash2 className="w-5 h-5 pointer-events-none" />
-          </button>
         </div>
       </div>
     </article>

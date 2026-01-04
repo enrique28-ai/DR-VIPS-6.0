@@ -1,10 +1,10 @@
 // src/pages/patientsrecord/PatientsPage.jsx
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Input from "../../components/forms/Input.jsx";
 import PatientCard from "../../components/patient/PatientCard.jsx";
 import EmptyPatients from "../../components/patient/EmptyPatients.jsx";
-import { usePatients, useDeletePatient, buildPatientParams } from "../../features/patients/phooks.js";
+import { usePatients, buildPatientParams } from "../../features/patients/phooks.js";
 import { SlidersHorizontal, ChevronDown } from "lucide-react";
 import { getLocalizedCountries, localizeCountryName } from "../../utilsfront/geoLabels.js";
 import { useTranslation } from "react-i18next";
@@ -102,9 +102,6 @@ const countryLabel = (name) => {
   });
 
   const { data, isFetching, isLoading } = usePatients(params);
-  const del = useDeletePatient();
-  const handleDelete = useCallback((id) => del.mutate(id), [del]);
-  const deletingId = del.variables;
 
   const items = data?.items ?? [];
   const pages = data?.pages ?? 1;
@@ -586,8 +583,6 @@ const countryLabel = (name) => {
         <PatientCard
           key={p._id}
           patient={p}
-          onDeleted={handleDelete}
-          isDeleting={del.isPending && deletingId === p._id}
         />
       ))}
     </div>

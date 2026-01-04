@@ -367,6 +367,7 @@
       "approveHealthInfoSuccess": "Su información se aplicó a todos sus médicos.",
       "approveHealthInfoFailed": "No hemos podido aprobar su información.",
       "conflictPendingPortal": "Este paciente tiene un perfil pendiente en el portal. Resuélvalo primero.",
+      "conflictEmailExists": "Ya existe un paciente con este correo. No puedes crear otro registro con el mismo email.",
       "rejectHealthInfoSuccess": "Conservamos su información anterior.",
       "rejectHealthInfoFailed": "No podíamos rechazar esta información."
     }

@@ -134,7 +134,7 @@ export function useUpdateDiagnosis(diagnosisId, patientId) {
 }
 
 // === DELETE (idéntico al patrón de patients) ===
-export function useDeleteDiagnosis() {
+/*export function useDeleteDiagnosis() {
   const qc = useQueryClient();
 
   return useMutation({
@@ -190,7 +190,7 @@ export function useDeleteDiagnosis() {
       qc.invalidateQueries({ queryKey: ["diagnoses", patientId] });
     },
   });
-}
+}*/
 
 export function useMyDiagnoses(params) {
   return useQuery({

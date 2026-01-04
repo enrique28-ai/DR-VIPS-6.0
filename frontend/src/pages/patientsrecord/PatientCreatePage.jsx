@@ -324,7 +324,7 @@ const handleSystem = (next) => {
           <p className="text-xs mt-1">
              {t("patients.create.phoneDigitsCounter")}: {(form.phone || "").length}/10
           </p>
-            <Input label={t("patients.create.age")}type="number" min={AGE_MIN} max={AGE_MAX} name="age" value={form.age} onChange={onChange} required placeholder="45" />
+            <Input label={t("patients.create.age")} type="number" min={AGE_MIN} max={AGE_MAX} name="age" value={form.age} onChange={onChange} required placeholder="45" />
           </div>
 
           <div>

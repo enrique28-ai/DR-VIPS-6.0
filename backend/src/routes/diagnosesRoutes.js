@@ -9,7 +9,6 @@ import {
   getDiagnosesByPatient,
   getDiagnosisById,
   updateDiagnosis,
-  deleteDiagnosis,
   getMyDiagnosesPortal,
   getMyDiagnosisPortalById
 } from "../controllers/diagnosisController.js";
@@ -26,7 +25,6 @@ router.post("/", protect, requireVerified, requireRole("doctor"), writeLimiter, 
 router.get("/patient/:patientId", protect, requireVerified, requireRole("doctor"), readLimiter, getDiagnosesByPatient); // ?q=&page=&limit=
 router.get("/:id", protect, requireVerified, requireRole("doctor"), readLimiter, getDiagnosisById);
 router.put("/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, updateDiagnosis);
-router.delete("/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, deleteDiagnosis);
 
 
 
