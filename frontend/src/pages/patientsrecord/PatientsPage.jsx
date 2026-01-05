@@ -259,7 +259,7 @@ const countryLabel = (name) => {
           <h1 className="text-2xl font-semibold text-gray-900">{t("patients.title")}</h1>
           <p className="text-sm text-gray-600">{subtitle}</p>
         </div>
-        <Link to="/patients/new" className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+        <Link to="/patients/search" className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
          {t("patients.empty.cta")}
         </Link>
       </div>

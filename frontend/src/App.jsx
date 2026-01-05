@@ -26,6 +26,8 @@ import PatientsPage from "./pages/patientsrecord/PatientsPage.jsx";
 import PatientCreatePage from "./pages/patientsrecord/PatientCreatePage.jsx";
 import PatientDetailPage from "./pages/patientsrecord/PatientDetailPage.jsx";
 import PatientEditPage from "./pages/patientsrecord/PatientEditPage.jsx";
+import SearchGlobalPatient from "./pages/patientsrecord/SearchGlobalPatient.jsx";
+import GlobalPatientDetailPage from "./pages/patientsrecord/GlobalPatientDetailPage.jsx";
 
 // Diagnósticos (privadas)
 import DiagnosesByPatientPage from "./pages/diagnosisrecord/DiagnosesByPatientPage.jsx";
@@ -158,6 +160,8 @@ export default function App() {
           <Route path="/diagnosis/patient/:patientId/new" element={<DiagnosisCreatePage />} />
           <Route path="/diagnosis/patient/:patientId/:diagnosisId" element={<DiagnosisDetailPage />} />
           <Route path="/diagnosis/patient/:patientId/:diagnosisId/edit" element={<DiagnosisEditPage />} />
+          <Route path="/patients/search" element={<SearchGlobalPatient />} />
+          <Route path="/patients/global/:id" element={<GlobalPatientDetailPage />} />
           </Route>
         </Route>
 

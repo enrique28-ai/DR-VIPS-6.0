@@ -298,4 +298,62 @@ export function useRejectPatientProfile() {
   });
 }
 
+// 1) Buscar globalmente
+export function useSearchGlobalPatients(term, options = {}) {
+  const enabled = options.enabled ?? true;
+  const q = (term || "").trim();
+
+  return useQuery({
+    queryKey: ["patients-global-search", q],
+    enabled: enabled && q.length >= 3,
+    queryFn: async () => {
+      const res = await api.get("/patients/global-search", { params: { q } });
+      return res.data;
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+// 2) Preview global (solo lectura)
+export function useGlobalPatient(id, options = {}) {
+  const enabled = options.enabled ?? true;
+
+  return useQuery({
+    queryKey: ["patient-global", id],
+    enabled: enabled && !!id,
+    queryFn: async () => (await api.get(`/patients/global/${id}`)).data,
+    staleTime: 30_000,
+    retry: false,
+    onError: (e) => {
+      if (e?.response?.status !== 404) {
+        toast.error(i18n.t("patients.toasts.loadOneFailed") || "Failed to load patient");
+      }
+    },
+  });
+}
+
+// 3) Importar paciente (me agrega a owners)
+export function useImportPatient() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id) => (await api.post(`/patients/import/${id}`)).data,
+    onSuccess: (data) => {
+      toast.success(i18n.t("patients.toasts.importSuccess") || "Patient imported");
+
+      // refrescar lista de pacientes del doctor
+      qc.invalidateQueries({ queryKey: ["patients"] });
+
+      // opcional: si backend devolvió el paciente actualizado
+      if (data?.patient?._id) {
+        qc.setQueryData(["patient", data.patient._id], data.patient);
+      }
+    },
+    onError: (e) => {
+      toast.error(i18n.t("patients.toasts.importFailed") || "Failed to import patient");
+    },
+  });
+}
+
 

@@ -171,7 +171,7 @@
     "levels": {
       "veryWeak": "Muy débil",
       "weak": "Débil",
-      "fair": "Feria",
+      "fair": "Aceptable",
       "good": "Bien",
       "strong": "Fuerte"
     },
@@ -202,7 +202,7 @@
         "country": "País",
         "weight": "Peso",
         "gender": "Género",
-        "organDonor": "Organ donor",
+        "organDonor": "Donante de órganos",
         "bloodDonor": "Donante de sangre",
         "diseases": "Enfermedades",
         "allergies": "Alergias",
@@ -272,7 +272,7 @@
       "hasMedications": "¿Toma medicamentos?",
       "medicationsPlaceholder": "Metformina, Atorvastatina",
       "gender": "Género",
-      "organDonor": "Organ donor",
+      "organDonor": "Donante de órganos",
       "bloodDonor": "Donante de sangre",
       "measurementSystem": "Sistema de medición",
       "systemMetric": "Internacional (m/kg)",
@@ -312,7 +312,7 @@
       "backToPatients": "Volver a los pacientes",
       "cancel": "Cancelar",
       "save": "Guardar cambios",
-      "saving": "Ahorrar...",
+      "saving": "Guardando...",
       "notFoundTitle": "Paciente no encontrado",
       "notFoundText": "Puede que se haya borrado o que no tengas acceso.",
       "status": "Estado",
@@ -340,7 +340,7 @@
       "bmi": "IMC",
         "bmiCategories": {
             "underweight": "Bajo peso",
-            "normal": "Peso normal",
+            "normal": "Saludable",
             "overweight": "Sobrepeso"
           },
       "bmiCategoryParen": "({{category}})",
@@ -355,6 +355,30 @@
       "backButton": "Volver",
       "delete": "Borrar"
     },
+
+    "searchGlobal": {
+    "title": "Agregar Paciente",
+    "subtitle": "Busca en la base de datos global para importar un paciente existente, o crea uno nuevo.",
+    "placeholder": "Buscar por nombre, correo o teléfono...",
+    "searchBtn": "Buscar Globalmente",
+    "notFound": "¿No lo encuentras?",
+    "createNew": "Crear nuevo paciente",
+    "searching": "Buscando en la base de datos global...",
+    "error": "Error al buscar pacientes.",
+    "resultsTitle": "Resultados de Búsqueda Global",
+    "noResults": "No se encontraron pacientes.",
+    "suggestCreate": "Si el paciente no está en el sistema, por favor crea un registro nuevo.",
+    "minChars": "Escribe al menos 3 caracteres para buscar."
+  },
+  "global": {
+    "viewToImport": "Ver e Importar",
+    "previewMode": "Modo Vista Previa Global",
+    "previewDesc": "Este paciente existe en la base de datos global. Impórtalo a tu lista para ver su historial médico completo y editar detalles.",
+    "importBtn": "Importar a Mi Lista",
+    "importing": "Importando...",
+    "alreadyOwned": "Ya tienes a este paciente en tu lista.",
+    "goToDetail": "Ir al Detalle del Paciente"
+  },
     "toasts": {
       "loadFailed": "Error al cargar pacientes",
       "loadOneFailed": "Error al cargar paciente",
@@ -369,7 +393,9 @@
       "conflictPendingPortal": "Este paciente tiene un perfil pendiente en el portal. Resuélvalo primero.",
       "conflictEmailExists": "Ya existe un paciente con este correo. No puedes crear otro registro con el mismo email.",
       "rejectHealthInfoSuccess": "Conservamos su información anterior.",
-      "rejectHealthInfoFailed": "No podíamos rechazar esta información."
+      "rejectHealthInfoFailed": "No podíamos rechazar esta información.",
+      "importSuccess": "Paciente importado correctamente.",
+      "importFailed": "Error al importar el paciente."
     }
   },
 

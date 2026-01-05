@@ -44,11 +44,16 @@ const patientSchema = new mongoose.Schema({
   medications: { type: [String], default: []},
   email: { type: String, required() { return this.age >= 18; }, lowercase: true, trim: true },
   phone: { type: String, required() { return this.age >= 18; }, trim: true },
-  phoneDigits: { type: String, trim: true, index: true },
+  //phoneDigits: { type: String, trim: true, index: true },
+  phoneDigits: { type: String, trim: true },
   age: { type: Number, required: true, min: 0, max: 120 },
   ageCategory: { type: String, enum: AGE_BANDS.map(b => b.key) },
   bloodtype: { type: String, required: true, enum: BLOOD_TYPES, uppercase: true, trim: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+   // ✅ NUEVO: doctores que “poseen” el paciente (importado o creador)
+    owners: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // ✅ NUEVO: último doctor que editó (para que el portal/pending sepa quién movió)
+    lastEditedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   gender: { type: String, enum: ["male", "female"], required: true},
   organDonor: { type: Boolean, required: true },
   bloodDonor: { type: Boolean, required: true },
@@ -91,6 +96,13 @@ patientSchema.virtual("weightUnit").get(function(){
 patientSchema.pre("save", function(next){
   this.ageCategory = mapAgeToBand(this.age);
 
+  if (this.isNew && this.createdBy) {
+    this.owners ||= [];
+    const has = this.owners.map(String).includes(String(this.createdBy));
+    if (!has) this.owners.push(this.createdBy);
+    if (!this.lastEditedBy) this.lastEditedBy = this.createdBy;
+  }
+
   if (this.heightM > 0 && this.weightKg > 0) {
     const { bmi, bmiCategory } = computeBmi(this.weightKg, this.heightM);
     this.bmi = bmi;
@@ -104,7 +116,7 @@ patientSchema.pre("save", function(next){
 patientSchema.pre("findOneAndUpdate", function (next) {
   const upd = this.getUpdate() || {};
   const $set = upd.$set || {};
-  const $unset = upd.$unset || {};
+  //const $unset = upd.$unset || {};
 
   const has = (k) =>
     Object.prototype.hasOwnProperty.call($set, k) ||
@@ -182,15 +194,15 @@ patientSchema.pre("findOneAndUpdate", function (next) {
 });
 
 // Índices compuestos por usuario
-patientSchema.index(
+/*patientSchema.index(
    { createdBy: 1, email: 1 },
    { unique: true, partialFilterExpression: { email: { $type: "string", $ne: "" } } }
  );
  patientSchema.index(
    { createdBy: 1, phone: 1 },
    { unique: true, partialFilterExpression: { phone: { $type: "string", $ne: "" } } }
- );
-patientSchema.index({ createdBy: 1, fullname: 1 }, { unique: true });
+ );*/
+/*patientSchema.index({ createdBy: 1, fullname: 1 }, { unique: true });
 patientSchema.index({ createdBy: 1, ageCategory: 1 });
 patientSchema.index({ createdBy: 1, gender: 1});
 patientSchema.index({ createdBy: 1,  organDonor: 1});
@@ -199,13 +211,32 @@ patientSchema.index({ createdBy: 1, bloodDonor: 1 });
 patientSchema.index({ createdBy: 1, bmiCategory: 1 });
 patientSchema.index({ createdBy: 1, organDonor: 1, bloodDonor: 1 });
 patientSchema.index({ createdBy: 1, country: 1 });
-patientSchema.index({ createdBy: 1, phoneDigits: 1 });
+patientSchema.index({ createdBy: 1, phoneDigits: 1 });*/
+
+// ✅ índices para “mis pacientes” (owners)
+patientSchema.index({ owners: 1 });
+patientSchema.index({ owners: 1, fullname: 1 });
+patientSchema.index({ owners: 1, ageCategory: 1 });
+patientSchema.index({ owners: 1, gender: 1 });
+patientSchema.index({ owners: 1, organDonor: 1 });
+patientSchema.index({ owners: 1, bloodtype: 1 });
+patientSchema.index({ owners: 1, bloodDonor: 1 });
+patientSchema.index({ owners: 1, bmiCategory: 1 });
+
+patientSchema.index({ createdBy: 1 }); // auditoría
 // ✅ ÚNICO GLOBAL por email (cuando exista)
 patientSchema.index(
   { email: 1 },
   { unique: true, partialFilterExpression: { email: { $type: "string", $ne: "" } } }
 );
+patientSchema.index(
+  { phoneDigits: 1 },
+  { unique: true, partialFilterExpression: { phoneDigits: { $type: "string", $ne: "" } } }
+);
 
+
+patientSchema.index({ country: 1 });
+//patientSchema.index({ phoneDigits: 1 });
 
 
 const Patient = mongoose.model("Patient", patientSchema);

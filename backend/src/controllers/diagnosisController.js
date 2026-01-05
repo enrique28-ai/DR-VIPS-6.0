@@ -4,7 +4,7 @@ import Patient from "../models/Patient.js";
 
 // Helper: confirmar que el paciente pertenece al usuario autenticado
 const ownsPatient = async (patientId, userId) =>
-  !!(await Patient.exists({ _id: patientId, createdBy: userId }));
+  !!(await Patient.exists({ _id: patientId, $or: [{ owners: userId }, { createdBy: userId }] }));
 
 const normalize = (v) => {
   if (Array.isArray(v)) return v.map(s => String(s).trim()).filter(Boolean);

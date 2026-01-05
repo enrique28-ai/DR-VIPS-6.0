@@ -87,7 +87,7 @@ export const createPatient = async (req, res) => {
         return res.status(409).json({
           errorCode: "PATIENT_EMAIL_EXISTS",
           error:
-            "A patient with this email already exists. You cannot create a duplicate patient.",
+            "A patient with this email already exists in the global database. Please use 'Search Global' to import them.",
           // opcional, por si luego quieres navegar al detalle (aunque hoy el createdBy lo bloquearía)
           patientId: existing._id,
         });
@@ -113,7 +113,8 @@ export const createPatient = async (req, res) => {
       fullname, diseases: normalize(diseases), allergies: normalize(allergies), medications: normalize(medications), ...(normalizedEmail ? { email: normalizedEmail } : {}), age, bloodtype,  gender: gRaw, 
       organDonor, bloodDonor, isDeceased: false, ...(ph.phone ? { phone: ph.phone, phoneDigits: ph.digits } : {}), 
       causeOfDeath: undefined, measurementSystem: sys, heightM, weightKg, country: String(country).trim(), state: String(state).trim(), city: String(city).trim(),
-       createdBy: req.user._id,
+       createdBy: req.user._id,owners: [req.user._id],
+      lastEditedBy: req.user._id,
       // NEW: cachea exactamente lo que tecleó el usuario
       originalAnthro: { system: sys, height: H, weight: W },
     });
@@ -163,7 +164,9 @@ export const getMyPatients = async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit ?? "20", 10)));
     const skip = (page - 1) * limit;
 
-    const query = { createdBy: req.user._id };
+    //const query = { createdBy: req.user._id };
+    const query = { $or: [{ owners: req.user._id }, { createdBy: req.user._id }] };
+
 
     // filtro por país (string exacto)
     if (req.query.country) {
@@ -233,7 +236,7 @@ export const getMyPatients = async (req, res) => {
     }
 
     // búsqueda por nombre/email/teléfono
-    const term = q?.trim();
+    /*const term = q?.trim();
     if (term) {
       query.$or = [
         { fullname: { $regex: term, $options: "i" } },
@@ -246,7 +249,23 @@ export const getMyPatients = async (req, res) => {
       query.$or.push({ phoneDigits: new RegExp(qDigits) });
       }
       
+    }*/
+
+      const term = q?.trim();
+      if (term) {
+      const searchOr = [
+        { fullname: { $regex: term, $options: "i" } },
+        { email:    { $regex: term, $options: "i" } },
+        { phone:    { $regex: term, $options: "i" } },
+      ];
+
+     const qDigits = term.replace(/\D/g, "");
+      if (qDigits) searchOr.push({ phoneDigits: new RegExp(qDigits) });
+
+      // ✅ NO sobreescribe query.$or (ownership). Agrega condición adicional.
+      query.$and = [{ $or: searchOr }];
     }
+
 
     const [items, total] = await Promise.all([
       Patient.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean({ virtuals: true }),
@@ -261,13 +280,93 @@ export const getMyPatients = async (req, res) => {
 };
 
 /**
+ * Búsqueda Global de Pacientes (excluye los que ya tienes)
+ * GET /api/patients/global-search?q=...
+ */
+export const searchGlobalPatients = async (req, res) => {
+  try {
+    const term = String(req.query.q || "").trim();
+    if (!term || term.length < 3) {
+      return res.status(400).json({ error: "Search term must be at least 3 characters" });
+    }
+
+    const mineExpr = { $or: [{ owners: req.user._id }, { createdBy: req.user._id }] };
+    const rx = { $regex: term, $options: "i" };
+
+    const or = [{ fullname: rx }, { email: rx }, { phone: rx }];
+
+    const qDigits = term.replace(/\D/g, "");
+    if (qDigits && qDigits.length >= 3) {
+      or.push({ phoneDigits: new RegExp(qDigits) });
+    }
+
+    const query = { $and: [{ $nor: [mineExpr] }, { $or: or }] };
+
+    const patients = await Patient.find(query)
+      .select("fullname email phone age gender country city state")
+      .limit(10)
+      .lean({ virtuals: true });
+
+    return res.json(patients);
+  } catch (err) {
+    console.error("searchGlobalPatients error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Preview (Read-only) para importar
+ * GET /api/patients/global/:id
+ */
+export const getGlobalPatientPreview = async (req, res) => {
+  try {
+    const doc = await Patient.findById(req.params.id).lean({ virtuals: true });
+    if (!doc) return res.status(404).json({ error: "Patient not found" });
+
+    const amIOwner =
+      (Array.isArray(doc.owners) && doc.owners.map(String).includes(String(req.user._id))) ||
+      String(doc.createdBy) === String(req.user._id);
+
+    return res.json({ ...doc, amIOwner });
+  } catch (err) {
+    console.error("getGlobalPatientPreview error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Importar paciente a mi lista
+ * POST /api/patients/import/:id
+ */
+export const importPatient = async (req, res) => {
+  try {
+    const patientId = req.params.id;
+
+    const base = await Patient.findById(patientId).select("_id createdBy owners").lean();
+    if (!base) return res.status(404).json({ error: "Patient not found" });
+
+    const updated = await Patient.findByIdAndUpdate(
+      patientId,
+      { $addToSet: { owners: { $each: [req.user._id, base.createdBy] } } },
+      { new: true }
+    ).lean({ virtuals: true });
+
+    return res.json({ message: "Patient imported successfully", patient: updated });
+  } catch (err) {
+    console.error("importPatient error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+/**
  * Obtener paciente por id
  */
 export const getPatientById = async (req, res) => {
   try {
     const doc = await Patient.findOne({
       _id: req.params.id,
-      createdBy: req.user._id
+      $or: [{ owners: req.user._id }, { createdBy: req.user._id }],
     }).lean({ virtuals: true });
 
     if (!doc) return res.status(404).json({ error: "Paciente no encontrado" });
@@ -288,7 +387,11 @@ export const updatePatient = async (req, res) => {
      } = req.body;
 
      // Leemos el doc actual para validar regla adulto/menor
-    const current = await Patient.findOne({ _id: req.params.id, createdBy: req.user._id }).lean();
+   // const current = await Patient.findOne({ _id: req.params.id, createdBy: req.user._id }).lean();
+   const current = await Patient.findOne({
+  _id: req.params.id,
+  $or: [{ owners: req.user._id }, { createdBy: req.user._id }],
+  }).lean();
     if (!current) return res.status(404).json({ error: "Patient not found" });
         // 🔒 Control: si este paciente tiene una versión pendiente en el portal,
     // ningún doctor (ni siquiera el que lo creó) puede editar hasta que el paciente decida.
@@ -302,7 +405,8 @@ export const updatePatient = async (req, res) => {
       }
     }
 
-    const update = {};
+    //const update = {};
+    const update = { lastEditedBy: req.user._id };
     const unset = {};
     const nextAge = typeof age !== "undefined" ? Number(age) : current.age;
     const isMinorNext = Number.isFinite(nextAge) && nextAge < 18;
@@ -433,11 +537,16 @@ export const updatePatient = async (req, res) => {
     if (Object.keys(update).length) updateDoc.$set = update;
     if (Object.keys(unset).length) updateDoc.$unset = unset;
 
-    const updated = await Patient.findOneAndUpdate(
+   /* const updated = await Patient.findOneAndUpdate(
       { _id: req.params.id, createdBy: req.user._id },
       Object.keys(updateDoc).length ? updateDoc : { $set: {} },
       { new: true, runValidators: true, context: "query" }
-    );
+    );*/
+    const updated = await Patient.findOneAndUpdate(
+  { _id: req.params.id, $or: [{ owners: req.user._id }, { createdBy: req.user._id }] },
+  Object.keys(updateDoc).length ? updateDoc : { $set: {} },
+  { new: true, runValidators: true, context: "query" }
+);
 
     if (!updated) return res.status(404).json({ error: "Paciente no encontrado" });
     return res.json(updated);

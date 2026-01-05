@@ -14,7 +14,7 @@ export default function EmptyPatients() {
          {t("patients.empty.description")}
       </p>
       <Link
-        to="/patients/new"
+        to="/patients/search"
         className="mt-6 inline-block rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
       >
         {t("patients.empty.cta")}

@@ -368,6 +368,29 @@
     "backButton": "Back",
     "delete": "Delete"
   },
+  "searchGlobal": {
+    "title": "Add Patient",
+    "subtitle": "Search the global database to import an existing patient, or create a new one.",
+    "placeholder": "Search by name, email or phone...",
+    "searchBtn": "Search Global",
+    "notFound": "Not found?",
+    "createNew": "Create new patient",
+    "searching": "Searching global database...",
+    "error": "Error searching patients.",
+    "resultsTitle": "Global Search Results",
+    "noResults": "No patients found.",
+    "suggestCreate": "If the patient is not in the system, please create a new record.",
+    "minChars": "Type at least 3 characters to search."
+  },
+  "global": {
+    "viewToImport": "View & Import",
+    "previewMode": "Global Preview Mode",
+    "previewDesc": "This patient exists in the global database. Import them to your list to view medical history and edit details.",
+    "importBtn": "Import Patient to My List",
+    "importing": "Importing...",
+    "alreadyOwned": "You already have this patient in your list.",
+    "goToDetail": "Go to Patient Detail"
+  },
 
   "toasts": {
     "loadFailed": "Failed to load patients",
@@ -383,7 +406,9 @@
     "conflictPendingPortal": "This patient has a pending profile in the portal. Please resolve it first.",
     "conflictEmailExists": "A patient with this email already exists. You cannot create another record with the same email.",
     "rejectHealthInfoSuccess": "We kept your previous information.",
-    "rejectHealthInfoFailed": "We couldn't reject this information."
+    "rejectHealthInfoFailed": "We couldn't reject this information.",
+    "importSuccess": "Patient imported successfully.",
+    "importFailed": "Failed to import patient."
   }
 },
 "diagnoses": {

@@ -10,6 +10,9 @@ import {
   getMyHealthInfo,
   approvePatientProfile,
  rejectPatientProfile,
+ getGlobalPatientPreview,
+ searchGlobalPatients,
+ importPatient,
 } from "../controllers/patientController.js";
 import { writeLimiter, readLimiter } from "../middleware/rateLimit.js";
 
@@ -17,6 +20,11 @@ const router = Router();
 
 router.post("/",  protect, requireVerified, requireRole("doctor"), writeLimiter, createPatient);
 router.get("/",   protect, requireVerified, requireRole("doctor"), readLimiter, getMyPatients);
+// ✅ Global Search / Preview / Import (ANTES de /:id)
+router.get("/global-search", protect, requireVerified, requireRole("doctor"), readLimiter, searchGlobalPatients);
+router.get("/global/:id", protect, requireVerified, requireRole("doctor"), readLimiter, getGlobalPatientPreview);
+router.post("/import/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, importPatient);
+
 router.get("/me/health-info", protect, requireVerified, requireRole("patient"), readLimiter, getMyHealthInfo);
 router.post("/me/health-info/approve/:id", protect, requireVerified, requireRole("patient"), writeLimiter, approvePatientProfile);
 router.post("/me/health-info/reject/:id", protect, requireVerified, requireRole("patient"), writeLimiter, rejectPatientProfile);
