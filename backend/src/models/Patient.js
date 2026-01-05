@@ -235,7 +235,7 @@ patientSchema.index(
 );
 
 
-patientSchema.index({ country: 1 });
+//patientSchema.index({ country: 1 });
 //patientSchema.index({ phoneDigits: 1 });
 
 
