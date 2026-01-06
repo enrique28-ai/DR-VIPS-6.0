@@ -1,6 +1,6 @@
 {
   "common": {
-  "back": "Volver",
+  "back": "Regresar",
   "loading": "Cargando..."
 },
 
@@ -529,12 +529,15 @@
   "loading": "Cargando su información de salud...",
    "changes": {
       "previouslyApproved": "Aprobado previamente",
-      "removedComparedToApproved": "Eliminado en comparación con la versión aprobada"
+      "removedComparedToApproved": "Eliminado en comparación con la versión aprobada",
+      "addedComparedToApproved": "Agregado comparado con la versión aprobada",
+      "unitsChanged": "Unidades cambiadas: {{from}} → {{to}}"
     },
   "error": {
     "title": "No pudimos cargar sus datos.",
     "description": "Inténtelo de nuevo en unos momentos. Si el problema continúa, contacte a su médico.",
-    "unitsChanged": "Unidades cambiadas: {{from}} → {{to}}"
+    "back": "Regresar"
+    
   },
   "empty": {
     "description": "Ninguno de sus médicos ha registrado todavía un perfil personal para usted. Una vez que un médico cree o actualice su información, podrá revisarla y aprobarla aquí.",
@@ -548,10 +551,6 @@
     "updatedBy": "Realizado por:",
     "doctor": "Doctor",
     "email": "Correo"
-  },
-  "multiDoctor": {
-    "title": "Ha visitado a más de un médico.",
-    "body": "Si distintos médicos registraron datos diferentes (edad, teléfono, país, alergias, etc.), aquí mostramos una vista combinada. Cuando apruebe, la versión seleccionada se aplicará a todos sus médicos. Si algo no es correcto, rechace esta versión y conservaremos su información anterior."
   },
   "sections": {
     "basic": {
@@ -578,9 +577,10 @@
     },
     "conditions": {
       "title": "Padecimientos y alergias",
-      "description": "Mostramos la versión de su médico más reciente. Si hay diferencias entre médicos, también mostramos lo que antes tenían en común y cualquier elemento extra.",
+      "description": "Mostramos la actualización más reciente registrada por su médico. Si hay cambios pendientes, también mostramos la versión aprobada previamente para que pueda comparar antes de aprobar.",
       "diseases": "Enfermedades",
-      "allergies": "Alergias"
+      "allergies": "Alergias",
+      "medications": "Medicamentos"
     },
     "medications": {
       "title": "Medicamentos",
@@ -602,17 +602,6 @@
     "deceased": "Fallecido",
     "yes": "Sí",
     "no": "No"
-  },
-  "conflicts": {
-    "differentField": "Distintos médicos registraron {{field}} diferentes. Esta es la versión que está a punto de conservar.",
-    "previouslyAllAgreed": "Antes, todos los médicos coincidían en:",
-    "newInLatest": "Novedades en la versión de su médico más reciente:",
-    "othersStillPresentDiseases": "Otras enfermedades que aún aparecen en los registros de algunos médicos:",
-    "othersStillPresentAllergies": "Otras alergias que aún aparecen en los registros de algunos médicos:",
-    "othersStillPresentMedications": "Otros medicamentos que aún aparecen en los registros de algunos médicos:",
-    "diseasesWarning": "Distintos médicos han registrado enfermedades diferentes. Si aprueba, sólo se conservará la primera lista.",
-    "allergiesWarning": "Distintos médicos han registrado alergias diferentes. Si aprueba, sólo se conservará la primera lista.",
-    "medicationsWarning": "Distintos médicos han registrado medicamentos diferentes. Si aprueba, sólo se conservará la primera lista."
   },
   "actions": {
     "approveIntro": "Si todo en esta página es correcto, apruebe esta versión para que todos sus médicos usen la misma información. Si algo es incorrecto, rechácela y conservaremos sus datos anteriores.",

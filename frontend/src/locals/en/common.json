@@ -543,6 +543,7 @@
   "loading": "Loading your health information...",
    "changes": {
       "previouslyApproved": "Previously approved",
+      "addedComparedToApproved": "Added compared to approved version",
       "removedComparedToApproved": "Removed compared to approved version",
       "unitsChanged": "Units changed: {{from}} → {{to}}"
     },
@@ -563,10 +564,6 @@
     "updatedBy": "Performed by:",
     "doctor": "Doctor",
     "email": "Email"
-  },
-  "multiDoctor": {
-    "title": "You've visited more than one doctor.",
-    "body": "If different doctors recorded different details (age, phone, countries, allergies, etc.), we show a combined view here. When you approve, the selected version will be applied to all your doctors. If something looks wrong, reject this version and we will keep your previous information."
   },
   "sections": {
     "basic": {
@@ -593,9 +590,10 @@
     },
     "conditions": {
       "title": "Conditions & allergies",
-      "description": "We show your most recent doctor's version. If there are differences between doctors, we also show what they agreed on before and any extra items.",
+      "description": "We show the most recent update recorded by your doctor. If there are pending changes, we also show the previously approved version so you can compare before approving.",
       "diseases": "Diseases",
-      "allergies": "Allergies"
+      "allergies": "Allergies",
+      "medications": "Medications"
     },
     "medications": {
       "title": "Medications",
@@ -617,17 +615,6 @@
     "deceased": "Deceased",
     "yes": "Yes",
     "no": "No"
-  },
-  "conflicts": {
-    "differentField": "Different doctors recorded different {{field}}. This is the version you are about to keep.",
-    "previouslyAllAgreed": "Previously, all doctors agreed on:",
-    "newInLatest": "New in your most recent doctor's version:",
-    "othersStillPresentDiseases": "Other diseases still present in some doctors' records:",
-    "othersStillPresentAllergies": "Other allergies still present in some doctors' records:",
-    "othersStillPresentMedications": "Other medications still present in some doctors' records:",
-    "diseasesWarning": "Different doctors have registered different diseases. If you approve, only the first list will be kept.",
-    "allergiesWarning": "Different doctors have registered different allergies. If you approve, only the first list will be kept.",
-    "medicationsWarning": "Different doctors have registered different medications. If you approve, only the first list will be kept."
   },
   "actions": {
     "approveIntro": "If everything on this page looks correct, approve this version so all your doctors use the same information. If something is wrong, reject it and we will keep your previous data.",

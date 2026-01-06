@@ -4,7 +4,6 @@ import {
   Pill,
   Activity,
   Droplets,
-  AlertTriangle,
   Info,
   Mail, // <--- Importa esto de lucide-react si quieres el icono
   Stethoscope
@@ -45,44 +44,9 @@ function formatDateTime(iso, t, locale) {
   }
 }
 
-function ConflictNote({ fieldLabel, wrapper, t }) {
-  if (!wrapper || !wrapper.conflict) return null;
 
-  return (
-    <p className="mt-1 flex items-center gap-1 text-xs text-amber-700">
-      <AlertTriangle className="h-3 w-3" />
-      {t("myHealthInfo.conflicts.differentField", {
-        field: fieldLabel.toLowerCase(),
-      })}
-    </p>
-  );
-}
 
-/*function ScalarHistory({ label, wrapper, formatter, t, useMetric, isHeight, isWeight,  decimals = 2 }) {
-  if (!wrapper || !Array.isArray(wrapper.alternatives) || wrapper.alternatives.length < 2) {
-    return null;
-  }
-
-  const cur = wrapper.value ?? null;
-  
-  // Filtrar duplicados y el valor actual
-  const prevList = [...new Set(wrapper.alternatives.slice(1))].filter((v) => {
-    if (v === null || v === undefined || v === "") return false;
-    
-    // Si es un número (estatura o peso), comparamos con tolerancia para evitar 
-    // que aparezca como "cambio" al alternar entre métrico/imperial
-    if (typeof v === 'number' && typeof cur === 'number' && (isHeight || isWeight)) {
-      const diff = Math.abs(v - cur);
-      // Tolerancia de 0.001 para evitar diferencias por redondeo
-      return diff > 0.001;
-    }
-    
-    return v !== cur;
-  });
-
-  if (prevList.length === 0) return null;*/
-
-  function ScalarHistory({
+  /*function ScalarHistory({
   label,
   wrapper,
   formatter,
@@ -158,7 +122,98 @@ function ConflictNote({ fieldLabel, wrapper, t }) {
       </p>
     </div>
   );
+}*/
+
+function ScalarHistory({
+  label,
+  wrapper,
+  formatter,
+  t,
+  useMetric,
+  isHeight,
+  isWeight,
+  decimals = 2,
+}) {
+  if (
+    !wrapper ||
+    typeof wrapper !== "object" ||
+    !Array.isArray(wrapper.alternatives) ||
+    wrapper.alternatives.length < 2
+  ) {
+    return null;
+  }
+
+  const curRaw = wrapper.value ?? null;
+
+  const toNum = (x) => {
+    const n = typeof x === "number" ? x : Number(x);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const toDisplay = (n) => {
+    if (isHeight) return useMetric ? n : n / 0.3048;
+    if (isWeight) return useMetric ? n : n / 0.45359237;
+    return n;
+  };
+
+  const keyFor = (x) => {
+    if (x === null || x === undefined || x === "") return null;
+
+    // ✅ NUMÉRICOS (height/weight) y números reales
+    if (isHeight || isWeight || typeof x === "number") {
+      const n = toNum(x);
+      if (n == null) return null;
+      return (isHeight || isWeight) ? toDisplay(n).toFixed(decimals) : String(n);
+    }
+
+    // ✅ BOOLEANOS
+    if (typeof x === "boolean") {
+      return x ? "true" : "false";
+    }
+
+    // ✅ STRINGS (fullname, gender, bloodtype, etc.)
+    return String(x).trim().toLowerCase();
+  };
+
+  const curKey = keyFor(curRaw);
+
+  const seen = new Set();
+  const prevList = [];
+
+  for (const v of wrapper.alternatives.slice(1)) {
+    const k = keyFor(v);
+    if (k == null) continue;
+
+    if (curKey != null && k === curKey) continue; // si es el mismo visualmente
+    if (seen.has(k)) continue;
+
+    seen.add(k);
+    prevList.push(v);
+  }
+
+  if (prevList.length === 0) return null;
+
+  const labelText = label
+    ? t("myHealthInfo.common.previouslyRecorded", { label: label.toLowerCase() })
+    : t("myHealthInfo.common.previouslyRecordedGeneric");
+
+  return (
+    <div className="mt-1 text-xs text-slate-600">
+      <p>
+        {labelText}{" "}
+        <span className="font-medium">
+          {prevList.map((v, idx) => (
+            <span key={idx}>
+              {idx > 0 ? ", " : ""}
+              {formatter ? formatter(v) : String(v)}
+            </span>
+          ))}
+        </span>
+      </p>
+    </div>
+  );
 }
+
 
 
 function ChipList({ items, t }) {
@@ -237,23 +292,18 @@ export default function MyHealthInfo() {
   }
 
   const { snapshot, pendingDecision } = data;
-  const latestSource = snapshot.sources && snapshot.sources[0];
-  const sourceCount = snapshot.sources ? snapshot.sources.length : 0;
-  const diseasesConflict = snapshot.diseasesConflict;
-  const allergiesConflict = snapshot.allergiesConflict;
-  const medicationsConflict = snapshot.medicationsConflict;
+  //const latestSource = snapshot.sources && snapshot.sources[0];
+  //const sourceCount = snapshot.sources ? snapshot.sources.length : 0;
   const diseasesChanged = snapshot.diseasesChanged === true;
   const allergiesChanged = snapshot.allergiesChanged === true;
   const medicationsChanged = snapshot.medicationsChanged === true;
 
-  const heightConflict = snapshot.heightConflict;
-  const weightConflict = snapshot.weightConflict;
-
   const heightWrapper = snapshot.heightWrapper;
   const weightWrapper = snapshot.weightWrapper;
   const bmiWrapper = snapshot.bmiWrapper;
+  const latestSource = snapshot.sources?.[0] ?? null;
 
-  const latestDiseases = Array.isArray(snapshot.diseases)
+ /* const latestDiseases = Array.isArray(snapshot.diseases)
     ? snapshot.diseases
     : [];
   const latestAllergies = Array.isArray(snapshot.allergies)
@@ -301,7 +351,27 @@ export default function MyHealthInfo() {
   );
   const addedMedications = latestMedications.filter(
     (m) => !commonMedications.includes(m)
-  );
+  );*/
+
+const latestDiseases = Array.isArray(snapshot.diseases) ? snapshot.diseases : [];
+const latestAllergies = Array.isArray(snapshot.allergies) ? snapshot.allergies : [];
+const latestMedications = Array.isArray(snapshot.medications) ? snapshot.medications : [];
+
+// Baseline = versión aprobada (tu backend ya lo rellena como common* cuando hay pendingDecision)
+const approvedDiseases = Array.isArray(snapshot.commonDiseases) ? snapshot.commonDiseases : [];
+const approvedAllergies = Array.isArray(snapshot.commonAllergies) ? snapshot.commonAllergies : [];
+const approvedMedications = Array.isArray(snapshot.commonMedications) ? snapshot.commonMedications : [];
+
+// Diff vs aprobada
+const addedDiseases = latestDiseases.filter((d) => !approvedDiseases.includes(d));
+const removedDiseases = approvedDiseases.filter((d) => !latestDiseases.includes(d));
+
+const addedAllergies = latestAllergies.filter((a) => !approvedAllergies.includes(a));
+const removedAllergies = approvedAllergies.filter((a) => !latestAllergies.includes(a));
+
+const addedMedications = latestMedications.filter((m) => !approvedMedications.includes(m));
+const removedMedications = approvedMedications.filter((m) => !latestMedications.includes(m));
+
 
   
   const ageVal = scalarValue(snapshot.age);
@@ -548,19 +618,6 @@ const prevLocations =
         </div>
       </div>
 
-      {sourceCount > 1 && pendingDecision && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-[2px] h-4 w-4" />
-            <div>
-              <p className="font-medium">
-                {t("myHealthInfo.multiDoctor.title")}
-              </p>
-              <p className="mt-1">{t("myHealthInfo.multiDoctor.body")}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         {/* Basic info */}
@@ -588,11 +645,6 @@ const prevLocations =
                 wrapper={fullnameWrapper}
                 t={t}
               />
-              <ConflictNote
-                fieldLabel={t("myHealthInfo.sections.basic.fullname")}
-                wrapper={fullnameWrapper}
-                t={t}
-              />
             </div>
 
             {/* Age / Gender / Blood type */}
@@ -613,11 +665,6 @@ const prevLocations =
                   wrapper={snapshot.age}
                   t={t}
                 />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.age")}
-                  wrapper={snapshot.age}
-                  t={t}
-                />
               </div>
               <div>
                 <p className="font-medium">
@@ -630,11 +677,6 @@ const prevLocations =
                   t={t}
                   formatter={formatGender}
                 />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.gender")}
-                  wrapper={snapshot.gender}
-                  t={t}
-                />
               </div>
               <div>
                 <p className="font-medium">
@@ -643,11 +685,6 @@ const prevLocations =
                 <p>{bloodtypeVal || t("myHealthInfo.common.notSpecified")}</p>
                 <ScalarHistory
                   label={t("myHealthInfo.sections.basic.bloodType")}
-                  wrapper={snapshot.bloodtype}
-                  t={t}
-                />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.bloodType")}
                   wrapper={snapshot.bloodtype}
                   t={t}
                 />
@@ -686,13 +723,6 @@ const prevLocations =
     </div>
   </div>
 )}
-
-
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.location")}
-                  wrapper={snapshot.country}
-                  t={t}
-                />
               </div>
 
               <div>
@@ -702,11 +732,6 @@ const prevLocations =
                 <p>{phoneVal || t("myHealthInfo.common.notSpecified")}</p>
                 <ScalarHistory
                   label={t("myHealthInfo.sections.basic.phone")}
-                  wrapper={snapshot.phone}
-                  t={t}
-                />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.phone")}
                   wrapper={snapshot.phone}
                   t={t}
                 />
@@ -732,11 +757,6 @@ const prevLocations =
                       : t("myHealthInfo.common.notSpecified")
                   }
                 />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.organDonor")}
-                  wrapper={snapshot.organDonor}
-                  t={t}
-                />
               </div>
 
               <div>
@@ -755,11 +775,6 @@ const prevLocations =
                       ? t("myHealthInfo.common.no")
                       : t("myHealthInfo.common.notSpecified")
                   }
-                />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.bloodDonor")}
-                  wrapper={snapshot.bloodDonor}
-                  t={t}
                 />
               </div>
             </div>
@@ -784,11 +799,6 @@ const prevLocations =
                       ? t("myHealthInfo.common.deceased")
                       : t("myHealthInfo.common.alive")
                   }
-                />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.basic.status")}
-                  wrapper={statusWrapper}
-                  t={t}
                 />
               </div>
 
@@ -842,11 +852,6 @@ const prevLocations =
               />
 
               <UnitChangeMessage />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.anthropometrics.height")}
-                  wrapper={heightWrapper || heightConflict}
-                  t={t}
-                />
               </div>
 
               {/* Weight */}
@@ -869,11 +874,6 @@ const prevLocations =
               }}
           />
             <UnitChangeMessage />
-                <ConflictNote
-                  fieldLabel={t("myHealthInfo.sections.anthropometrics.weight")}
-                  wrapper={weightWrapper || weightConflict}
-                  t={t}
-                />
               </div>
 
               {/* BMI */}
@@ -910,176 +910,119 @@ const prevLocations =
               {t("myHealthInfo.sections.conditions.description")}
             </p>
           </div>
-          <div className="flex-[2] space-y-4 text-sm text-slate-800">
-            <div>
-              <p className="mb-1 font-medium">
-                {t("myHealthInfo.sections.conditions.diseases")}
-              </p>
-              <ChipList items={latestDiseases} t={t} />
+         <div className="flex-[2] space-y-6 text-sm text-slate-800">
+  {/* Diseases */}
+  <div>
+    <p className="mb-1 font-medium">
+      {t("myHealthInfo.sections.conditions.diseases")}
+    </p>
+    <ChipList items={latestDiseases} t={t} />
 
-    {(diseasesConflict || diseasesChanged) && (
-  <>
-    {(addedDiseases.length > 0 || extraDiseases.length > 0) && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {diseasesConflict
-            ? t("myHealthInfo.conflicts.previouslyAllAgreed")
-            : t("myHealthInfo.changes.previouslyApproved")}
-        </p>
-        <ChipList items={commonDiseases} t={t} />
-      </div>
-    )}
-
-    {addedDiseases.length > 0 && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {t("myHealthInfo.conflicts.newInLatest")}
-        </p>
-        <ChipList items={addedDiseases} t={t} />
-      </div>
-    )}
-
-    {extraDiseases.length > 0 && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {diseasesConflict
-            ? t("myHealthInfo.conflicts.othersStillPresentDiseases")
-            : t("myHealthInfo.changes.removedComparedToApproved")}
-        </p>
-        <ChipList items={extraDiseases} t={t} />
-      </div>
-    )}
-
-    {/* warning SOLO si es multi-doctor */}
-    {diseasesConflict && (
-      <p className="mt-1 flex items-center gap-1 text-xs text-amber-700">
-        <AlertTriangle className="h-3 w-3" />
-        {t("myHealthInfo.conflicts.diseasesWarning")}
-      </p>
-    )}
-  </>
-)}
-
-            </div>
-
-            <div>
-              <p className="mb-1 font-medium">
-                {t("myHealthInfo.sections.conditions.allergies")}
-              </p>
-              <ChipList items={latestAllergies} t={t} />
-
-            {(allergiesConflict || allergiesChanged) && (
-  <>
-    {(addedAllergies.length > 0 || extraAllergies.length > 0) && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {allergiesConflict
-            ? t("myHealthInfo.conflicts.previouslyAllAgreed")
-            : t("myHealthInfo.changes.previouslyApproved")}
-        </p>
-        <ChipList items={commonAllergies} t={t} />
-      </div>
-    )}
-
-    {addedAllergies.length > 0 && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {t("myHealthInfo.conflicts.newInLatest")}
-        </p>
-        <ChipList items={addedAllergies} t={t} />
-      </div>
-    )}
-
-    {extraAllergies.length > 0 && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {allergiesConflict
-            ? t("myHealthInfo.conflicts.othersStillPresentAllergies")
-            : t("myHealthInfo.changes.removedComparedToApproved")}
-        </p>
-        <ChipList items={extraAllergies} t={t} />
-      </div>
-    )}
-
-    {/* warning SOLO si es multi-doctor */}
-    {allergiesConflict && (
-      <p className="mt-1 flex items-center gap-1 text-xs text-amber-700">
-        <AlertTriangle className="h-3 w-3" />
-        {t("myHealthInfo.conflicts.allergiesWarning")}
-      </p>
-    )}
-  </>
-)}
-            </div>
-          </div>
+    {diseasesChanged && (
+      <>
+        <div className="mt-2">
+          <p className="text-xs text-slate-600">
+            {t("myHealthInfo.changes.previouslyApproved")}
+          </p>
+          <ChipList items={approvedDiseases} t={t} />
         </div>
 
-        {/* Medications */}
-        <div className="flex flex-col gap-6 border-t border-slate-100 pt-6 md:flex-row md:items-start">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <Pill className="h-5 w-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-slate-900">
-                {t("myHealthInfo.sections.medications.title")}
-              </h2>
-            </div>
-            <p className="text-sm text-slate-600">
-              {t("myHealthInfo.sections.medications.description")}
+        {addedDiseases.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-slate-600">
+              {t("myHealthInfo.changes.addedComparedToApproved")}
             </p>
+            <ChipList items={addedDiseases} t={t} />
           </div>
-          <div className="flex-[2] space-y-4 text-sm text-slate-800">
-            <div>
-              <p className="mb-1 font-medium">
-                {t("myHealthInfo.sections.medications.medications")}
-              </p>
-              <ChipList items={latestMedications} t={t} />
+        )}
 
-              {(medicationsConflict || medicationsChanged) && (
-  <>
-    {(addedMedications.length > 0 || extraMedications.length > 0) && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {medicationsConflict
-            ? t("myHealthInfo.conflicts.previouslyAllAgreed")
-            : t("myHealthInfo.changes.previouslyApproved")}
-        </p>
-        <ChipList items={commonMedications} t={t} />
-      </div>
-    )}
-
-    {addedMedications.length > 0 && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {t("myHealthInfo.conflicts.newInLatest")}
-        </p>
-        <ChipList items={addedMedications} t={t} />
-      </div>
-    )}
-
-    {extraMedications.length > 0 && (
-      <div className="mt-2">
-        <p className="text-xs text-slate-600">
-          {medicationsConflict
-            ? t("myHealthInfo.conflicts.othersStillPresentMedications")
-            : t("myHealthInfo.changes.removedComparedToApproved")}
-        </p>
-        <ChipList items={extraMedications} t={t} />
-      </div>
-    )}
-
-    {/* warning SOLO si es multi-doctor */}
-    {medicationsConflict && (
-      <p className="mt-1 flex items-center gap-1 text-xs text-amber-700">
-        <AlertTriangle className="h-3 w-3" />
-        {t("myHealthInfo.conflicts.medicationsWarning")}
-      </p>
-    )}
-  </>
-)}
-
-            </div>
+        {removedDiseases.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-slate-600">
+              {t("myHealthInfo.changes.removedComparedToApproved")}
+            </p>
+            <ChipList items={removedDiseases} t={t} />
           </div>
+        )}
+      </>
+    )}
+  </div>
+
+  {/* Allergies */}
+  <div>
+    <p className="mb-1 font-medium">
+      {t("myHealthInfo.sections.conditions.allergies")}
+    </p>
+    <ChipList items={latestAllergies} t={t} />
+
+    {allergiesChanged && (
+      <>
+        <div className="mt-2">
+          <p className="text-xs text-slate-600">
+            {t("myHealthInfo.changes.previouslyApproved")}
+          </p>
+          <ChipList items={approvedAllergies} t={t} />
         </div>
+
+        {addedAllergies.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-slate-600">
+              {t("myHealthInfo.changes.addedComparedToApproved")}
+            </p>
+            <ChipList items={addedAllergies} t={t} />
+          </div>
+        )}
+
+        {removedAllergies.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-slate-600">
+              {t("myHealthInfo.changes.removedComparedToApproved")}
+            </p>
+            <ChipList items={removedAllergies} t={t} />
+          </div>
+        )}
+      </>
+    )}
+  </div>
+
+  {/* Medications */}
+  <div>
+    <p className="mb-1 font-medium">
+      {t("myHealthInfo.sections.conditions.medications")}
+    </p>
+    <ChipList items={latestMedications} t={t} />
+
+    {medicationsChanged && (
+      <>
+        <div className="mt-2">
+          <p className="text-xs text-slate-600">
+            {t("myHealthInfo.changes.previouslyApproved")}
+          </p>
+          <ChipList items={approvedMedications} t={t} />
+        </div>
+
+        {addedMedications.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-slate-600">
+              {t("myHealthInfo.changes.addedComparedToApproved")}
+            </p>
+            <ChipList items={addedMedications} t={t} />
+          </div>
+        )}
+
+        {removedMedications.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-slate-600">
+              {t("myHealthInfo.changes.removedComparedToApproved")}
+            </p>
+            <ChipList items={removedMedications} t={t} />
+          </div>
+        )}
+      </>
+    )}
+  </div>
+  </div>
+</div>
       </section>
 
       {/* Approve / reject actions */}
