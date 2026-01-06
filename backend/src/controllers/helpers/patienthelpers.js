@@ -331,16 +331,18 @@ const hasNumericConflict = (field) => {
 }
 
 export async function computeHealthSnapshotByEmail(email) {
-  const pats = await Patient.find({ email })
+  //const pats = await Patient.find({ email })
+  const normalized = String(email).toLowerCase().trim();
+  const pats = await Patient.find({ email: normalized })
     .sort({ updatedAt: -1 })
     .populate("createdBy", "name email")
     .lean();
 
-  const base = buildHealthSnapshotFromPatients(pats, email);
+  const base = buildHealthSnapshotFromPatients(pats, normalized);
   return { ...base, pats };
 }
 
-export async function hasPendingHealthDecisionForEmail(email) {
+/*export async function hasPendingHealthDecisionForEmail(email) {
   if (!email) return false;
 
   // 1) ¿Existe un usuario portal-paciente con ese correo?
@@ -369,5 +371,39 @@ export async function hasPendingHealthDecisionForEmail(email) {
   if (!Number.isFinite(lastDecision)) return true;
 
   // Si hay un Patient más nuevo que la última decisión → sigue pendiente
+  return latestUpdate > lastDecision;
+}*/
+
+export async function hasPendingHealthDecisionForEmail(email) {
+  // ✅ Menor sin correo => nunca bloquees
+  if (!email) return false;
+
+  const normalized = String(email).toLowerCase().trim();
+
+  // 1) Debe existir al menos 1 Patient con ese email (si no, no hay nada que bloquear)
+  const pats = await Patient.find({ email: normalized })
+    .sort({ updatedAt: -1 })
+    .select("_id updatedAt")
+    .lean();
+
+  if (!pats.length) return false;
+
+  const latestUpdate = pats[0]?.updatedAt
+    ? new Date(pats[0].updatedAt).getTime()
+    : NaN;
+
+  if (!Number.isFinite(latestUpdate)) return false;
+
+  // 2) Buscar usuario portal-paciente
+  const user = await User.findOne({ email: normalized, role: "patient" })
+    .select("lastHealthDecisionAt")
+    .lean();
+
+  // ✅ Si NO hay user: asumimos que nunca aprobó nada => 0 => bloquea si hay registro Patient
+  const lastDecision = user?.lastHealthDecisionAt
+    ? new Date(user.lastHealthDecisionAt).getTime()
+    : 0;
+
+  // 3) Si hay cambios después de la última decisión (o nunca decidió), bloquea
   return latestUpdate > lastDecision;
 }
