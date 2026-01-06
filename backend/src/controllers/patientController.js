@@ -338,7 +338,7 @@ export const getGlobalPatientPreview = async (req, res) => {
  * Importar paciente a mi lista
  * POST /api/patients/import/:id
  */
-export const importPatient = async (req, res) => {
+/*export const importPatient = async (req, res) => {
   try {
     const patientId = req.params.id;
 
@@ -356,7 +356,30 @@ export const importPatient = async (req, res) => {
     console.error("importPatient error:", err);
     return res.status(500).json({ error: "Server error" });
   }
+};*/
+
+export const importPatient = async (req, res) => {
+  try {
+    const patientId = req.params.id;
+
+    // (Opcional pero recomendado) asegurar que createdBy siempre quede dentro de owners
+    const base = await Patient.findById(patientId).select("_id createdBy").lean();
+    if (!base) return res.status(404).json({ error: "Patient not found" });
+
+    const updated = await Patient.findByIdAndUpdate(
+      patientId,
+      { $addToSet: { owners: { $each: [req.user._id, base.createdBy] } } },
+      // 🔥 CLAVE: esto evita que se actualice updatedAt/createdAt por un "import"
+      { new: true, timestamps: false }
+    ).lean({ virtuals: true });
+
+    return res.json({ message: "Patient imported successfully", patient: updated });
+  } catch (err) {
+    console.error("importPatient error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
 };
+
 
 
 /**
