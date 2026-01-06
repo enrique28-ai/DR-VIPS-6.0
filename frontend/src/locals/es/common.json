@@ -1,4 +1,9 @@
 {
+  "common": {
+  "back": "Volver",
+  "loading": "Cargando..."
+},
+
   "home": {
     "title": "DR VIPS - Historias clínicas simplificadas",
     "tagline": "Todo el mundo es VIP",

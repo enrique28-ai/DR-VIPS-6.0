@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Search, UserPlus } from "lucide-react";
+import { Search, UserPlus, ArrowLeft } from "lucide-react";
 import Input from "../../components/forms/Input.jsx";
 import PatientCard from "../../components/patient/PatientCard.jsx";
 import { useSearchGlobalPatients } from "../../features/patients/phooks.js";
@@ -25,12 +25,27 @@ export default function SearchGlobalPatient() {
 
   return (
     <main className="mx-auto max-w-4xl p-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{t("patients.searchGlobal.title") || "Add Patient"}</h1>
-        <p className="text-gray-600">
-          {t("patients.searchGlobal.subtitle") || "Search globally to import an existing patient, or create a new one."}
-        </p>
-      </div>
+      <div className="mb-6 flex items-start justify-between gap-4">
+  <div>
+    <h1 className="text-2xl font-bold">
+      {t("patients.searchGlobal.title") || "Add Patient"}
+    </h1>
+    <p className="text-gray-600">
+      {t("patients.searchGlobal.subtitle") ||
+        "Search globally to import an existing patient, or create a new one."}
+    </p>
+  </div>
+
+  {/* ✅ Botón para regresar a PatientsPage */}
+  <Link
+    to="/patients"
+    className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+  >
+    <ArrowLeft className="h-4 w-4" />
+    {t("patients.detail.back") || "Back to Patients"}
+  </Link>
+</div>
+
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="relative">

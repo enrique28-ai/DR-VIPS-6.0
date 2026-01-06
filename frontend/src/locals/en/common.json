@@ -1,4 +1,9 @@
 {
+  "common": {
+  "back": "Back",
+  "loading": "Loading..."
+},
+
   "home": {
     "title": "DR VIPS — Medical Records, Simplified",
     "tagline": "Everyone is a VIP",
