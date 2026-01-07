@@ -15,7 +15,10 @@ import {
   FT_TO_M,
   LB_TO_KG,
   buildHealthSnapshotFromPatients,
+  identityQueryFromPatient
 } from "./helpers/patienthelpers.js";
+import PatientHistory from "../models/PatientHistory.js";
+
 
 /**
  * Crear paciente
@@ -887,6 +890,17 @@ export const approvePatientProfile = async (req, res) => {
     // 3) Copiar a TODOS los docs del mismo email + guardar snapshot
     await Patient.updateMany({ email }, updateDoc);
 
+    // ✅ Guardar versión aprobada en historial (agrupado por identidad)
+await PatientHistory.create({
+  patientEmail: email,
+  patientPhoneDigits: doc.phoneDigits || undefined,
+  approvedFromProfile: doc._id,
+  editedBy: doc.lastEditedBy || doc.createdBy || null,
+  approvedSnapshot,   // el mismo objeto { set, unset }
+  approvedAt,
+});
+
+
     await User.findByIdAndUpdate(
       req.user._id,
       { $set: { lastHealthDecisionAt: new Date() } },
@@ -1007,13 +1021,8 @@ if (withoutTarget.length === 0) {
       } else if (!snapshot.isDeceased) {
         //canonical.causeOfDeath = undefined;
         delete canonical.causeOfDeath; 
-        const updateDoc = { $set: canonical };
-
-// ✅ Si el estado final es vivo, BORRAMOS causeOfDeath del documento
-if (canonical.isDeceased === false) {
-  updateDoc.$unset = { causeOfDeath: 1 };
-}
       }
+      
       
     }
     const ageVal = sv(snapshot.age);
@@ -1058,8 +1067,15 @@ if (phoneVal !== undefined) {
     canonical.allergies = Array.isArray(snapshot.allergies) ? snapshot.allergies : [];
     canonical.medications = Array.isArray(snapshot.medications) ? snapshot.medications : [];
 
+    const updateDoc = { $set: canonical };
+
+// ✅ Si el estado final es vivo, BORRAMOS causeOfDeath del documento
+if (canonical.isDeceased === false) {
+  updateDoc.$unset = { causeOfDeath: 1 };
+}
+
     // Copiar "estado anterior" a TODOS los Patient con ese email
-    await Patient.updateMany({ email }, { $set: canonical });
+    await Patient.updateMany({ email }, updateDoc);
 
     // Registrar decisión del paciente
     await User.findByIdAndUpdate(
@@ -1079,5 +1095,109 @@ if (phoneVal !== undefined) {
   } catch (err) {
     console.error("rejectPatientProfile error:", err);
     return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Helper: armar query identidad (email > phoneDigits > fallback)
+
+
+/**
+ * GET /api/patients/me/history  (paciente)
+ */
+export const getMyHistory = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const email = (req.user.email || "").toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ error: "User has no email on file" });
+    }
+
+    // Historial agrupado por email (tu identidad en portal)
+    let history = await PatientHistory.find({ patientEmail: email })
+      .sort({ approvedAt: -1 })
+      .populate("editedBy", "name email")
+      .lean();
+
+    // ✅ Bootstrap opcional: si ya existe approvedSnapshot en Patient pero todavía no hay history
+    if (!history.length) {
+      const p = await Patient.findOne({ email })
+        .select("email phoneDigits approvedSnapshot approvedAt lastEditedBy createdBy")
+        .lean();
+
+      if (p?.approvedSnapshot && p?.approvedAt) {
+        await PatientHistory.create({
+          patientEmail: email,
+          patientPhoneDigits: p.phoneDigits || undefined,
+          approvedFromProfile: p._id,
+          editedBy: p.lastEditedBy || p.createdBy || null,
+          approvedSnapshot: p.approvedSnapshot,
+          approvedAt: p.approvedAt,
+        });
+
+        history = await PatientHistory.find({ patientEmail: email })
+          .sort({ approvedAt: -1 })
+          .populate("editedBy", "name email")
+          .lean();
+      }
+    }
+
+    return res.json(history);
+  } catch (err) {
+    console.error("getMyHistory error:", err);
+    return res.status(500).json({ error: "Server error fetching history" });
+  }
+};
+
+/**
+ * GET /api/patients/:id/history  (doctor)
+ */
+export const getPatientHistory = async (req, res) => {
+  try {
+    const patientId = req.params.id;
+
+    // Verifica acceso: creador u owner (tu schema ya tiene owners)
+    const p = await Patient.findOne({
+      _id: patientId,
+      $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
+    })
+      .select("email phoneDigits approvedSnapshot approvedAt lastEditedBy createdBy")
+      .lean();
+
+    if (!p) {
+      return res.status(403).json({ error: "You do not have access to this patient." });
+    }
+
+    const ident = identityQueryFromPatient(p);
+    if (!ident) return res.json([]);
+
+    let history = await PatientHistory.find(ident)
+      .sort({ approvedAt: -1 })
+      .populate("editedBy", "name email")
+      .lean();
+
+    // ✅ Bootstrap opcional (igual que paciente)
+    if (!history.length && p?.approvedSnapshot && p?.approvedAt) {
+      await PatientHistory.create({
+        patientEmail: p.email ? String(p.email).toLowerCase().trim() : undefined,
+        patientPhoneDigits: p.phoneDigits || undefined,
+        approvedFromProfile: p._id,
+        editedBy: p.lastEditedBy || p.createdBy || null,
+        approvedSnapshot: p.approvedSnapshot,
+        approvedAt: p.approvedAt,
+      });
+
+      history = await PatientHistory.find(ident)
+        .sort({ approvedAt: -1 })
+        .populate("editedBy", "name email")
+        .lean();
+    }
+
+    return res.json(history);
+  } catch (err) {
+    console.error("getPatientHistory error:", err);
+    return res.status(500).json({ error: "Server error fetching history" });
   }
 };

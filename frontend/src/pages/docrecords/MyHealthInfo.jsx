@@ -6,16 +6,19 @@ import {
   Droplets,
   Info,
   Mail, // <--- Importa esto de lucide-react si quieres el icono
-  Stethoscope
+  Stethoscope,
+  History,
+  X
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 import {
   useMyHealthInfo,
   useApprovePatientProfile,
   useRejectPatientProfile,
+  useMyHistory,
 } from "../../features/patients/phooks.js";
 import { useTranslation } from "react-i18next";
-import { useMemo } from "react";
+import { useMemo,  useState } from "react";
 import {
    localizeCountryName,
    localizeStateName,
@@ -44,85 +47,6 @@ function formatDateTime(iso, t, locale) {
   }
 }
 
-
-
-  /*function ScalarHistory({
-  label,
-  wrapper,
-  formatter,
-  t,
-  useMetric,
-  isHeight,
-  isWeight,
-  decimals = 2, // <-- usamos 2 para height/weight
-}) {
-  if (!wrapper || !Array.isArray(wrapper.alternatives) || wrapper.alternatives.length < 2) {
-    return null;
-  }
-
-  const curRaw = wrapper.value ?? null;
-
-  const toNum = (x) => {
-    const n = typeof x === "number" ? x : Number(x);
-    return Number.isFinite(n) ? n : null;
-  };
-
-  // Convierte a lo que se muestra (m->ft o kg->lb si useMetric=false)
-  const toDisplay = (n) => {
-    if (isHeight) return useMetric ? n : n / 0.3048;
-    if (isWeight) return useMetric ? n : n / 0.45359237;
-    return n;
-  };
-
-  // Key para comparar “igualdad visual” (lo que el usuario ve)
-  const displayKey = (x) => {
-    const n = toNum(x);
-    if (n == null) return null;
-    if (isHeight || isWeight) return toDisplay(n).toFixed(decimals);
-    return String(n);
-  };
-
-  const curKey = displayKey(curRaw);
-
-  // Dedupe por “key visual” y excluye el valor actual “visual”
-  const seen = new Set();
-  const prevList = [];
-
-  for (const v of wrapper.alternatives.slice(1)) {
-    if (v === null || v === undefined || v === "") continue;
-
-    const k = displayKey(v);
-    if (k == null) continue;
-
-    if (curKey != null && k === curKey) continue; // si se ve igual, no lo muestres
-    if (seen.has(k)) continue;
-
-    seen.add(k);
-    prevList.push(v);
-  }
-
-  if (prevList.length === 0) return null;
-
-  const labelText = label
-    ? t("myHealthInfo.common.previouslyRecorded", { label: label.toLowerCase() })
-    : t("myHealthInfo.common.previouslyRecordedGeneric");
-
-  return (
-    <div className="mt-1 text-xs text-slate-600">
-      <p>
-        {labelText}{" "}
-        <span className="font-medium">
-          {prevList.map((v, idx) => (
-            <span key={idx}>
-              {idx > 0 ? ", " : ""}
-              {formatter ? formatter(v) : String(v)}
-            </span>
-          ))}
-        </span>
-      </p>
-    </div>
-  );
-}*/
 
 function ScalarHistory({
   label,
@@ -237,10 +161,161 @@ function ChipList({ items, t }) {
     </div>
   );
 }
+const trOr = (t, key, fallback) => {
+  const v = t(key);
+  return v && v !== key ? v : fallback;
+};
+
+function SnapshotViewer({ snapshot, t, i18n }) {
+  if (!snapshot) return null;
+
+  const sys = (snapshot?.measurementSystem || "metric").toLowerCase();
+  const isImp = sys === "imperial";
+
+  const height =
+    typeof snapshot.heightM === "number"
+      ? (isImp ? (snapshot.heightM / 0.3048).toFixed(2) + " ft" : snapshot.heightM.toFixed(2) + " m")
+      : "—";
+
+  const weight =
+    typeof snapshot.weightKg === "number"
+      ? (isImp ? (snapshot.weightKg * 2.2046226218).toFixed(2) + " lb" : snapshot.weightKg.toFixed(2) + " kg")
+      : "—";
+
+  const country = localizeCountryName(snapshot.country, i18n.language);
+  const st = localizeStateName({ countryName: snapshot.country, stateName: snapshot.state, t });
+  const ct = localizeCityName({ countryName: snapshot.country, stateName: snapshot.state, cityName: snapshot.city, t });
+  const location = [country, st, ct].filter(Boolean).join(", ");
+
+  const gender =
+    snapshot.gender === "male"
+      ? t("patients.card.genderMale")
+      : snapshot.gender === "female"
+      ? t("patients.card.genderFemale")
+      : snapshot.gender || "—";
+
+  return (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 text-sm text-gray-700">
+      <div className="col-span-full font-semibold text-gray-900 border-b pb-2 mb-1">
+        {snapshot.fullname || "—"}
+      </div>
+
+      <div><span className="font-medium text-gray-500">Age:</span> {snapshot.age ?? "—"}</div>
+      <div><span className="font-medium text-gray-500">Gender:</span> {gender}</div>
+      <div><span className="font-medium text-gray-500">Blood:</span> {snapshot.bloodtype ?? "—"}</div>
+      <div><span className="font-medium text-gray-500">Location:</span> {location || "—"}</div>
+
+      <div><span className="font-medium text-gray-500">Height:</span> {height}</div>
+      <div><span className="font-medium text-gray-500">Weight:</span> {weight}</div>
+
+      <div className="col-span-full">
+        <span className="font-medium text-gray-500">Deceased:</span>{" "}
+        {snapshot.isDeceased === true ? "Yes" : snapshot.isDeceased === false ? "No" : "—"}
+        {snapshot.isDeceased === true && snapshot.causeOfDeath ? ` · ${snapshot.causeOfDeath}` : ""}
+      </div>
+
+      <div className="col-span-full">
+        <span className="font-medium text-gray-500">Diseases:</span>{" "}
+        {Array.isArray(snapshot.diseases) && snapshot.diseases.length ? snapshot.diseases.join(", ") : "None"}
+      </div>
+      <div className="col-span-full">
+        <span className="font-medium text-gray-500">Allergies:</span>{" "}
+        {Array.isArray(snapshot.allergies) && snapshot.allergies.length ? snapshot.allergies.join(", ") : "None"}
+      </div>
+      <div className="col-span-full">
+        <span className="font-medium text-gray-500">Medications:</span>{" "}
+        {Array.isArray(snapshot.medications) && snapshot.medications.length ? snapshot.medications.join(", ") : "None"}
+      </div>
+    </div>
+  );
+}
+
+
+function MyHistoryModal({ onClose, t, i18n }) {
+  const { data: history, isLoading } = useMyHistory();
+  const [expandedId, setExpandedId] = useState(null);
+
+  const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="flex h-[80vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 p-4">
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <History className="h-5 w-5" />
+            {trOr(t, "myHealthInfo.history.title", "My Approved History")}
+          </h2>
+          <button onClick={onClose} className="rounded-full p-1 hover:bg-gray-100">
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading && (
+            <p className="text-center text-gray-500 py-4">
+              {trOr(t, "myHealthInfo.loading", "Loading...")}
+            </p>
+          )}
+
+          {!isLoading && (!history || history.length === 0) && (
+            <p className="text-center text-gray-500 py-4">
+              {trOr(t, "myHealthInfo.history.empty", "No history available yet.")}
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {history?.map((ver) => {
+              const approvedAt = ver?.approvedAt ? new Date(ver.approvedAt) : null;
+              const when = approvedAt ? approvedAt.toLocaleString(i18n.language || undefined) : "—";
+              const editedBy = ver?.editedBy?.name || "System/Unknown";
+
+              // ✅ IMPORTANTE: backend devuelve approvedSnapshot, no snapshot
+              const snap = ver?.approvedSnapshot?.set || null;
+
+              return (
+                <div key={ver._id} className="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+                  <button
+                    onClick={() => toggle(ver._id)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-800">{when}</p>
+                      <p className="text-xs text-gray-500">
+                        {trOr(t, "myHealthInfo.history.proposedBy", "Proposed by")}: {editedBy}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      {expandedId === ver._id ? trOr(t, "common.close", "Close") : trOr(t, "common.view", "View")}
+                    </span>
+                  </button>
+
+                  {expandedId === ver._id && (
+                    <div className="border-t border-gray-200 bg-white p-4">
+                      <SnapshotViewer snapshot={snap} t={t} i18n={i18n} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 p-3 flex justify-end">
+          <Button variant="secondary" onClick={onClose}>
+            {trOr(t, "common.close", "Close")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 export default function MyHealthInfo() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const [showHistory, setShowHistory] = useState(false);
+
 
   const { data, isLoading, isError } = useMyHealthInfo();
   const approveMutation = useApprovePatientProfile();
@@ -292,8 +367,7 @@ export default function MyHealthInfo() {
   }
 
   const { snapshot, pendingDecision } = data;
-  //const latestSource = snapshot.sources && snapshot.sources[0];
-  //const sourceCount = snapshot.sources ? snapshot.sources.length : 0;
+  
   const diseasesChanged = snapshot.diseasesChanged === true;
   const allergiesChanged = snapshot.allergiesChanged === true;
   const medicationsChanged = snapshot.medicationsChanged === true;
@@ -303,56 +377,7 @@ export default function MyHealthInfo() {
   const bmiWrapper = snapshot.bmiWrapper;
   const latestSource = snapshot.sources?.[0] ?? null;
 
- /* const latestDiseases = Array.isArray(snapshot.diseases)
-    ? snapshot.diseases
-    : [];
-  const latestAllergies = Array.isArray(snapshot.allergies)
-    ? snapshot.allergies
-    : [];
-  const latestMedications = Array.isArray(snapshot.medications)
-    ? snapshot.medications
-    : [];
-
-  const combinedDiseases = Array.isArray(snapshot.diseasesCombined)
-    ? snapshot.diseasesCombined
-    : latestDiseases;
-  const combinedAllergies = Array.isArray(snapshot.allergiesCombined)
-    ? snapshot.allergiesCombined
-    : latestAllergies;
-  const combinedMedications = Array.isArray(snapshot.medicationsCombined)
-    ? snapshot.medicationsCombined
-    : latestMedications;
-
-  const extraDiseases = combinedDiseases.filter(
-    (d) => !latestDiseases.includes(d)
-  );
-  const extraAllergies = combinedAllergies.filter(
-    (a) => !latestAllergies.includes(a)
-  );
-  const extraMedications = combinedMedications.filter(
-    (m) => !latestMedications.includes(m)
-  );
-
-  const commonDiseases = Array.isArray(snapshot.commonDiseases)
-    ? snapshot.commonDiseases
-    : latestDiseases;
-  const commonAllergies = Array.isArray(snapshot.commonAllergies)
-    ? snapshot.commonAllergies
-    : latestAllergies;
-  const commonMedications = Array.isArray(snapshot.commonMedications)
-    ? snapshot.commonMedications
-    : latestMedications;
-
-  const addedDiseases = latestDiseases.filter(
-    (d) => !commonDiseases.includes(d)
-  );
-  const addedAllergies = latestAllergies.filter(
-    (a) => !commonAllergies.includes(a)
-  );
-  const addedMedications = latestMedications.filter(
-    (m) => !commonMedications.includes(m)
-  );*/
-
+ 
 const latestDiseases = Array.isArray(snapshot.diseases) ? snapshot.diseases : [];
 const latestAllergies = Array.isArray(snapshot.allergies) ? snapshot.allergies : [];
 const latestMedications = Array.isArray(snapshot.medications) ? snapshot.medications : [];
@@ -609,6 +634,12 @@ const prevLocations =
           )}
         </div>
         <div className="flex gap-3">
+           <Button variant="secondary" onClick={() => setShowHistory(true)}>
+          <span className="inline-flex items-center gap-2">
+          <History className="h-4 w-4" />
+            {trOr(t, "myHealthInfo.history.button", "History")}
+          </span>
+          </Button>
           <Button
             variant="secondary"
             onClick={() => navigate("/docrecords/myhealthstate")}
@@ -1052,6 +1083,15 @@ const prevLocations =
           </div>
         </section>
       )}
+
+      {showHistory && (
+  <MyHistoryModal
+    onClose={() => setShowHistory(false)}
+    t={t}
+    i18n={i18n}
+  />
+)}
+
     </main>
   );
 }

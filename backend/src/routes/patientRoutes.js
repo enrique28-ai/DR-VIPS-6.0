@@ -13,6 +13,8 @@ import {
  getGlobalPatientPreview,
  searchGlobalPatients,
  importPatient,
+ getMyHistory,
+getPatientHistory,
 } from "../controllers/patientController.js";
 import { writeLimiter, readLimiter } from "../middleware/rateLimit.js";
 
@@ -26,8 +28,12 @@ router.get("/global/:id", protect, requireVerified, requireRole("doctor"), readL
 router.post("/import/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, importPatient);
 
 router.get("/me/health-info", protect, requireVerified, requireRole("patient"), readLimiter, getMyHealthInfo);
+router.get("/me/history", protect, requireVerified, requireRole("patient"), readLimiter, getMyHistory);
+
 router.post("/me/health-info/approve/:id", protect, requireVerified, requireRole("patient"), writeLimiter, approvePatientProfile);
 router.post("/me/health-info/reject/:id", protect, requireVerified, requireRole("patient"), writeLimiter, rejectPatientProfile);
+router.get("/:id/history", protect, requireVerified, requireRole("doctor"), readLimiter, getPatientHistory);
+
 router.get("/:id",protect, requireVerified, requireRole("doctor"), readLimiter, getPatientById);
 router.put("/:id",protect, requireVerified, requireRole("doctor"), writeLimiter, updatePatient);
 

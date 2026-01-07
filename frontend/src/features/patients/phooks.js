@@ -249,6 +249,7 @@ export function useApprovePatientProfile() {
     },
     onSuccess: (data) => {
       qc.setQueryData(["myHealthInfo"], data);
+      qc.invalidateQueries({ queryKey: ["my-history"] });
        toast.success(i18n.t("patients.toasts.approveHealthInfoSuccess"));
     },
     onError: () => {
@@ -333,28 +334,6 @@ export function useGlobalPatient(id, options = {}) {
   });
 }
 
-// 3) Importar paciente (me agrega a owners)
-/*export function useImportPatient() {
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id) => (await api.post(`/patients/import/${id}`)).data,
-    onSuccess: (data) => {
-      toast.success(i18n.t("patients.toasts.importSuccess") || "Patient imported");
-
-      // refrescar lista de pacientes del doctor
-      qc.invalidateQueries({ queryKey: ["patients"] });
-
-      // opcional: si backend devolvió el paciente actualizado
-      if (data?.patient?._id) {
-        qc.setQueryData(["patient", data.patient._id], data.patient);
-      }
-    },
-    onError: (e) => {
-      toast.error(i18n.t("patients.toasts.importFailed") || "Failed to import patient");
-    },
-  });
-}*/
 
 // 3) Importar paciente (me agrega a owners)
 export function useImportPatient() {
@@ -426,6 +405,39 @@ export function useImportPatient() {
     },
   });
 }
+
+// ✅ History (Doctor): /patients/:id/history
+export function usePatientHistory(id, options = {}) {
+  const enabled = options.enabled ?? true;
+
+  return useQuery({
+    queryKey: ["patient-history", id],
+    enabled: enabled && !!id,
+    queryFn: async () => (await api.get(`/patients/${id}/history`)).data,
+    retry: false,
+    staleTime: 30_000,
+    onError: (e) => {
+      console.error("usePatientHistory error:", e);
+    },
+  });
+}
+
+// ✅ History (Patient): /patients/me/history
+export function useMyHistory(options = {}) {
+  const enabled = options.enabled ?? true;
+
+  return useQuery({
+    queryKey: ["my-history"],
+    enabled,
+    queryFn: async () => (await api.get(`/patients/me/history`)).data,
+    retry: false,
+    staleTime: 30_000,
+    onError: (e) => {
+      console.error("useMyHistory error:", e);
+    },
+  });
+}
+
 
 
 

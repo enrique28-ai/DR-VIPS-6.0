@@ -407,3 +407,10 @@ export async function hasPendingHealthDecisionForEmail(email) {
   // 3) Si hay cambios después de la última decisión (o nunca decidió), bloquea
   return latestUpdate > lastDecision;
 }
+
+
+export function identityQueryFromPatient(p) {
+  if (p?.email) return { patientEmail: String(p.email).toLowerCase().trim() };
+  if (p?.phoneDigits) return { patientPhoneDigits: String(p.phoneDigits).trim() };
+  return null;
+}
