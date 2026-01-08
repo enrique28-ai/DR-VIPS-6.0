@@ -1,7 +1,9 @@
 {
   "common": {
   "back": "Regresar",
-  "loading": "Cargando..."
+  "loading": "Cargando...",
+  "close": "Cerrar",
+  "view": "Ver"
 },
 
   "home": {
@@ -334,6 +336,7 @@
     },
     "detail": {
       "back": "Volver a Pacientes",
+      "history": "Historial",
       "loading": "Cargando paciente...",
       "notFoundTitle": "Paciente no encontrado",
       "notFoundText": "Puede que se haya borrado o que no tengas acceso.",
@@ -360,7 +363,15 @@
       "backButton": "Volver",
       "delete": "Borrar"
     },
-
+    "history": {
+      "title": "Historial del Paciente",
+      "empty": "No se encontraron versiones en el historial.",
+      "editedBy": "Editado por",
+      "location": "Ubicación",
+      "none": "Ninguno",
+      "deceasedLabel": "Fallecido",
+      "systemUnknown": "Sistema / Desconocido"
+    },
     "searchGlobal": {
     "title": "Agregar Paciente",
     "subtitle": "Busca en la base de datos global para importar un paciente existente, o crea uno nuevo.",
@@ -552,6 +563,13 @@
     "doctor": "Doctor",
     "email": "Correo"
   },
+  "history": {
+      "title": "Mi historial aprobado",
+      "empty": "Aún no hay historial disponible.",
+      "proposedBy": "Propuesto por",
+      "button": "Historial",
+      "systemUnknown": "Sistema / Desconocido"
+    },
   "sections": {
     "basic": {
       "title": "Información básica",

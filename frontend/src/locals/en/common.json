@@ -1,7 +1,9 @@
 {
   "common": {
   "back": "Back",
-  "loading": "Loading..."
+  "loading": "Loading...",
+  "close": "Close",
+  "view": "View"
 },
 
   "home": {
@@ -347,6 +349,7 @@
 
   "detail": {
     "back": "Back to Patients",
+    "history": "History",
     "loading": "Loading patient…",
     "notFoundTitle": "Patient not found",
     "notFoundText": "It may have been deleted or you don’t have access.",
@@ -396,6 +399,15 @@
     "alreadyOwned": "You already have this patient in your list.",
     "goToDetail": "Go to Patient Detail"
   },
+  "history": {
+      "title": "Patient History",
+      "empty": "No history versions found.",
+      "editedBy": "Edited by",
+      "location": "Location",
+      "none": "None",
+      "deceasedLabel": "Deceased",
+      "systemUnknown": "System / Unknown"
+    },
 
   "toasts": {
     "loadFailed": "Failed to load patients",
@@ -565,6 +577,13 @@
     "doctor": "Doctor",
     "email": "Email"
   },
+   "history": {
+      "title": "My Approved History",
+      "empty": "No history available yet.",
+      "proposedBy": "Proposed by",
+      "button": "History",
+      "systemUnknown": "System / Unknown"
+    },
   "sections": {
     "basic": {
       "title": "Basic information",

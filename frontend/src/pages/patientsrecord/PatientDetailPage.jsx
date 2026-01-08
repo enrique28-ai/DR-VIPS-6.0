@@ -59,12 +59,16 @@ function SnapshotViewer({ snapshot, t, i18n }) {
 
   const height =
     typeof snapshot.heightM === "number"
-      ? (isImp ? (snapshot.heightM / 0.3048).toFixed(2) + " ft" : snapshot.heightM.toFixed(2) + " m")
+      ? isImp
+        ? `${(snapshot.heightM / 0.3048).toFixed(2)} ft`
+        : `${snapshot.heightM.toFixed(2)} m`
       : "—";
 
   const weight =
     typeof snapshot.weightKg === "number"
-      ? (isImp ? (snapshot.weightKg * 2.2046226218).toFixed(2) + " lb" : snapshot.weightKg.toFixed(2) + " kg")
+      ? isImp
+        ? `${(snapshot.weightKg * 2.2046226218).toFixed(2)} lb`
+        : `${snapshot.weightKg.toFixed(2)} kg`
       : "—";
 
   const country = localizeCountryName(snapshot.country, i18n.language);
@@ -79,41 +83,58 @@ function SnapshotViewer({ snapshot, t, i18n }) {
       ? t("patients.card.genderFemale")
       : snapshot.gender || "—";
 
+  const yes = t("patients.create.yes");
+  const no = t("patients.create.no");
+  const none = t("patients.history.none");
+
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 text-sm text-gray-700">
       <div className="col-span-full font-semibold text-gray-900 border-b pb-2 mb-1">
         {snapshot.fullname || "—"}
       </div>
 
-      <div><span className="font-medium text-gray-500">Age:</span> {snapshot.age ?? "—"}</div>
-      <div><span className="font-medium text-gray-500">Gender:</span> {gender}</div>
-      <div><span className="font-medium text-gray-500">Blood:</span> {snapshot.bloodtype ?? "—"}</div>
-      <div><span className="font-medium text-gray-500">Location:</span> {location || "—"}</div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.card.age")}:</span> {snapshot.age ?? "—"}
+      </div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.card.gender")}:</span> {gender}
+      </div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.card.blood")}:</span> {snapshot.bloodtype ?? "—"}
+      </div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.history.location")}:</span> {location || "—"}
+      </div>
 
-      <div><span className="font-medium text-gray-500">Height:</span> {height}</div>
-      <div><span className="font-medium text-gray-500">Weight:</span> {weight}</div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.detail.height")}:</span> {height}
+      </div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.detail.weight")}:</span> {weight}
+      </div>
 
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">Deceased:</span>{" "}
-        {snapshot.isDeceased === true ? "Yes" : snapshot.isDeceased === false ? "No" : "—"}
+        <span className="font-medium text-gray-500">{t("patients.history.deceasedLabel")}:</span>{" "}
+        {snapshot.isDeceased === true ? yes : snapshot.isDeceased === false ? no : "—"}
         {snapshot.isDeceased === true && snapshot.causeOfDeath ? ` · ${snapshot.causeOfDeath}` : ""}
       </div>
 
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">Diseases:</span>{" "}
-        {Array.isArray(snapshot.diseases) && snapshot.diseases.length ? snapshot.diseases.join(", ") : "None"}
+        <span className="font-medium text-gray-500">{t("patients.detail.diseases")}:</span>{" "}
+        {Array.isArray(snapshot.diseases) && snapshot.diseases.length ? snapshot.diseases.join(", ") : none}
       </div>
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">Allergies:</span>{" "}
-        {Array.isArray(snapshot.allergies) && snapshot.allergies.length ? snapshot.allergies.join(", ") : "None"}
+        <span className="font-medium text-gray-500">{t("patients.detail.allergies")}:</span>{" "}
+        {Array.isArray(snapshot.allergies) && snapshot.allergies.length ? snapshot.allergies.join(", ") : none}
       </div>
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">Medications:</span>{" "}
-        {Array.isArray(snapshot.medications) && snapshot.medications.length ? snapshot.medications.join(", ") : "None"}
+        <span className="font-medium text-gray-500">{t("patients.detail.medications")}:</span>{" "}
+        {Array.isArray(snapshot.medications) && snapshot.medications.length ? snapshot.medications.join(", ") : none}
       </div>
     </div>
   );
 }
+
 
  function HistoryModal({ patientId, onClose, t, i18n }) {
   const { data: history, isLoading } = usePatientHistory(patientId);
