@@ -19,7 +19,7 @@ export default function SearchGlobalPatient() {
   }, [term]);
 
   const enabled = debounced.length >= 3;
-  const { data, isFetching, isError } = useSearchGlobalPatients(debounced, { enabled: true });
+  const { data, isFetching, isError } = useSearchGlobalPatients(debounced, { enabled });
 
   const results = useMemo(() => Array.isArray(data) ? data : [], [data]);
 

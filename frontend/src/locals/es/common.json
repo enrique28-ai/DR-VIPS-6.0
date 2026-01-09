@@ -259,7 +259,9 @@
       "viewDiagnoses": "Ver diagnósticos",
       "edit": "Editar paciente",
       "delete": "Borrar paciente",
-      "confirmDelete": "¿Borrar a este paciente? Esto no se puede deshacer."
+      "confirmDelete": "¿Borrar a este paciente? Esto no se puede deshacer.",
+      "pending": "Aprobacion Pendiente",
+      "pendingHint": "Los cambios requieren la aprobación del paciente"
     },
     "create": {
       "title": "Crear paciente",
@@ -345,6 +347,7 @@
       "phone": "Teléfono",
       "height": "Altura",
       "weight": "Peso",
+      "pendingApproval": "Aprobación Pendiente",
       "bmi": "IMC",
         "bmiCategories": {
             "underweight": "Bajo peso",

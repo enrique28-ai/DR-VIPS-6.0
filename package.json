@@ -28,6 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.12.26",
     "mongoose": "^8.18.1",
+    "mongoose-lean-virtuals": "^2.1.0",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "nanoid": "^5.1.5",

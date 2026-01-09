@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
 import { usePatient } from "../../features/patients/phooks.js";
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
-import { Droplet, Globe, User2, Activity, Heart, Pill, CalendarClock, History, X } from "lucide-react";
+import { Droplet, Globe, User2, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName, localizeStateName, localizeCityName } from "../../utilsfront/geoLabels.js";
 
@@ -144,7 +144,17 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
       </div>
 
       <header className="mb-4">
+        <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-3xl font-bold">{fullname}</h1>
+
+      {patient?.isPendingApproval && (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 border border-amber-200 shadow-sm animate-pulse">
+          <AlertTriangle className="h-4 w-4" />
+        {t("patients.detail.pendingApproval")}
+      </span>
+      )}
+    </div>
+
        <div className="mt-2 flex flex-wrap gap-2">
           {age != null && <Chip label={t("patients.card.age")} value={age} />}
           {categoryLabel && <Chip label={t("patients.detail.category")} value={categoryLabel} />}

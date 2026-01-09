@@ -1,6 +1,6 @@
 // src/components/patient/PatientCard.jsx
 import { Link } from "react-router-dom";
-import { Pencil, Import } from "lucide-react";
+import { Pencil, Import, AlertTriangle } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName } from "../../utilsfront/geoLabels";
@@ -15,11 +15,24 @@ import { localizeCountryName } from "../../utilsfront/geoLabels";
 
   return (
     <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition">
-      <h3 className="text-lg font-semibold">
-        <Link  to={detailLink} className="hover:underline">
-          {patient.fullname}
-        </Link>
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+  <h3 className="text-lg font-semibold leading-tight">
+    <Link to={detailLink} className="hover:underline">
+      {patient.fullname}
+    </Link>
+  </h3>
+
+  {patient?.isPendingApproval && (
+    <span
+      className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 border border-amber-200"
+      title={t("patients.card.pendingHint")}
+    >
+      <AlertTriangle className="h-3 w-3" />
+      <span>{t("patients.card.pending")}</span>
+    </span>
+  )}
+</div>
+
 
       <ul className="mt-2 text-sm text-gray-600 space-y-1">
         {patient?.age != null && <li>{t("patients.card.age")}: {patient.age}</li>}
@@ -59,7 +72,7 @@ import { localizeCountryName } from "../../utilsfront/geoLabels";
             <Link
               to={`/patients/${patient._id}/edit`}
               title={t("patients.card.edit")}
-              className="hover:text-blue-600"
+              className="p-2 text-gray-500 hover:text-blue-600"
             >
               <Pencil className="h-5 w-5" />
             </Link>

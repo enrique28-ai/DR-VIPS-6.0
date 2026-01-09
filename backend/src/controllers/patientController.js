@@ -306,7 +306,7 @@ export const searchGlobalPatients = async (req, res) => {
     const query = { $and: [{ $nor: [mineExpr] }, { $or: or }] };
 
     const patients = await Patient.find(query)
-      .select("fullname email phone age gender country city state")
+      .select("fullname email phone age gender country city state approvedAt updatedAt")
       .limit(10)
       .lean({ virtuals: true });
 
@@ -880,6 +880,7 @@ export const approvePatientProfile = async (req, res) => {
         ...canonicalSet,
         approvedSnapshot,
         approvedAt,
+        updatedAt: approvedAt,
       },
     };
 
@@ -888,7 +889,7 @@ export const approvePatientProfile = async (req, res) => {
     }
 
     // 3) Copiar a TODOS los docs del mismo email + guardar snapshot
-    await Patient.updateMany({ email }, updateDoc);
+    await Patient.updateMany({ email }, updateDoc, { timestamps: false });
 
     // ✅ Guardar versión aprobada en historial (agrupado por identidad)
 await PatientHistory.create({
@@ -966,7 +967,12 @@ if (withoutTarget.length === 0) {
     const updateDoc = { $set: prevSet };
     if (Object.keys(prevUnset).length > 0) updateDoc.$unset = prevUnset;
 
-    await Patient.updateMany({ email }, updateDoc);
+    // ✅ acción del paciente: no dispares "pending" por timestamps
+if (target?.approvedAt) {
+  updateDoc.$set.updatedAt = target.approvedAt;
+}
+
+    await Patient.updateMany({ email }, updateDoc, { timestamps: false });
 
     await User.findByIdAndUpdate(
       req.user._id,
@@ -1073,9 +1079,12 @@ if (phoneVal !== undefined) {
 if (canonical.isDeceased === false) {
   updateDoc.$unset = { causeOfDeath: 1 };
 }
+if (target?.approvedAt) {
+  updateDoc.$set.updatedAt = target.approvedAt;
+}
 
     // Copiar "estado anterior" a TODOS los Patient con ese email
-    await Patient.updateMany({ email }, updateDoc);
+    await Patient.updateMany({ email }, updateDoc, { timestamps: false });
 
     // Registrar decisión del paciente
     await User.findByIdAndUpdate(

@@ -271,7 +271,9 @@
     "viewDiagnoses": "View diagnoses",
     "edit": "Edit patient",
     "delete": "Delete patient",
-    "confirmDelete": "Delete this patient? This cannot be undone."
+    "confirmDelete": "Delete this patient? This cannot be undone.",
+    "pending": "Pending Approval",
+    "pendingHint": "Changes require patient approval"
   },
 
   "create": {
@@ -358,6 +360,7 @@
     "phone": "Phone",
     "height": "Height",
     "weight": "Weight",
+    "pendingApproval": "Pending Approval",
     "bmi": "BMI",
       "bmiCategories": {
         "underweight": "Underweight",

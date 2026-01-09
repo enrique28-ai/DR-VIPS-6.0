@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-
+import mongooseLeanVirtuals from "mongoose-lean-virtuals";
 export const AGE_BANDS = [
   { key: "0-12",  min: 0,  max: 12 },
   { key: "13-17", min: 13, max: 17 },
@@ -90,6 +90,19 @@ patientSchema.virtual("heightUnit").get(function(){
 patientSchema.virtual("weightUnit").get(function(){
   return this.measurementSystem === "imperial" ? "lb" : "kg";
 });
+
+// ✅ NUEVO VIRTUAL: indica si hay cambios pendientes de aprobación del paciente
+patientSchema.virtual("isPendingApproval").get(function () {
+  // Si nunca se ha aprobado, está pendiente (paciente recién creado por doctor)
+  if (!this.approvedAt) return true;
+
+  // Si no tenemos updatedAt (por proyección), asumimos que NO hay pendiente
+  if (!this.updatedAt) return false;
+
+  // Si la última modificación fue DESPUÉS de la aprobación, está pendiente
+  return new Date(this.updatedAt).getTime() > new Date(this.approvedAt).getTime();
+});
+
 
 
 
@@ -214,6 +227,8 @@ patientSchema.index({ createdBy: 1, country: 1 });
 patientSchema.index({ createdBy: 1, phoneDigits: 1 });*/
 
 // ✅ índices para “mis pacientes” (owners)
+
+patientSchema.plugin(mongooseLeanVirtuals);
 patientSchema.index({ owners: 1 });
 patientSchema.index({ owners: 1, fullname: 1 });
 patientSchema.index({ owners: 1, ageCategory: 1 });
