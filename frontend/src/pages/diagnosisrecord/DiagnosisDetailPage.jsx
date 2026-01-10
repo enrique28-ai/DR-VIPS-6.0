@@ -1,13 +1,15 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useState } from "react";
 import Button from "../../components/forms/Button.jsx";
 import { useDiagnosis } from "../../features/diagnostics/dhooks.js";
-import { CalendarClock, Pill, Syringe, Scissors } from "lucide-react";
+import { CalendarClock, Pill, Syringe, Scissors, History } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
+import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
 export default function DiagnosisDetailPage() {
   const { t } = useTranslation();
   const { patientId, diagnosisId } = useParams();
   const navigate = useNavigate();
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data: diag, isLoading, isError } = useDiagnosis(diagnosisId);
 
@@ -115,15 +117,28 @@ export default function DiagnosisDetailPage() {
 
 
         
-        <div className="mt-6 grid w-full max-w-md grid-cols-2 gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Link to={`/diagnosis/patient/${patientId}/${diagnosisId}/edit`}>
             <Button full={false} className="w-full">{t("diagnoses.detail.edit")}</Button>
           </Link>
           <Link to={`/diagnosis/patient/${patientId}`}>
             <Button  full={false} variant="secondary" className="w-full">{t("diagnoses.detail.back")}</Button>
           </Link>
+          <Button full={false} variant="secondary" onClick={() => setShowHistory(true)}>
+            <span className="inline-flex items-center gap-2">
+              <History className="h-4 w-4" />
+              {t("diagnoses.detail.history")}
+            </span>
+          </Button>
         </div>
       </section>
+      {showHistory && (
+  <DiagnosisHistoryModal
+    diagnosisId={diagnosisId}
+    onClose={() => setShowHistory(false)}
+  />
+)}
+
     </main>
   );
 }

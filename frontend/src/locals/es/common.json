@@ -473,8 +473,18 @@
     "edit": "Editar",
     "back": "Volver",
     "delete": "Borrar",
-    "untitled": "Sin título"
+    "untitled": "Sin título",
+    "history": "Historial"
   },
+  "history": {
+  "title": "Historial del Diagnóstico",
+  "empty": "No se encontraron versiones en el historial.",
+  "editedBy": "Editado por",
+  "created": "Creado",
+  "updated": "Actualizado",
+  "none": "Ninguno",
+  "systemUnknown": "Sistema / Desconocido"
+},
   "form": {
     "titleLabel": "Título",
     "titlePlaceholder": "p. ej., Hipertensión",
@@ -522,7 +532,8 @@
   "updateFailed": "Error al actualizar diagnóstico",
   "deleteSuccess": "Diagnóstico eliminado",
   "deleteFailed": "Error al eliminar diagnóstico",
-  "loadMineFailed": "Error al cargar sus diagnósticos"
+  "loadMineFailed": "Error al cargar sus diagnósticos",
+  "loadHistoryFailed": "Error al cargar historial del diagnóstico"
 }
 },
 "myHealthState": {

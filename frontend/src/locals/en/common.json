@@ -486,8 +486,18 @@
     "edit": "Edit",
     "back": "Back",
     "delete": "Delete",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "history": "History"
   },
+  "history": {
+      "title": "Diagnosis History",
+      "empty": "No history versions found.",
+      "editedBy": "Edited by",
+      "created": "Created",
+      "updated": "Updated",
+      "none": "None",
+      "systemUnknown": "System / Unknown"
+    },
   "form": {
     "titleLabel": "Title",
     "titlePlaceholder": "e.g., Hypertension",
@@ -536,7 +546,8 @@
   "updateFailed": "Failed to update diagnosis",
   "deleteSuccess": "Diagnosis deleted",
   "deleteFailed": "Failed to delete diagnosis",
-  "loadMineFailed": "Failed to load your diagnoses"
+  "loadMineFailed": "Failed to load your diagnoses",
+  "loadHistoryFailed": "Failed to load diagnosis history"
   }
 },
 "myHealthState": {

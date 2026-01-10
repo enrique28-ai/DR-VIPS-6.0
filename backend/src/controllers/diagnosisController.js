@@ -1,6 +1,8 @@
 // controllers/diagnosis.controller.js
 import Diagnosis from "../models/Diagnosis.js";
 import Patient from "../models/Patient.js";
+import DiagnosisHistory from "../models/DiagnosisHistory.js";
+
 
 // Helper: confirmar que el paciente pertenece al usuario autenticado
 const ownsPatient = async (patientId, userId) =>
@@ -39,6 +41,19 @@ export const createDiagnosis = async (req, res, next) => {
       patient,
       createdBy: req.user._id,
     });
+
+    try {
+  await DiagnosisHistory.create({
+    diagnosisId: doc._id,
+    editedBy: req.user._id,
+    snapshot: doc.toObject(),
+    changeType: "created",
+  });
+} catch (e) {
+  console.error("DiagnosisHistory(create) error:", e);
+}
+
+
 
     return res.status(201).json(doc);
   } catch (err) {
@@ -195,6 +210,16 @@ export const updateDiagnosis = async (req, res, next) => {
 
 
     await d.save();
+   try {
+  await DiagnosisHistory.create({
+    diagnosisId: d._id,
+    editedBy: req.user._id,
+    snapshot: d.toObject(),
+    changeType: "updated",
+  });
+} catch (e) {
+  console.error("DiagnosisHistory(update) error:", e);
+}
     return res.json(d);
   } catch (err) {
     console.error("updateDiagnosis error:", err);
@@ -339,6 +364,48 @@ export const getMyDiagnosisPortalById = async (req, res) => {
     return res.json(d);
   } catch (err) {
     console.error("getMyDiagnosisPortalById error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// GET /api/diagnoses/:id/history
+// Visible para:
+// - Doctor: solo si él creó el diagnóstico (y aún tiene acceso al paciente)
+// - Paciente: solo si el diagnóstico pertenece a SU email (igual que /mine/:id)
+export const getDiagnosisHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const d = await Diagnosis.findById(id);
+    if (!d) return res.status(404).json({ error: "Diagnostic not found" });
+
+    if (req.user.role === "doctor") {
+      // solo el doctor que lo creó
+      if (String(d.createdBy) !== String(req.user._id)) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+      // defensa extra: confirmar que el paciente está en su lista/lo creó
+      if (!(await ownsPatient(d.patient, req.user._id))) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+    } else if (req.user.role === "patient") {
+      // el paciente dueño por email
+      const email = (req.user.email || "").toLowerCase().trim();
+      if (!email) return res.status(400).json({ error: "User has no email on file" });
+
+      const owns = await Patient.exists({ _id: d.patient, email });
+      if (!owns) return res.status(403).json({ error: "Not authorized" });
+    } else {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const history = await DiagnosisHistory.find({ diagnosisId: id })
+      .sort({ createdAt: -1 })
+      .populate("editedBy", "name email");
+
+    return res.json(history);
+  } catch (err) {
+    console.error("getDiagnosisHistory error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

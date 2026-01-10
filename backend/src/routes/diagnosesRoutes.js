@@ -10,7 +10,8 @@ import {
   getDiagnosisById,
   updateDiagnosis,
   getMyDiagnosesPortal,
-  getMyDiagnosisPortalById
+  getMyDiagnosisPortalById,
+  getDiagnosisHistory, // 👈 NUEVO
 } from "../controllers/diagnosisController.js";
 import { writeLimiter, readLimiter } from "../middleware/rateLimit.js";
 
@@ -23,6 +24,9 @@ router.get("/mine/:id", protect, requireVerified, requireRole("patient"), readLi
 
 router.post("/", protect, requireVerified, requireRole("doctor"), writeLimiter, createDiagnosis);
 router.get("/patient/:patientId", protect, requireVerified, requireRole("doctor"), readLimiter, getDiagnosesByPatient); // ?q=&page=&limit=
+
+router.get("/:id/history", protect, requireVerified, readLimiter, getDiagnosisHistory);
+
 router.get("/:id", protect, requireVerified, requireRole("doctor"), readLimiter, getDiagnosisById);
 router.put("/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, updateDiagnosis);
 

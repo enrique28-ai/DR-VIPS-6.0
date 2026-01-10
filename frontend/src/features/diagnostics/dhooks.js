@@ -133,64 +133,6 @@ export function useUpdateDiagnosis(diagnosisId, patientId) {
   });
 }
 
-// === DELETE (idéntico al patrón de patients) ===
-/*export function useDeleteDiagnosis() {
-  const qc = useQueryClient();
-
-  return useMutation({
-    // Recibe { id, patientId } desde DiagnosisDetailPage
-    mutationFn: async ({ id }) => {
-      await api.delete(`/diagnoses/${id}`); // 204
-      return id;
-    },
-
-    onMutate: async ({ id, patientId }) => {
-      // 1) Detén cualquier refetch del detalle y de listas
-      await qc.cancelQueries({ queryKey: ["diagnosis", id] });
-      await qc.cancelQueries({ queryKey: ["diagnoses"] });
-
-      // 2) Guarda y elimina el detalle del caché (para que no se vuelva a pintar)
-      //const prevDetail = qc.getQueryData(["diagnosis", id]);
-      //qc.removeQueries({ queryKey: ["diagnosis", id] });
-
-      // 3) Optimista: quita el diagnóstico de TODAS las listas del mismo patientId
-      const rollbacks = [];
-      const snaps = qc.getQueriesData({ queryKey: ["diagnoses"] });
-      snaps.forEach(([key, data]) => {
-        const k1 = key?.[1];
-        const keyPid = typeof k1 === "object" && k1 ? k1.patientId : k1;
-        if (keyPid !== patientId) return;
-        if (!data?.items) return;
-
-        const prev = data;
-        const next = { ...data, items: data.items.filter(d => d._id !== id) };
-        qc.setQueryData(key, next);
-        rollbacks.push(() => qc.setQueryData(key, prev));
-      });
-
-      // rollback por si falla la mutación
-      //return () => {
-        //if (prevDetail) qc.setQueryData(["diagnosis", id], prevDetail);
-        //rollbacks.forEach(rb => rb());
-      //};
-
-      return () => rollbacks.forEach(rb => rb());
-    },
- 
-
-    onError: (e, _vars, rollback) => {
-      rollback?.();
-      if (e?.response?.status !== 429) toast.error(i18n.t("diagnoses.toasts.deleteFailed"));
-    },
-
-    onSuccess: (_res, { patientId, id }) => {
-      toast.success(i18n.t("diagnoses.toasts.deleteSuccess"));
-      // 4) Confirma con el server las listas de ese paciente
-      qc.removeQueries({ queryKey: ["diagnosis", id] });
-      qc.invalidateQueries({ queryKey: ["diagnoses", patientId] });
-    },
-  });
-}*/
 
 export function useMyDiagnoses(params) {
   return useQuery({
@@ -217,6 +159,21 @@ export function useMyDiagnosis(id) {
     onError: (e) => {
       const s = e?.response?.status;
       if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadMineFailed"));
+    },
+  });
+}
+
+// ✅ Historial del diagnóstico (doctor creador o paciente dueño)
+export function useDiagnosisHistory(id, options = {}) {
+  return useQuery({
+    queryKey: ["diagnosis-history", id],
+    enabled: options.enabled ?? !!id,
+    queryFn: async () => (await api.get(`/diagnoses/${id}/history`)).data,
+    retry: false,
+    staleTime: 30_000,
+    onError: (e) => {
+      const s = e?.response?.status;
+      if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadHistoryFailed"));
     },
   });
 }

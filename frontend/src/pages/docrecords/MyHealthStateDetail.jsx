@@ -2,9 +2,10 @@
 import { Link, useParams } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
 import { useMyDiagnosis } from "../../features/diagnostics/dhooks.js";
-import { CalendarClock, Pill, Syringe, Scissors } from "lucide-react";
+import { useState } from "react";
+import { CalendarClock, Pill, Syringe, Scissors, History } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
+import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
 // helper para fechas localizadas
 function formatDateTime(iso, locale) {
   if (!iso) return "—";
@@ -21,6 +22,7 @@ export default function MyHealthStateDetail() {
   const { id } = useParams();
   const { t, i18n } = useTranslation();
   const { data: diag, isLoading, isError } = useMyDiagnosis(id);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Evitar flash en primer fetch
   if (isLoading && !diag) return null;
@@ -172,8 +174,17 @@ export default function MyHealthStateDetail() {
             {t("diagnoses.detail.created")}: {createdAt} ·{" "}
             {t("diagnoses.detail.updated")}: {updatedAt}
           </span>
+          <Button full={false} variant="secondary" onClick={() => setShowHistory(true)}>
+    <span className="inline-flex items-center gap-2">
+      <History className="h-4 w-4" />
+      {t("diagnoses.detail.history")}
+    </span>
+  </Button>
         </div>
       </section>
+      {showHistory && (
+  <DiagnosisHistoryModal diagnosisId={id} onClose={() => setShowHistory(false)} />
+)}
     </main>
   );
 }
