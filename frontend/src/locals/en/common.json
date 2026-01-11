@@ -428,7 +428,8 @@
     "rejectHealthInfoSuccess": "We kept your previous information.",
     "rejectHealthInfoFailed": "We couldn't reject this information.",
     "importSuccess": "Patient imported successfully.",
-    "importFailed": "Failed to import patient."
+    "importFailed": "Failed to import patient.",
+    "noChanges": "No changes detected. Please modify at least one field before saving."
   }
 },
 "diagnoses": {

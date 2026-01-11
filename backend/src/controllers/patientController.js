@@ -15,7 +15,12 @@ import {
   FT_TO_M,
   LB_TO_KG,
   buildHealthSnapshotFromPatients,
-  identityQueryFromPatient
+  identityQueryFromPatient,
+  normStr,
+  normLower,
+  normUpper,
+  arrKey,
+  near,
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
 
@@ -413,12 +418,20 @@ export const updatePatient = async (req, res) => {
      } = req.body;
 
      // Leemos el doc actual para validar regla adulto/menor
+     const accessQuery = {
+  _id: req.params.id,
+  $or: [{ owners: req.user._id }, { createdBy: req.user._id }],
+};
+
+const current = await Patient.findOne(accessQuery).lean();
+if (!current) return res.status(404).json({ error: "Patient not found" });
+
    // const current = await Patient.findOne({ _id: req.params.id, createdBy: req.user._id }).lean();
-   const current = await Patient.findOne({
+   /*const current = await Patient.findOne({
   _id: req.params.id,
   $or: [{ owners: req.user._id }, { createdBy: req.user._id }],
   }).lean();
-    if (!current) return res.status(404).json({ error: "Patient not found" });
+    if (!current) return res.status(404).json({ error: "Patient not found" });*/
         // 🔒 Control: si este paciente tiene una versión pendiente en el portal,
     // ningún doctor (ni siquiera el que lo creó) puede editar hasta que el paciente decida.
     if (current.email) {
@@ -533,7 +546,9 @@ export const updatePatient = async (req, res) => {
         update.causeOfDeath = cod;
       } else {
         // Si vuelve a vivo, limpiamos la causa
-        update.causeOfDeath = undefined;
+        //update.causeOfDeath = undefined;
+        unset.causeOfDeath = 1;
+        delete update.causeOfDeath;
       }
     } else if ("causeOfDeath" in req.body) {
       // Solo acepta actualizar/limpiar causa si también llega isDeceased=true en este mismo request.
@@ -558,16 +573,85 @@ export const updatePatient = async (req, res) => {
       if (typeof heightM  !== "undefined") update.heightM  = heightM;
       if (typeof weightKg !== "undefined") update.weightKg = weightKg;
     }
+// --- CHANGE DETECTION ---
+// Si no hay cambios reales, regresamos 400 + errorCode NO_CHANGES
+let changesFound = false;
+
+// 1) Unsets: solo cuentan si el campo existía
+for (const k of Object.keys(unset)) {
+  if (typeof current[k] !== "undefined") {
+    changesFound = true;
+    break;
+  }
+}
+
+
+
+// 2) Sets (comparación campo por campo)
+if (!changesFound) {
+  // Arrays
+  if ("diseases" in update && arrKey(update.diseases) !== arrKey(current.diseases)) changesFound = true;
+  if ("allergies" in update && arrKey(update.allergies) !== arrKey(current.allergies)) changesFound = true;
+  if ("medications" in update && arrKey(update.medications) !== arrKey(current.medications)) changesFound = true;
+
+  // Scalars comunes
+  if (!changesFound && "fullname" in update && normStr(update.fullname) !== normStr(current.fullname)) changesFound = true;
+  if (!changesFound && "age" in update && Number(update.age) !== Number(current.age)) changesFound = true;
+  if (!changesFound && "bloodtype" in update && normUpper(update.bloodtype) !== normUpper(current.bloodtype)) changesFound = true;
+  if (!changesFound && "gender" in update && normLower(update.gender) !== normLower(current.gender)) changesFound = true;
+
+  if (!changesFound && "organDonor" in update && Boolean(update.organDonor) !== Boolean(current.organDonor)) changesFound = true;
+  if (!changesFound && "bloodDonor" in update && Boolean(update.bloodDonor) !== Boolean(current.bloodDonor)) changesFound = true;
+
+  if (!changesFound && "country" in update && normStr(update.country) !== normStr(current.country)) changesFound = true;
+  if (!changesFound && "state" in update && normStr(update.state) !== normStr(current.state)) changesFound = true;
+  if (!changesFound && "city" in update && normStr(update.city) !== normStr(current.city)) changesFound = true;
+
+  if (!changesFound && "phone" in update && normStr(update.phone) !== normStr(current.phone)) changesFound = true;
+  if (!changesFound && "phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changesFound = true;
+
+  // Estado de vida
+  if (!changesFound && "isDeceased" in update && Boolean(update.isDeceased) !== Boolean(current.isDeceased)) changesFound = true;
+  if (!changesFound && "causeOfDeath" in update && normStr(update.causeOfDeath) !== normStr(current.causeOfDeath)) changesFound = true;
+
+  // Antropometría: si mandaron measurementSystem + height + weight
+  const touchedAnthro = ("measurementSystem" in update) || ("height" in update) || ("weight" in update);
+  if (!changesFound && touchedAnthro) {
+    const sys = normLower(update.measurementSystem || current.measurementSystem || "metric");
+    const H = Number(update.height);
+    const W = Number(update.weight);
+
+    const nextHeightM = sys === "imperial" ? H * FT_TO_M : H;
+    const nextWeightKg = sys === "imperial" ? W * LB_TO_KG : W;
+
+    // Cambió unidad o cambió el valor real
+    if (sys !== normLower(current.measurementSystem)) changesFound = true;
+    else if (!near(nextHeightM, current.heightM)) changesFound = true;
+    else if (!near(nextWeightKg, current.weightKg)) changesFound = true;
+  }
+
+  // Alternativa: si mandan heightM/weightKg directo
+  if (!changesFound && "heightM" in update && !near(update.heightM, current.heightM)) changesFound = true;
+  if (!changesFound && "weightKg" in update && !near(update.weightKg, current.weightKg)) changesFound = true;
+}
+
+if (!changesFound) {
+  return res.status(400).json({
+    errorCode: "NO_CHANGES",
+    error: "No changes detected. Update cancelled.",
+  });
+}
+
+// Si sí hubo cambios, ahora sí registramos quién editó
+update.lastEditedBy = req.user._id;
+
 
     const updateDoc = {};
     if (Object.keys(update).length) updateDoc.$set = update;
     if (Object.keys(unset).length) updateDoc.$unset = unset;
 
-   /* const updated = await Patient.findOneAndUpdate(
-      { _id: req.params.id, createdBy: req.user._id },
-      Object.keys(updateDoc).length ? updateDoc : { $set: {} },
-      { new: true, runValidators: true, context: "query" }
-    );*/
+   
+
     const updated = await Patient.findOneAndUpdate(
   { _id: req.params.id, $or: [{ owners: req.user._id }, { createdBy: req.user._id }] },
   Object.keys(updateDoc).length ? updateDoc : { $set: {} },

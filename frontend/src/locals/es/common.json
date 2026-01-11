@@ -414,7 +414,8 @@
       "rejectHealthInfoSuccess": "Conservamos su información anterior.",
       "rejectHealthInfoFailed": "No podíamos rechazar esta información.",
       "importSuccess": "Paciente importado correctamente.",
-      "importFailed": "Error al importar el paciente."
+      "importFailed": "Error al importar el paciente.",
+      "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar."
     }
   },
 

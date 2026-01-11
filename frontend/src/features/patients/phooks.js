@@ -157,6 +157,18 @@ export function useUpdatePatient(id) {
       rollback?.();
 
       const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
+      const backendMsg = e?.response?.data?.error;
+
+  // ✅ No permitir "guardar" si no hubo cambios reales
+  if (status === 400 && code === "NO_CHANGES") {
+    toast.error(
+      i18n.t("patients.toasts.noChanges") ||
+        backendMsg ||
+        "No changes detected. Please modify at least one field before saving."
+    );
+    return;
+  }
       
 
       if (status === 409) {

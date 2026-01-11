@@ -414,3 +414,9 @@ export function identityQueryFromPatient(p) {
   if (p?.phoneDigits) return { patientPhoneDigits: String(p.phoneDigits).trim() };
   return null;
 }
+
+export const normStr = (v) => String(v ?? "").trim();
+export const normLower = (v) => normStr(v).toLowerCase();
+export const normUpper = (v) => normStr(v).toUpperCase();
+export const arrKey = (v) => normalize(v).slice().sort().join("||");
+export const near = (a, b, eps = 0.005) => Math.abs(Number(a) - Number(b)) <= eps;
