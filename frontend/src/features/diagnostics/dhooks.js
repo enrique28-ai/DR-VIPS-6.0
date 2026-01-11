@@ -128,7 +128,14 @@ export function useUpdateDiagnosis(diagnosisId, patientId) {
       qc.invalidateQueries({ queryKey: ["diagnoses", patientId] });
     },
     onError: (e) => {
-      if (e?.response?.status !== 429) toast.error(i18n.t("diagnoses.toasts.updateFailed"));
+      const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
+
+      if (status === 400 && code === "NO_CHANGES") {
+        toast.error(i18n.t("diagnoses.toasts.noChanges"));
+        return;
+      }
+      if (status !== 429) toast.error(i18n.t("diagnoses.toasts.updateFailed"));
     },
   });
 }

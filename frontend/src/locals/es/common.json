@@ -534,7 +534,8 @@
   "deleteSuccess": "Diagnóstico eliminado",
   "deleteFailed": "Error al eliminar diagnóstico",
   "loadMineFailed": "Error al cargar sus diagnósticos",
-  "loadHistoryFailed": "Error al cargar historial del diagnóstico"
+  "loadHistoryFailed": "Error al cargar historial del diagnóstico",
+  "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar."
 }
 },
 "myHealthState": {

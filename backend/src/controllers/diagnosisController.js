@@ -195,7 +195,7 @@ export const updateDiagnosis = async (req, res, next) => {
     }
 
     // Solo permitir campos editables
-    if (req.body.title != null) d.title = String(req.body.title).trim();
+    /*if (req.body.title != null) d.title = String(req.body.title).trim();
     if (req.body.description != null) d.description = String(req.body.description).trim();
     if ("medicine" in req.body) {
         d.medicine = normalize(req.body.medicine);  // [] limpia
@@ -206,7 +206,40 @@ export const updateDiagnosis = async (req, res, next) => {
 
     if ("operation" in req.body) {
       d.operation = normalize(req.body.operation); // [] limpia
+    }*/
+   // --- DETECT CHANGES ---
+    // Evita guardar si el doctor no cambió nada (para mostrar toast de "No changes").
+    const nextTitle =
+      req.body.title != null ? String(req.body.title).trim() : (d.title ?? "");
+    const nextDesc =
+      req.body.description != null
+        ? String(req.body.description).trim()
+        : (d.description ?? "");
+    const nextMed = ("medicine" in req.body) ? normalize(req.body.medicine) : normalize(d.medicine);
+    const nextTx  = ("treatment" in req.body) ? normalize(req.body.treatment) : normalize(d.treatment);
+    const nextOp  = ("operation" in req.body) ? normalize(req.body.operation) : normalize(d.operation);
+
+    const arrKey = (a) => normalize(a).slice().sort().join("||");
+    const noChanges =
+      String(nextTitle) === String(d.title ?? "") &&
+      String(nextDesc) === String(d.description ?? "") &&
+      arrKey(nextMed) === arrKey(d.medicine) &&
+      arrKey(nextTx) === arrKey(d.treatment) &&
+      arrKey(nextOp) === arrKey(d.operation);
+
+    if (noChanges) {
+      return res.status(400).json({
+        errorCode: "NO_CHANGES",
+        error: "No changes detected. Update cancelled.",
+      });
     }
+
+    // Aplicar cambios (ya normalizados)
+    d.title = nextTitle;
+    d.description = nextDesc;
+    d.medicine = nextMed;
+    d.treatment = nextTx;
+    d.operation = nextOp;
 
 
     await d.save();

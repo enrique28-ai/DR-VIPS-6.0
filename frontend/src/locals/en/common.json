@@ -548,7 +548,8 @@
   "deleteSuccess": "Diagnosis deleted",
   "deleteFailed": "Failed to delete diagnosis",
   "loadMineFailed": "Failed to load your diagnoses",
-  "loadHistoryFailed": "Failed to load diagnosis history"
+  "loadHistoryFailed": "Failed to load diagnosis history",
+  "noChanges": "No changes detected. Please modify at least one field before saving."
   }
 },
 "myHealthState": {
