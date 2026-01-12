@@ -122,6 +122,14 @@ export default function Navbar() {
                     {user?.role === "patient" ? (
                       <>
                         <Link
+                          to="/calendar"
+                          onClick={() => setOpen(false)}
+                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          role="menuitem"
+                        >
+                          {t("calendar.menu")}
+                        </Link>
+                        <Link
                           to="/docrecords/myhealthstate"
                           onClick={() => setOpen(false)}
                           className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -140,6 +148,14 @@ export default function Navbar() {
                       </>
                     ) : (
                       <>
+                        <Link
+                          to="/calendar"
+                          onClick={() => setOpen(false)}
+                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          role="menuitem"
+                          >
+                          {t("calendar.menu")}
+                        </Link>
                         <Link
                           to="/patients"
                           onClick={() => setOpen(false)}

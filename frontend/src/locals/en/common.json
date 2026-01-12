@@ -658,11 +658,46 @@
     "approving": "Approving...",
     "rejecting": "Rejecting..."
   }
+},
+"calendar": {
+  "title": "Appointments Calendar",
+  "menu": "Calendar",
+  "scheduleBtn": "Schedule Appointment",
+  "scheduling": "Scheduling...",
+  "selectPatient": "Select Patient (Alive only)",
+  "choosePatient": "-- Choose Patient --",
+  "dateTime": "Date & Time",
+  "legendPending": "Pending",
+  "legendAccepted": "Accepted",
+  "doctorPrefix": "Dr:",
+  "patientPrefix": "P:",
+  "unknown": "Unknown",
+  "pendingHint": "Pending patient acceptance. Only patient can accept.",
+  "confirmAccept": "Accept appointment with Dr. {{name}}?",
+  "confirmReject": "Reject this appointment?",
+  "confirmCancel": "Cancel/delete this appointment?",
+  "toasts": {
+    "loadFailed": "Failed to load appointments",
+    "createSuccess": "Appointment created",
+    "createFailed": "Failed to create appointment",
+    "acceptSuccess": "Appointment accepted",
+    "acceptFailed": "Failed to accept appointment",
+    "deleteSuccess": "Appointment cancelled",
+    "deleteFailed": "Failed to cancel appointment"
+  },
+  "rbc": {
+    "today": "Today",
+    "previous": "Back",
+    "next": "Next",
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agenda": "Agenda",
+    "date": "Date",
+    "time": "Time",
+    "event": "Event",
+    "noEventsInRange": "No appointments in this range."
+  }
 }
-
-
-
-
-
 
 }

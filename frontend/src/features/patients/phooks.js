@@ -22,10 +22,11 @@ export const buildPatientParams = ({ q = "", category = "All", bloodtype = "All"
 });
 
 // Query: list
-export function usePatients(params) {
+export function usePatients(params, options = {}) {
   return useQuery({
     queryKey: ["patients", params],
     queryFn: async () => (await api.get("/patients", { params })).data, // { items,total,page,pages }
+    enabled: options.enabled ?? true,
     keepPreviousData: true,
     placeholderData: (prev) => prev,         // conserva la data anterior mientras llega la nueva
     notifyOnChangeProps: ["data", "isFetching"],

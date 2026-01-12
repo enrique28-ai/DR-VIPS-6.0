@@ -41,6 +41,9 @@ import MyHealthStateDetail from "./pages/docrecords/MyHealthStateDetail.jsx";
 import ChooseRole from "./pages/registration/ChooseRole.jsx";
 import MyHealthInfo from "./pages/docrecords/MyHealthInfo.jsx";
 
+import CalendarPage from "./pages/calendar/CalendarPage.jsx";
+
+
 
 const WithNav = () => (
   <>
@@ -135,7 +138,7 @@ export default function App() {
         />
 
         {/* Privadas: requieren login + verificación */}
-        <Route
+    <Route
           element={
             <PrivateRoute>
               <RequireVerified>
@@ -144,14 +147,19 @@ export default function App() {
             </PrivateRoute>
           }
         >
+
+      <Route element={ <RequireRole allowed={["doctor", "patient"]}><Outlet /></RequireRole>}>
+        <Route path="/calendar" element={<CalendarPage />} />
+      </Route>
+
           {/* Paciente: portal read-only */}
-   <Route element={<RequireRole allowed={["patient"]}><Outlet /></RequireRole>}>
-     <Route path="/docrecords/myhealthstate" element={<MyHealthState />} />
-     <Route path="/docrecords/myhealthstate/:id" element={<MyHealthStateDetail />} />
-     <Route path="/docrecords/myhealthinfo" element={<MyHealthInfo />} />
-  </Route>
+      <Route element={<RequireRole allowed={["patient"]}><Outlet /></RequireRole>}>
+        <Route path="/docrecords/myhealthstate" element={<MyHealthState />} />
+        <Route path="/docrecords/myhealthstate/:id" element={<MyHealthStateDetail />} />
+        <Route path="/docrecords/myhealthinfo" element={<MyHealthInfo />} />
+      </Route>
           <Route path="/profile" element={<ProfilePage />} />
-          <Route element={<RequireRole allowed={["doctor"]}><Outlet /></RequireRole>}>
+      <Route element={<RequireRole allowed={["doctor"]}><Outlet /></RequireRole>}>
           <Route path="/patients" element={<PatientsPage />} />
           <Route path="/patients/new" element={<PatientCreatePage />} />
           <Route path="/patients/:id" element={<PatientDetailPage />} />
@@ -162,8 +170,8 @@ export default function App() {
           <Route path="/diagnosis/patient/:patientId/:diagnosisId/edit" element={<DiagnosisEditPage />} />
           <Route path="/patients/search" element={<SearchGlobalPatient />} />
           <Route path="/patients/global/:id" element={<GlobalPatientDetailPage />} />
-          </Route>
-        </Route>
+      </Route>
+  </Route>
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

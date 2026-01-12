@@ -6,8 +6,10 @@ import { connectDB } from "./config/db.js"
 import authRoutes from "./routes/authRoutes.js";
 import patientRoutes from "./routes/patientRoutes.js"
 import diagnosisRoutes from "./routes/diagnosesRoutes.js"
+import appointmentRoutes from "./routes/appointmentRoutes.js";
 import path from "path";
 import { apiLimiter } from "./middleware/rateLimit.js";
+
 
 
 
@@ -32,6 +34,7 @@ app.use("/api", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/diagnoses", diagnosisRoutes);
+app.use("/api/appointments", appointmentRoutes);
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 if (process.env.NODE_ENV === "production") {
