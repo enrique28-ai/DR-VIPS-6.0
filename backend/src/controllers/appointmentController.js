@@ -29,6 +29,21 @@ export const createAppointment = async (req, res) => {
       return res.status(404).json({ error: "Patient not found or is deceased" });
     }
 
+    // ✅ ANTI-OVERLAP (Backend Check)
+    // Buscamos si el doctor ya tiene algo 'pending' o 'accepted' en ese rango
+    const conflict = await Appointment.findOne({
+      doctor: req.user._id,
+      status: { $in: ["pending", "accepted"] },
+      start: { $lt: e }, // Empieza antes de que yo termine
+      end: { $gt: s },   // Termina después de que yo empiece
+    }).select("_id");
+
+    if (conflict) {
+      return res.status(409).json({
+        error: "Time range overlaps an existing appointment",
+      });
+    }
+
     const appt = await Appointment.create({
       doctor: req.user._id,
       patient: patientId,
@@ -78,6 +93,24 @@ export const acceptAppointment = async (req, res) => {
     const email = normEmail(req.user.email);
     if (normEmail(appt.patient?.email) !== email) {
       return res.status(403).json({ error: "Unauthorized" });
+    }
+    if (appt.status !== "pending") {
+      return res.status(400).json({ error: "Appointment is not pending" });
+    }
+
+    // ✅ CHECK EXTRA: Si por alguna razón el doctor se llenó de citas accepted en ese horario
+    const conflict = await Appointment.findOne({
+      _id: { $ne: appt._id },
+      doctor: appt.doctor,
+      status: "accepted",
+      start: { $lt: appt.end },
+      end: { $gt: appt.start },
+    }).select("_id");
+
+    if (conflict) {
+      return res.status(409).json({
+        error: "Doctor already has an accepted appointment in that time range",
+      });
     }
 
     appt.status = "accepted";
