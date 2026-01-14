@@ -59,7 +59,7 @@ export default function AppointmentActionModal({
   if (mode === "pending") {
     // Modo Decisión (Solo Paciente)
     title = t("calendar.modal.pendingTitle", "Appointment Request");
-    description = t("calendar.modal.pendingDesc", `Accept or reject appointment with Dr. ${doctorName}?`);
+    description = t("calendar.modal.pendingDesc",{doctorName, defaultValue:  `Accept or reject appointment with Dr. ${doctorName}?`});
   } else {
     // Modo Cancelar (Para Doctor o Paciente en citas aceptadas/pendientes)
     if (event.status === "pending") {

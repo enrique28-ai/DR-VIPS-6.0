@@ -211,6 +211,10 @@ export default function CalendarPage() {
     },
   });
 
+  const patientPrefix = t("calendar.patientPrefix", "P:");
+  const doctorPrefix = t("calendar.doctorPrefix", "Dr:");
+
+
   if (isLoading) return <div className="p-10 text-center">{t("common.loading", "Loading...")}</div>;
 
   return (
@@ -296,12 +300,12 @@ export default function CalendarPage() {
                 onChange={handleDurationChange}
                 disabled={!startDate}
               >
-                <option value="15">15 min</option>
-                <option value="30">30 min</option>
-                <option value="45">45 min</option>
-                <option value="60">1 hr</option>
-                <option value="90">1.5 hrs</option>
-                <option value="120">2 hrs</option>
+                <option value="15">{t("calendar.intervals.15min", "15 min")}</option>
+                <option value="30">{t("calendar.intervals.30min", "30 min")}</option>
+                <option value="45">{t("calendar.intervals.45min", "45 min")}</option>
+                <option value="60">{t("calendar.intervals.1h", "1 hr")}</option>
+                <option value="90">{t("calendar.intervals.1_5h", "1.5 hrs")}</option>
+                <option value="120">{t("calendar.intervals.2h", "2 hrs")}</option>
               </select>
             </div>
 
@@ -347,8 +351,8 @@ export default function CalendarPage() {
           onView={onView}
           titleAccessor={(evt) =>
             isDoctor
-              ? `P: ${evt.titleData?.patient?.fullname || t("calendar.unknown")}`
-              : `Dr: ${evt.titleData?.doctor?.name || t("calendar.unknown")}`
+              ? `${patientPrefix} ${evt.titleData?.patient?.fullname || t("calendar.unknown")}`
+              : `${doctorPrefix} ${evt.titleData?.doctor?.name || t("calendar.unknown")}`
           }
         />
       </div>

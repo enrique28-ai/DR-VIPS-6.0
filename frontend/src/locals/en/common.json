@@ -3,7 +3,10 @@
   "back": "Back",
   "loading": "Loading...",
   "close": "Close",
-  "view": "View"
+  "view": "View",
+  "accept": "Accept",
+  "reject": "Reject"
+
 },
 
   "home": {
@@ -667,6 +670,11 @@
   "selectPatient": "Select Patient (Alive only)",
   "choosePatient": "-- Choose Patient --",
   "dateTime": "Date & Time",
+   "start": "Start",
+  "end": "End",
+  "duration": "Duration",
+  "reason": "Reason",
+  "reasonPlaceholder": "e.g. Checkup, Follow up...",
   "legendPending": "Pending",
   "legendAccepted": "Accepted",
   "doctorPrefix": "Dr:",
@@ -676,6 +684,19 @@
   "confirmAccept": "Accept appointment with Dr. {{name}}?",
   "confirmReject": "Reject this appointment?",
   "confirmCancel": "Cancel/delete this appointment?",
+   "intervals": {
+    "15min": "15 min",
+    "30min": "30 min",
+    "45min": "45 min",
+    "1h": "1 hr",
+    "1_5h": "1.5 hrs",
+    "2h": "2 hrs"
+  },
+   "validation": {
+    "missingFields": "Please select a patient and a date",
+    "invalidRange": "Please select a valid time range",
+    "overlap": "That time range is already taken!"
+  },
   "toasts": {
     "loadFailed": "Failed to load appointments",
     "createSuccess": "Appointment created",
@@ -697,7 +718,21 @@
     "time": "Time",
     "event": "Event",
     "noEventsInRange": "No appointments in this range."
-  }
+  },
+  "modal": {
+    "pendingTitle": "Appointment Request",
+    "pendingDesc": "Accept or reject appointment with Dr. {{doctorName}}?",
+    "cancelTitle": "Cancel Appointment",
+    "cancelDesc": "Are you sure you want to cancel this appointment?",
+    "cancelReqTitle": "Cancel Request",
+    "cancelReqDesc": "Do you want to cancel this pending request?",
+    "date": "Date",
+    "time": "Time",
+    "patient": "Patient",
+    "doctor": "Doctor",
+    "cancelBtn": "Cancel Appointment"
+  },
+  "defaultReason": "General consultation"
 }
 
 }

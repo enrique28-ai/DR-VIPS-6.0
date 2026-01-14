@@ -3,7 +3,10 @@
   "back": "Regresar",
   "loading": "Cargando...",
   "close": "Cerrar",
-  "view": "Ver"
+  "view": "Ver",
+  "accept": "Aceptar",
+  "reject": "Rechazar"
+
 },
 
   "home": {
@@ -653,6 +656,11 @@
   "selectPatient": "Seleccionar Paciente (solo vivos)",
   "choosePatient": "-- Elegir Paciente --",
   "dateTime": "Fecha y Hora",
+   "start": "Inicio",
+  "end": "Fin",
+  "duration": "Duración",
+  "reason": "Motivo",
+  "reasonPlaceholder": "Ej. Consulta general, Seguimiento...",
   "legendPending": "Pendiente",
   "legendAccepted": "Aceptada",
   "doctorPrefix": "Dr:",
@@ -662,6 +670,19 @@
   "confirmAccept": "¿Aceptar cita con Dr. {{name}}?",
   "confirmReject": "¿Rechazar esta cita?",
   "confirmCancel": "¿Cancelar/eliminar esta cita?",
+   "intervals": {
+    "15min": "15 min",
+    "30min": "30 min",
+    "45min": "45 min",
+    "1h": "1 h",
+    "1_5h": "1.5 h",
+    "2h": "2 h"
+  },
+  "validation": {
+    "missingFields": "Seleccione un paciente y una fecha",
+    "invalidRange": "Seleccione un rango de tiempo válido",
+    "overlap": "¡Ese horario ya está ocupado por otra cita!"
+  },
   "toasts": {
     "loadFailed": "No se pudieron cargar las citas",
     "createSuccess": "Cita creada",
@@ -683,7 +704,22 @@
     "time": "Hora",
     "event": "Evento",
     "noEventsInRange": "No hay citas en este rango."
-  }
+  },
+   "modal": {
+    "pendingTitle": "Solicitud de Cita",
+    "pendingDesc": "¿Desea aceptar o rechazar esta cita con el Dr. {{doctorName}}?",
+    "cancelTitle": "Cancelar Cita",
+    "cancelDesc": "¿Está seguro de que desea cancelar esta cita?",
+    "cancelReqTitle": "Cancelar Solicitud",
+    "cancelReqDesc": "¿Desea cancelar esta solicitud pendiente?",
+    "date": "Fecha",
+    "time": "Hora",
+    "patient": "Paciente",
+    "doctor": "Doctor",
+    "cancelBtn": "Cancelar Cita"
+  },
+
+  "defaultReason": "Consulta general"
 }
 
 }
