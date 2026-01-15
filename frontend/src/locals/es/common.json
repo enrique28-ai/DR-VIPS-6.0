@@ -720,6 +720,12 @@
   },
 
   "defaultReason": "Consulta general"
+},
+"notifications": {
+  "title": "Notificaciones",
+  "empty": "No tienes notificaciones.",
+  "markAllRead": "Marcar todo leído"
 }
+
 
 }

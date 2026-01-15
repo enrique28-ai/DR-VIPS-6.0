@@ -733,6 +733,12 @@
     "cancelBtn": "Cancel Appointment"
   },
   "defaultReason": "General consultation"
+},
+"notifications": {
+  "title": "Notifications",
+  "empty": "No notifications.",
+  "markAllRead": "Mark all as read"
 }
+
 
 }

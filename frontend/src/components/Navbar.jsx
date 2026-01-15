@@ -5,6 +5,7 @@ import { Stethoscope } from "lucide-react";        // 👈 ícono
 import { useAuthStore } from "../stores/authStore.js";
 import { LanguageSwitcher } from "./language/LanguageSwitcher.jsx";
 import { useTranslation } from "react-i18next";
+import NotificationBell from "./layout/NotificationBell.jsx";
 
 
 export default function Navbar() {
@@ -77,6 +78,7 @@ export default function Navbar() {
         ) : (
            <div className="flex items-center gap-3">
             <LanguageSwitcher />
+            {user?.isVerified && <NotificationBell />}
           <div className="relative flex items-center gap-3" ref={menuRef}>
             {user?.isVerified && (
               <span className="hidden sm:block text-sm text-gray-700">

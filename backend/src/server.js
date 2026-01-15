@@ -9,6 +9,9 @@ import diagnosisRoutes from "./routes/diagnosesRoutes.js"
 import appointmentRoutes from "./routes/appointmentRoutes.js";
 import path from "path";
 import { apiLimiter } from "./middleware/rateLimit.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import { startReminderJob } from "./services/reminderService.js";
+
 
 
 
@@ -35,6 +38,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/diagnoses", diagnosisRoutes);
 app.use("/api/appointments", appointmentRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 if (process.env.NODE_ENV === "production") {
@@ -47,6 +51,7 @@ if (process.env.NODE_ENV === "production") {
 }
  
 connectDB().then(() => {
+    startReminderJob();
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
