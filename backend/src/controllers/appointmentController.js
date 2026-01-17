@@ -1,10 +1,35 @@
 import Appointment from "../models/Appointment.js";
 import Patient from "../models/Patient.js";
+import Notification from "../models/Notification.js";
+import User from "../models/User.js";
 
 const normEmail = (v) => (v || "").toLowerCase().trim();
 
 // Doctor crea cita (solo para pacientes vivos que le “pertenecen”)
 // Para cubrir tu arquitectura, permito createdBy OR owners (si existe).
+
+const formatDateTime = (date, locale) => {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(date));
+  } catch {
+    return new Date(date).toLocaleString();
+  }
+};
+
+// --- CORRECCIÓN AQUÍ ---
+// Tratamos los nombres como Strings simples, no Arrays.
+const patientDisplayName = (p) => p?.fullname || "Patient";
+const doctorDisplayName = (d) => d?.name || "Doctor";
+// -----------------------
+
+
 export const createAppointment = async (req, res) => {
   try {
     const { patientId, start, end, reason } = req.body;
@@ -23,7 +48,7 @@ export const createAppointment = async (req, res) => {
       _id: patientId,
       isDeceased: false,
       $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-    }).select("_id");
+    }).select("_id email fullname name");
 
     if (!patient) {
       return res.status(404).json({ error: "Patient not found or is deceased" });
@@ -53,6 +78,27 @@ export const createAppointment = async (req, res) => {
       status: "pending",
     });
 
+      // 🔔 NOTIF al paciente (si existe cuenta User para ese email)
+    const pEmail = normEmail(patient.email);
+    if (pEmail) {
+      const patientUser = await User.findOne({ email: pEmail }).select("_id").lean();
+      if (patientUser?._id) {
+        const dName = doctorDisplayName(req.user);
+        await Notification.create({
+          recipient: patientUser._id,
+          code: `APPT_NEW_${appt._id}`,
+          title: { en: "New Appointment Request", es: "Nueva Solicitud de Cita" },
+          message: {
+            en: `${dName} scheduled an appointment for ${formatDateTime(s, "en-US")}. Please review it.`,
+            es: `${dName} programó una cita para el ${formatDateTime(s, "es-MX")}. Por favor revísala.`,
+          },
+          relatedAppointment: appt._id,
+          meta: { role: "patient" },
+        });
+      }
+    }
+
+
     return res.status(201).json(appt);
   } catch (err) {
     console.error("createAppointment error:", err);
@@ -74,8 +120,8 @@ export const getAppointments = async (req, res) => {
     }
 
     const appts = await Appointment.find(query)
-      .populate("patient", "fullname email")
-      .populate("doctor", "name email")
+      .populate("patient", "fullname email name ")
+      .populate("doctor", "name  email")
       .sort({ start: 1 });
 
     return res.json(appts);
@@ -87,7 +133,7 @@ export const getAppointments = async (req, res) => {
 
 export const acceptAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email");
+    const appt = await Appointment.findById(req.params.id).populate("patient", "email fullname name ");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     const email = normEmail(req.user.email);
@@ -115,6 +161,18 @@ export const acceptAppointment = async (req, res) => {
 
     appt.status = "accepted";
     await appt.save();
+    const pName = patientDisplayName(appt.patient);
+    await Notification.create({
+      recipient: appt.doctor, // doctor es User _id
+      code: `APPT_ACCEPTED_${appt._id}`,
+      title: { en: "Appointment Accepted", es: "Cita Aceptada" },
+      message: {
+        en: `${pName} accepted the appointment for ${formatDateTime(appt.start, "en-US")}.`,
+        es: `${pName} aceptó la cita para el ${formatDateTime(appt.start, "es-MX")}.`,
+      },
+      relatedAppointment: appt._id,
+      meta: { role: "doctor" },
+    });
     return res.json(appt);
   } catch (err) {
     console.error("acceptAppointment error:", err);
@@ -124,16 +182,64 @@ export const acceptAppointment = async (req, res) => {
 
 export const deleteAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email");
+    const appt = await Appointment.findById(req.params.id).populate("patient", "email fullname name ").populate("doctor", "name  email");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
-    const isDoctorOwner = appt.doctor.toString() === req.user._id.toString();
+    //const isDoctorOwner = appt.doctor.toString() === req.user._id.toString();
+    const isDoctorOwner =
+      String(appt.doctor?._id || appt.doctor) === String(req.user._id);
+
     const isPatientOwner = normEmail(appt.patient?.email) === normEmail(req.user.email);
 
     if (!isDoctorOwner && !isPatientOwner) {
       return res.status(403).json({ error: "Unauthorized" });
     }
+    const startStrEn = formatDateTime(appt.start, "en-US");
+    const startStrEs = formatDateTime(appt.start, "es-MX");
 
+    
+    // A) Doctor cancela -> avisar al paciente
+    if (isDoctorOwner) {
+      const pEmail = normEmail(appt.patient?.email);
+      if (pEmail) {
+        const patientUser = await User.findOne({ email: pEmail }).select("_id").lean();
+        if (patientUser?._id) {
+          const dName = doctorDisplayName(appt.doctor);
+          await Notification.create({
+            recipient: patientUser._id,
+            code: `APPT_CANCEL_DR_${appt._id}_${Date.now()}`,
+            title: { en: "Appointment Cancelled", es: "Cita Cancelada" },
+            message: {
+              en: `Dr. ${dName} cancelled the appointment for ${startStrEn}.`,
+              es: `El Dr. ${dName} canceló la cita del ${startStrEs}.`,
+            },
+            relatedAppointment: null,
+            meta: { oldDate: appt.start, role: "patient" },
+          });
+        }
+      }
+    }
+
+    // B) Paciente cancela o rechaza -> avisar al doctor
+    if (isPatientOwner) {
+      const pName = patientDisplayName(appt.patient);
+      const isPending = appt.status === "pending";
+
+      await Notification.create({
+        recipient: appt.doctor?._id || appt.doctor,
+        code: `APPT_CANCEL_PT_${appt._id}_${Date.now()}`,
+        title: {
+          en: isPending ? "Appointment Declined" : "Appointment Cancelled",
+          es: isPending ? "Cita Rechazada" : "Cita Cancelada",
+        },
+        message: {
+          en: `${pName} has ${isPending ? "declined" : "cancelled"} the appointment for ${startStrEn}.`,
+          es: `${pName} ha ${isPending ? "rechazado" : "cancelado"} la cita del ${startStrEs}.`,
+        },
+        relatedAppointment: null,
+        meta: { oldDate: appt.start, patientName: pName, role: "doctor" },
+      });
+    }
     await appt.deleteOne();
     return res.json({ message: "Appointment deleted" });
   } catch (err) {
