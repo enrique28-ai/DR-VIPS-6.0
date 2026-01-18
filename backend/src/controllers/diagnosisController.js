@@ -2,6 +2,8 @@
 import Diagnosis from "../models/Diagnosis.js";
 import Patient from "../models/Patient.js";
 import DiagnosisHistory from "../models/DiagnosisHistory.js";
+import { translateDiagnosisDoc, translateDiagnosisTitles } from "../utils/deeplTranslate.js";
+
 
 
 // Helper: confirmar que el paciente pertenece al usuario autenticado
@@ -13,6 +15,8 @@ const normalize = (v) => {
   if (typeof v === "string") return v.split(",").map(s => s.trim()).filter(Boolean);
   return [];
 };
+
+const getLang = (req) => (req.query.lang || req.get("x-lang") || "").trim();
 
 
 
@@ -124,18 +128,23 @@ if (typeof req.query.hasOperations !== "undefined") {
   }
 }
 
-    // 🔹 SIN TEXTO: paginación normal
-    if (!q) {
-      const [items, total] = await Promise.all([
-        Diagnosis.find(filter)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit),
-        Diagnosis.countDocuments(filter),
-      ]);
+    
+   if (!q) {
+  const [itemsRaw, total] = await Promise.all([
+    Diagnosis.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Diagnosis.countDocuments(filter),
+  ]);
 
-      return res.json({ items, total, page, pages: Math.ceil(total / limit) });
-    }
+  const lang = getLang(req);
+  const items = lang ? await translateDiagnosisTitles(itemsRaw, lang) : itemsRaw;
+
+  return res.json({ items, total, page, pages: Math.ceil(total / limit) });
+}
+
 
     // 🔹 CON TEXTO: filtramos por NOMBRE DEL DIAGNÓSTICO (title) usando substring
     let docs = await Diagnosis.find(filter)
@@ -152,10 +161,16 @@ if (typeof req.query.hasOperations !== "undefined") {
     });
 
     const total = docs.length;
-    const pages = Math.ceil(total / limit) || 0;
-    const items = docs.slice(skip, skip + limit);
+const pages = Math.ceil(total / limit) || 0;
+let items = docs.slice(skip, skip + limit);
 
-    return res.json({ items, total, page, pages });
+const lang = getLang(req);
+if (lang && items.length > 0) {
+  items = await translateDiagnosisTitles(items, lang);
+}
+
+return res.json({ items, total, page, pages });
+
   } catch (err) {
     console.error("getDiagnosesByPatient error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -163,7 +178,7 @@ if (typeof req.query.hasOperations !== "undefined") {
 };
 
 // GET /api/diagnoses/:id
-export const getDiagnosisById = async (req, res, next) => {
+/*export const getDiagnosisById = async (req, res, next) => {
   try {
     const d = await Diagnosis.findOne({
       _id: req.params.id,
@@ -180,7 +195,32 @@ export const getDiagnosisById = async (req, res, next) => {
     console.error("getDiagnosisById error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
+};*/
+export const getDiagnosisById = async (req, res, next) => {
+  try {
+    let d = await Diagnosis.findOne({
+      _id: req.params.id,
+      createdBy: req.user._id,
+    }).lean();
+
+    if (!d) return res.status(404).json({ error: "Dianostic not found" });
+
+    if (!(await ownsPatient(d.patient, req.user._id))) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const lang = getLang(req);
+    if (lang) {
+      d = await translateDiagnosisDoc(d, lang);
+    }
+
+    return res.json(d);
+  } catch (err) {
+    console.error("getDiagnosisById error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 };
+
 
 // PUT /api/diagnoses/:id
 export const updateDiagnosis = async (req, res, next) => {
@@ -194,19 +234,7 @@ export const updateDiagnosis = async (req, res, next) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Solo permitir campos editables
-    /*if (req.body.title != null) d.title = String(req.body.title).trim();
-    if (req.body.description != null) d.description = String(req.body.description).trim();
-    if ("medicine" in req.body) {
-        d.medicine = normalize(req.body.medicine);  // [] limpia
-      }
-    if ("treatment" in req.body) {
-       d.treatment = normalize(req.body.treatment); // [] limpia
-    }
-
-    if ("operation" in req.body) {
-      d.operation = normalize(req.body.operation); // [] limpia
-    }*/
+    
    // --- DETECT CHANGES ---
     // Evita guardar si el doctor no cambió nada (para mostrar toast de "No changes").
     const nextTitle =
@@ -333,18 +361,24 @@ export const getMyDiagnosesPortal = async (req, res) => {
     //const proj    = hasText ? { score: { $meta: "textScore" } } : undefined;
     //const sortBy  = hasText ? { score: { $meta: "textScore" }, createdAt: -1 } : { createdAt: -1 };
 
+   
    if (!q) {
-      const [items, total] = await Promise.all([
-        Diagnosis.find(filter)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .populate("createdBy", "name email"),
-        Diagnosis.countDocuments(filter),
-      ]);
+  const [itemsRaw, total] = await Promise.all([
+    Diagnosis.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("createdBy", "name email")
+      .lean(),
+    Diagnosis.countDocuments(filter),
+  ]);
 
-      return res.json({ items, total, page, pages: Math.ceil(total / limit) });
-    }
+  const lang = getLang(req);
+  const items = lang ? await translateDiagnosisTitles(itemsRaw, lang) : itemsRaw;
+
+  return res.json({ items, total, page, pages: Math.ceil(total / limit) });
+}
+
 
     // ⚙️ CON texto: buscamos por título, descripción, nombre del doc y correo del doc
     let docs = await Diagnosis.find(filter)
@@ -369,10 +403,16 @@ export const getMyDiagnosesPortal = async (req, res) => {
     });
 
     const total = docs.length;
-    const pages = Math.ceil(total / limit) || 0;
-    const items = docs.slice(skip, skip + limit);
+const pages = Math.ceil(total / limit) || 0;
+let items = docs.slice(skip, skip + limit);
 
-    return res.json({ items, total, page, pages });
+const lang = getLang(req);
+if (lang && items.length > 0) {
+  items = await translateDiagnosisTitles(items, lang);
+}
+
+return res.json({ items, total, page, pages });
+
   } catch (err) {
     console.error("getMyDiagnosesPortal error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -380,7 +420,7 @@ export const getMyDiagnosesPortal = async (req, res) => {
 };
 
 // GET /api/diagnoses/mine/:id  (detalle)
-export const getMyDiagnosisPortalById = async (req, res) => {
+/*export const getMyDiagnosisPortalById = async (req, res) => {
   try {
     if (req.user.role !== "patient") {
       return res.status(403).json({ error: "Insufficient role" });
@@ -399,7 +439,35 @@ export const getMyDiagnosisPortalById = async (req, res) => {
     console.error("getMyDiagnosisPortalById error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
+};*/
+export const getMyDiagnosisPortalById = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    let d = await Diagnosis.findById(req.params.id)
+      .populate("createdBy", "name email")
+      .lean();
+
+    if (!d) return res.status(404).json({ error: "Diagnostic not found" });
+
+    const email = req.user.email.toLowerCase();
+    const owns = await Patient.exists({ _id: d.patient, email });
+    if (!owns) return res.status(403).json({ error: "Not authorized" });
+
+    const lang = getLang(req);
+    if (lang) {
+      d = await translateDiagnosisDoc(d, lang);
+    }
+
+    return res.json(d);
+  } catch (err) {
+    console.error("getMyDiagnosisPortalById error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 };
+
 
 // GET /api/diagnoses/:id/history
 // Visible para:
@@ -432,11 +500,24 @@ export const getDiagnosisHistory = async (req, res) => {
       return res.status(403).json({ error: "Insufficient role" });
     }
 
-    const history = await DiagnosisHistory.find({ diagnosisId: id })
-      .sort({ createdAt: -1 })
-      .populate("editedBy", "name email");
+    let history = await DiagnosisHistory.find({ diagnosisId: id })
+  .sort({ createdAt: -1 })
+  .populate("editedBy", "name email")
+  .lean();
 
-    return res.json(history);
+const lang = getLang(req);
+if (lang && history.length > 0) {
+  history = await Promise.all(
+    history.map(async (h) => {
+      if (!h.snapshot) return h;
+      const snapshotTranslated = await translateDiagnosisDoc(h.snapshot, lang);
+      return { ...h, snapshot: snapshotTranslated };
+    })
+  );
+}
+
+return res.json(history);
+
   } catch (err) {
     console.error("getDiagnosisHistory error:", err);
     return res.status(500).json({ error: "Internal server error" });
