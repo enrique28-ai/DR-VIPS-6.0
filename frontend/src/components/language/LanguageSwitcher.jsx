@@ -22,22 +22,13 @@ export function LanguageSwitcher() {
 }*/
 
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 
 export function LanguageSwitcher() {
   const { i18n } = useTranslation();
-  const qc = useQueryClient();
-
+  
   const changeLanguage = (lang) => {
     i18n.changeLanguage(lang);
     localStorage.setItem("lang", lang);
-
-    // Refresca diagnósticos (doctor y paciente)
-    qc.invalidateQueries({ queryKey: ["diagnoses"], exact: false });
-    qc.invalidateQueries({ queryKey: ["diagnosis"], exact: false });
-    qc.invalidateQueries({ queryKey: ["my-diagnoses"], exact: false });
-    qc.invalidateQueries({ queryKey: ["my-diagnosis"], exact: false });
-    qc.invalidateQueries({ queryKey: ["diagnosis-history"], exact: false });
 
   };
 

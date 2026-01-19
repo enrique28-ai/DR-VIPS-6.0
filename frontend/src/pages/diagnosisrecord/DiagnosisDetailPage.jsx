@@ -1,17 +1,28 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
 import Button from "../../components/forms/Button.jsx";
-import { useDiagnosis } from "../../features/diagnostics/dhooks.js";
-import { CalendarClock, Pill, Syringe, Scissors, History } from "lucide-react";
+import { useDiagnosis, useTranslateDiagnosis } from "../../features/diagnostics/dhooks.js";
+import { Languages, Loader2, CalendarClock, Pill, Syringe, Scissors, History } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
 export default function DiagnosisDetailPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [translatedDiag, setTranslatedDiag] = useState(null);
+
   const { patientId, diagnosisId } = useParams();
   const navigate = useNavigate();
   const [showHistory, setShowHistory] = useState(false);
 
-  const { data: diag, isLoading, isError } = useDiagnosis(diagnosisId);
+  const { data: original, isLoading, isError } = useDiagnosis(diagnosisId);
+  const { mutate: translate, isPending } = useTranslateDiagnosis();
+  const diag = translatedDiag || original;
+
+  const handleTranslate = () => {
+    translate(
+      { id: diagnosisId, lang: i18n.language },
+      { onSuccess: (data) => setTranslatedDiag(data) }
+    );
+  };
 
 
   // Evita flash en primer fetch
@@ -119,12 +130,18 @@ export default function DiagnosisDetailPage() {
         
         <div className="mt-6 flex flex-wrap gap-3">
           <Link to={`/diagnosis/patient/${patientId}/${diagnosisId}/edit`}>
-            <Button full={false} className="w-full">{t("diagnoses.detail.edit")}</Button>
+            <Button full={false} className="h-13 px-5 w-full sm:w-auto">{t("diagnoses.detail.edit")}</Button>
           </Link>
           <Link to={`/diagnosis/patient/${patientId}`}>
-            <Button  full={false} variant="secondary" className="w-full">{t("diagnoses.detail.back")}</Button>
+            <Button  full={false} variant="secondary" className="h-13 px-5 w-full sm:w-auto">{t("diagnoses.detail.back")}</Button>
           </Link>
-          <Button full={false} variant="secondary" onClick={() => setShowHistory(true)}>
+           <Button variant="secondary" onClick={handleTranslate} disabled={isPending}  className="w-full sm:w-auto">
+            <span className="inline-flex items-center gap-2">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+            {t("Translate")}
+          </span>
+        </Button>
+          <Button full={false} variant="secondary"  className="w-full sm:w-auto" onClick={() => setShowHistory(true)}>
             <span className="inline-flex items-center gap-2">
               <History className="h-4 w-4" />
               {t("diagnoses.detail.history")}

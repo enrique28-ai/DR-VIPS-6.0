@@ -3,7 +3,6 @@ import api from "../../lib/axios.js";
 import { toast } from "react-hot-toast";
 import i18n from "../../i18n"; 
 
-const currentLang = () => localStorage.getItem("lang") || i18n.language || "en";
 
 // Normaliza los params para la query-string (texto y fecha)
 export const buildDiagnosisParams = ({ q = "", hasMedicines = "All", hasTreatments = "All",  hasOperations = "All", date = "" , page = 1}) => ({
@@ -16,7 +15,7 @@ export const buildDiagnosisParams = ({ q = "", hasMedicines = "All", hasTreatmen
 });
 
 // === READ ONE (detalle) ===
-/*export function useDiagnosis(diagnosisId) {
+export function useDiagnosis(diagnosisId) {
   return useQuery({
     queryKey: ["diagnosis", diagnosisId],
     queryFn: async () => (await api.get(`/diagnoses/${diagnosisId}`)).data,
@@ -27,20 +26,6 @@ export const buildDiagnosisParams = ({ q = "", hasMedicines = "All", hasTreatmen
       if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadOneFailed"));
     },
     // no placeholder para evitar mostrar otro detalle por error
-  });
-}*/
-export function useDiagnosis(diagnosisId) {
-  const lang = currentLang();
-
-  return useQuery({
-    queryKey: ["diagnosis", diagnosisId, lang],
-    queryFn: async () => (await api.get(`/diagnoses/${diagnosisId}`)).data,
-    enabled: !!diagnosisId,
-    retry: false,
-    onError: (e) => {
-      const s = e?.response?.status;
-      if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadOneFailed"));
-    },
   });
 }
 
@@ -66,11 +51,11 @@ export function useDiagnosis(diagnosisId) {
   });
 
 }*/
-export function useDiagnosesByPatient(patientId, params) {
-  const lang = currentLang();
 
+// === LIST by PATIENT - ORIGINAL ===
+export function useDiagnosesByPatient(patientId, params) {
   return useQuery({
-    queryKey: ["diagnoses", patientId, params, lang],
+    queryKey: ["diagnoses", patientId, params],
     queryFn: async () =>
       (await api.get(`/diagnoses/patient/${patientId}`, { params })).data,
     enabled: !!patientId,
@@ -85,6 +70,7 @@ export function useDiagnosesByPatient(patientId, params) {
     },
   });
 }
+
 
 // === CREATE ===
 
@@ -178,7 +164,7 @@ export function useUpdateDiagnosis(diagnosisId, patientId) {
 }
 
 
-/*export function useMyDiagnoses(params) {
+export function useMyDiagnoses(params) {
   return useQuery({
     queryKey: ["my-diagnoses", params],
     queryFn: async () => (await api.get(`/diagnoses/mine`, { params })).data, // {items,total,page,pages}
@@ -192,27 +178,9 @@ export function useUpdateDiagnosis(diagnosisId, patientId) {
       if (e?.response?.status !== 429) toast.error(i18n.t("diagnoses.toasts.loadMineFailed"));
     },
   });
-}*/
-export function useMyDiagnoses(params) {
-  const lang = currentLang();
-
-  return useQuery({
-    queryKey: ["my-diagnoses", params, lang],
-    queryFn: async () => (await api.get(`/diagnoses/mine`, { params })).data,
-    keepPreviousData: true,
-    placeholderData: (prev) => prev,
-    notifyOnChangeProps: ["data", "isFetching"],
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    onError: (e) => {
-      if (e?.response?.status !== 429) toast.error(i18n.t("diagnoses.toasts.loadMineFailed"));
-    },
-  });
 }
 
-
-/*export function useMyDiagnosis(id) {
+export function useMyDiagnosis(id) {
   return useQuery({
     queryKey: ["my-diagnosis", id],
     queryFn: async () => (await api.get(`/diagnoses/mine/${id}`)).data,
@@ -223,52 +191,36 @@ export function useMyDiagnoses(params) {
       if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadMineFailed"));
     },
   });
-}*/
-
-export function useMyDiagnosis(id) {
-  const lang = currentLang();
-
-  return useQuery({
-    queryKey: ["my-diagnosis", id, lang],
-    queryFn: async () => (await api.get(`/diagnoses/mine/${id}`)).data,
-    enabled: !!id,
-    retry: false,
-    onError: (e) => {
-      const s = e?.response?.status;
-      if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadMineFailed"));
-    },
-  });
 }
+export function useDiagnosisHistory(id, options = {}) {
+  const enabled = options.enabled ?? !!id;
 
-
-// ✅ Historial del diagnóstico (doctor creador o paciente dueño)
-/*export function useDiagnosisHistory(id, options = {}) {
   return useQuery({
     queryKey: ["diagnosis-history", id],
-    enabled: options.enabled ?? !!id,
+    enabled: enabled && !!id,
     queryFn: async () => (await api.get(`/diagnoses/${id}/history`)).data,
     retry: false,
     staleTime: 30_000,
-    onError: (e) => {
-      const s = e?.response?.status;
-      if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadHistoryFailed"));
-    },
-  });
-}*/
-export function useDiagnosisHistory(id, options = {}) {
-  const lang = currentLang();
-
-  return useQuery({
-    queryKey: ["diagnosis-history", id, lang],
-    enabled: options.enabled ?? !!id,
-    queryFn: async () => (await api.get(`/diagnoses/${id}/history`)).data,
-    retry: false,
-    staleTime: 30_000,
-    onError: (e) => {
-      const s = e?.response?.status;
-      if (s !== 404 && s !== 429) toast.error(i18n.t("diagnoses.toasts.loadHistoryFailed"));
-    },
   });
 }
+
+// Traduce TODO el diagnóstico (detalle) bajo demanda
+export function useTranslateDiagnosis() {
+  return useMutation({
+    mutationFn: async ({ id, lang }) =>
+      (await api.get(`/diagnoses/${id}`, { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
+
+export function useTranslateDiagnosisHistorySnapshot() {
+  return useMutation({
+    mutationFn: async ({ diagnosisId, historyId, lang }) =>
+      (await api.get(`/diagnoses/${diagnosisId}/history/${historyId}`, { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
 
 

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { History, X } from "lucide-react";
+import { History, X, Languages, Loader2 } from "lucide-react";
 import Button from "../forms/Button.jsx";
-import { useDiagnosisHistory } from "../../features/diagnostics/dhooks.js";
+import { useDiagnosisHistory, useTranslateDiagnosisHistorySnapshot } from "../../features/diagnostics/dhooks.js";
 
 const trOr = (t, key, fallback) => {
   const v = t(key);
@@ -24,7 +24,7 @@ function ChipList({ items, noneText }) {
   );
 }
 
-function SnapshotViewer({ snapshot, t }) {
+function SnapshotViewer({ snapshot, t, right }) {
   if (!snapshot) return null;
 
   const none = trOr(t, "diagnoses.history.none", "None");
@@ -32,9 +32,11 @@ function SnapshotViewer({ snapshot, t }) {
 
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 text-sm text-gray-700">
-      <div className="col-span-full font-semibold text-gray-900 border-b pb-2 mb-1">
-        {title}
+      <div className="col-span-full flex items-center justify-between border-b pb-2 mb-1">
+      <div className="font-semibold text-gray-900">{title}</div>
+        {right}
       </div>
+
 
       <div className="col-span-full">
         <span className="font-medium text-gray-500">{t("diagnoses.detail.description")}:</span>
@@ -62,10 +64,33 @@ function SnapshotViewer({ snapshot, t }) {
 export default function DiagnosisHistoryModal({ diagnosisId, onClose }) {
   const { t, i18n } = useTranslation();
   const [expandedId, setExpandedId] = useState(null);
+  const [translatedById, setTranslatedById] = useState({});
+  const [translatingId, setTranslatingId] = useState(null);
+
 
   const { data: history, isLoading } = useDiagnosisHistory(diagnosisId, {
     enabled: !!diagnosisId,
   });
+  const { mutate: translateSnap } = useTranslateDiagnosisHistorySnapshot();
+
+  const handleTranslateSnap = (historyId) => {
+    // si ya está traducido a este idioma, no gastes otra vez
+    if (translatedById[historyId]?.lang === i18n.language) return;
+
+    setTranslatingId(historyId);
+    translateSnap(
+      { diagnosisId, historyId, lang: i18n.language },
+      {
+        onSuccess: (ver) => {
+          setTranslatedById((prev) => ({
+            ...prev,
+            [historyId]: { lang: i18n.language, snapshot: ver.snapshot },
+          }));
+        },
+        onSettled: () => setTranslatingId(null),
+      }
+    );
+  };
 
   const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
 
@@ -134,10 +159,40 @@ export default function DiagnosisHistoryModal({ diagnosisId, onClose }) {
                   </button>
 
                   {expandedId === ver._id && (
-                    <div className="border-t border-gray-200 bg-white p-4">
-                      <SnapshotViewer snapshot={snap} t={t} />
-                    </div>
-                  )}
+  <div className="border-t border-gray-200 bg-white p-4">
+    {(() => {
+      const translated = translatedById[ver._id];
+      const snapToShow =
+        translated?.lang === i18n.language ? translated.snapshot : snap;
+
+      const loading = translatingId === ver._id;
+      const already = translated?.lang === i18n.language;
+
+      return (
+        <SnapshotViewer
+          snapshot={snapToShow}
+          t={t}
+          right={
+            <button
+              type="button"
+              onClick={() => handleTranslateSnap(ver._id)}
+              disabled={loading || already}
+              className="rounded-full p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
+              title={already ? "Translated" : "Translate"}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Languages className="h-4 w-4" />
+              )}
+            </button>
+          }
+        />
+      );
+    })()}
+  </div>
+)}
+
                 </div>
               );
             })}

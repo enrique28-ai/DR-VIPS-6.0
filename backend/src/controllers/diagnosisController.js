@@ -16,7 +16,8 @@ const normalize = (v) => {
   return [];
 };
 
-const getLang = (req) => (req.query.lang || req.get("x-lang") || "").trim();
+const getLang = (req) => (req.query.lang || "").trim();
+
 
 
 
@@ -505,21 +506,56 @@ export const getDiagnosisHistory = async (req, res) => {
   .populate("editedBy", "name email")
   .lean();
 
-const lang = getLang(req);
-if (lang && history.length > 0) {
-  history = await Promise.all(
-    history.map(async (h) => {
-      if (!h.snapshot) return h;
-      const snapshotTranslated = await translateDiagnosisDoc(h.snapshot, lang);
-      return { ...h, snapshot: snapshotTranslated };
-    })
-  );
-}
-
 return res.json(history);
 
   } catch (err) {
     console.error("getDiagnosisHistory error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// GET /api/diagnoses/:id/history/:historyId?lang=xx
+export const getDiagnosisHistoryOne = async (req, res) => {
+  try {
+    const { id, historyId } = req.params;
+    const lang = getLang(req); // ya lo tienes arriba
+
+    const d = await Diagnosis.findById(id);
+    if (!d) return res.status(404).json({ error: "Diagnostic not found" });
+
+    // mismo control de acceso que ya usas en getDiagnosisHistory
+    if (req.user.role === "doctor") {
+      if (String(d.createdBy) !== String(req.user._id)) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+      if (!(await ownsPatient(d.patient, req.user._id))) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+    } else if (req.user.role === "patient") {
+      const email = (req.user.email || "").toLowerCase().trim();
+      if (!email) return res.status(400).json({ error: "User has no email on file" });
+
+      const owns = await Patient.exists({ _id: d.patient, email });
+      if (!owns) return res.status(403).json({ error: "Not authorized" });
+    } else {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    // traer SOLO 1 version del historial
+    let ver = await DiagnosisHistory.findOne({ _id: historyId, diagnosisId: id })
+      .populate("editedBy", "name email")
+      .lean();
+
+    if (!ver) return res.status(404).json({ error: "History version not found" });
+
+    // traducir SOLO este snapshot
+    if (lang && ver.snapshot) {
+      ver = { ...ver, snapshot: await translateDiagnosisDoc(ver.snapshot, lang) };
+    }
+
+    return res.json(ver);
+  } catch (err) {
+    console.error("getDiagnosisHistoryOne error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
