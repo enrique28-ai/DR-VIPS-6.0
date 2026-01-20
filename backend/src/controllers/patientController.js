@@ -23,6 +23,8 @@ import {
   near,
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
+import { translatePatientDoc } from "../utils/deeplTranslate.js";
+
 
 
 /**
@@ -401,6 +403,12 @@ export const getPatientById = async (req, res) => {
     }).lean({ virtuals: true });
 
     if (!doc) return res.status(404).json({ error: "Paciente no encontrado" });
+        const lang = (req.query.lang || "").trim();
+    if (lang) {
+      const translated = await translatePatientDoc(doc, lang);
+      return res.json(translated);
+    }
+
     return res.json(doc);
   } catch (err) {
     console.error("getPatientById error:", err);

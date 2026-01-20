@@ -451,6 +451,14 @@ export function useMyHistory(options = {}) {
   });
 }
 
+export function useTranslatePatient() {
+  return useMutation({
+    mutationFn: async ({ id, lang }) =>
+      (await api.get(`/patients/${id}`, { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
 
 
 

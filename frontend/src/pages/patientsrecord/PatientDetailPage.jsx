@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState,  useEffect  } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
-import { usePatient } from "../../features/patients/phooks.js";
+import { usePatient, useTranslatePatient } from "../../features/patients/phooks.js";
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
-import { Droplet, Globe, User2, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle } from "lucide-react";
+import { Droplet, Globe, User2, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle, Languages, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { localizeCountryName, localizeStateName, localizeCityName } from "../../utilsfront/geoLabels.js";
+import { localizeCountryName } from "../../utilsfront/geoLabels.js";
 
 
 const ageToLabel = (age, t) => {
@@ -57,20 +57,46 @@ export default function PatientDetailPage() {
   const navigate = useNavigate();
 
   const { data: patient, isLoading, isError } = usePatient(id);
+  const { mutate: translatePatient, isPending: translatingPatient } = useTranslatePatient();
+const [translated, setTranslated] = useState({ lang: null, data: null });
 
-  const categoryLabel = useMemo(() => {
+useEffect(() => {
+  // si cambias de paciente, resetea traducción
+  setTranslated({ lang: null, data: null });
+}, [id]);
+
+const isTranslatedActive = !!translated.data && translated.lang === i18n.language;
+const patientView = isTranslatedActive ? translated.data : patient;
+
+
+  /*const categoryLabel = useMemo(() => {
     if (!patient) return null;
     return ageToLabel(patient.age, t) ?? backendCategoryToLabel(patient.ageCategory, t) ?? null;
-  }, [patient, t]);
+  }, [patient, t]);*/
+  const categoryLabel = useMemo(() => {
+  if (!patientView) return null;
+  return ageToLabel(patientView.age, t) ?? backendCategoryToLabel(patientView.ageCategory, t) ?? null;
+}, [patientView, t]);
+
 
   
-  const locationText = useMemo(() => {
+  /*const locationText = useMemo(() => {
   if (!patient) return "";
   const country = localizeCountryName(patient.country, i18n.language);
   const st = localizeStateName({ countryName: patient.country, stateName: patient.state, t });
   const ct = localizeCityName({ countryName: patient.country, stateName: patient.state, cityName: patient.city, t });
   return [country, st, ct].filter(Boolean).join(", ");
-}, [patient, i18n.language, t]);
+}, [patient, i18n.language, t]);*/
+const locationText = useMemo(() => {
+  if (!patientView) return "";
+
+  const country = localizeCountryName(patientView.country, i18n.language);
+  const st = patientView.state || "";
+  const ct = patientView.city || "";
+
+  return [country, st, ct].filter(Boolean).join(", ");
+}, [patientView, i18n.language]);
+
 
 
 
@@ -86,7 +112,7 @@ export default function PatientDetailPage() {
       </main>
     );
   }
-  if (isError || !patient) {
+  if (isError || !patientView) {
     return (
       <main className="mx-auto max-w-3xl p-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -102,33 +128,33 @@ export default function PatientDetailPage() {
     );
   }
 
-  const { fullname, email, phone, age, diseases, allergies, bloodtype, createdAt, updatedAt } = patient;
+  const { fullname, email, phone, age, diseases, allergies, bloodtype, createdAt, updatedAt } = patientView;
 
   
 
-  const sys = (patient?.measurementSystem || "metric").toLowerCase();
+  const sys = (patientView?.measurementSystem || "metric").toLowerCase();
 const isImp = sys === "imperial";
 
 const heightDisplayUI =
-  patient?.heightDisplay ?? (
-    patient?.heightM != null
-      ? (isImp ? (patient.heightM / 0.3048) : patient.heightM) // m → ft si imperial
+  patientView?.heightDisplay ?? (
+    patientView?.heightM != null
+      ? (isImp ? (patientView.heightM / 0.3048) : patientView.heightM) // m → ft si imperial
       : null
   );
 const heightUnitUI = isImp ? "ft" : "m";
 
 const weightDisplayUI =
-  patient?.weightDisplay ?? (
-    patient?.weightKg != null
-      ? (isImp ? (patient.weightKg * 2.2046226218) : patient.weightKg) // kg → lb si imperial
+  patientView?.weightDisplay ?? (
+    patientView?.weightKg != null
+      ? (isImp ? (patientView.weightKg * 2.2046226218) : patientView.weightKg) // kg → lb si imperial
       : null
   );
 const weightUnitUI = isImp ? "lb" : "kg";
 
-const bmiKey = bmiBackendToKey(patient?.bmiCategory);
+const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
   const bmiLabel = bmiKey
     ? t(`patients.detail.bmiCategories.${bmiKey}`)
-    : patient?.bmiCategory; // fallback: muestra el texto crudo si no se reconoce
+    : patientView?.bmiCategory; // fallback: muestra el texto crudo si no se reconoce
 
  
 
@@ -147,7 +173,7 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
         <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-3xl font-bold">{fullname}</h1>
 
-      {patient?.isPendingApproval && (
+      {patientView?.isPendingApproval && (
         <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 border border-amber-200 shadow-sm animate-pulse">
           <AlertTriangle className="h-4 w-4" />
         {t("patients.detail.pendingApproval")}
@@ -159,20 +185,19 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
           {age != null && <Chip label={t("patients.card.age")} value={age} />}
           {categoryLabel && <Chip label={t("patients.detail.category")} value={categoryLabel} />}
           {bloodtype && <Chip icon={Droplet} label={t("patients.card.blood")} value={bloodtype} />}
-          {patient.country && (
+          {patientView.country && (
           <Chip
           icon={Globe}
           label={t("patients.card.country")}
-          value={locationText || localizeCountryName(patient.country, i18n.language)}
-
+          value={locationText || localizeCountryName(patientView.country, i18n.language)}
           />
           )}
-          {patient.gender && (
-            <Chip icon={User2} label={t("patients.card.gender")} value={patient.gender === "male" ? t("patients.card.genderMale") : t("patients.card.genderFemale")} />
+          {patientView.gender && (
+            <Chip icon={User2} label={t("patients.card.gender")} value={patientView.gender === "male" ? t("patients.card.genderMale") : t("patients.card.genderFemale")} />
           )}
-          <Chip icon={Activity} label={t("patients.card.status")} value={patient.isDeceased ? t("patients.list.filters.options.deceased") : t("patients.list.filters.options.alive")} />
-          <Chip icon={Heart} label={t("patients.list.filters.organDonor")} value={patient.organDonor ?  t("patients.list.filters.options.yes") : t("patients.list.filters.options.no")} />
-          <Chip icon={Droplet} label={t("patients.list.filters.bloodDonor")} value={patient.bloodDonor ? t("patients.list.filters.options.yes") : t("patients.list.filters.options.no")} />
+          <Chip icon={Activity} label={t("patients.card.status")} value={patientView.isDeceased ? t("patients.list.filters.options.deceased") : t("patients.list.filters.options.alive")} />
+          <Chip icon={Heart} label={t("patients.list.filters.organDonor")} value={patientView.organDonor ?  t("patients.list.filters.options.yes") : t("patients.list.filters.options.no")} />
+          <Chip icon={Droplet} label={t("patients.list.filters.bloodDonor")} value={patientView.bloodDonor ? t("patients.list.filters.options.yes") : t("patients.list.filters.options.no")} />
         </div>
       </header>
 
@@ -203,21 +228,21 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
               <dd>{Number(weightDisplayUI).toFixed(2)} {weightUnitUI}</dd>
             </>
           )}
-          {patient?.bmi != null && (
+          {patientView?.bmi != null && (
             <>
               <dt className="font-medium">{t("patients.detail.bmi")}</dt>
               <dd>
-                {Number(patient.bmi).toFixed(2)}{" "}
+                {Number(patientView.bmi).toFixed(2)}{" "}
                 {bmiLabel && <span className="text-gray-600">{t("patients.detail.bmiCategoryParen", {
                       category: bmiLabel,
                     })}</span>}
               </dd>
             </>
           )}
-          {patient.isDeceased && (
+          {patientView.isDeceased && (
             <>
               <dt className="font-medium">{t("patients.detail.causeOfDeath")}</dt>
-              <dd>{patient.causeOfDeath || "—"}</dd>
+              <dd>{patientView.causeOfDeath || "—"}</dd>
             </>
           )}
 
@@ -241,13 +266,13 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
               </dd>
             </>
           )}
-          {Array.isArray(patient?.medications) && patient.medications.length > 0 && (
+          {Array.isArray(patientView?.medications) && patientView.medications.length > 0 && (
             <>
               <dt className="font-medium flex items-center gap-1">
                 <Pill className="h-4 w-4" />  {t("patients.detail.medications")}
               </dt>
               <dd className="flex flex-wrap gap-1">
-                {patient.medications.map((m, i) => (
+                {patientView.medications.map((m, i) => (
                   <span key={i} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm">{m}</span>
                 ))}
               </dd>
@@ -268,6 +293,27 @@ const bmiKey = bmiBackendToKey(patient?.bmiCategory);
           <Button full={false} variant="secondary" onClick={() => navigate(`/diagnosis/patient/${id}`)}>
             {t("patients.detail.viewDiagnoses")}
           </Button>
+          <Button
+  full={false}
+  variant="secondary"
+  disabled={translatingPatient}
+  onClick={() => {
+    translatePatient(
+      { id, lang: i18n.language },
+      { onSuccess: (data) => setTranslated({ lang: i18n.language, data }) }
+    );
+  }}
+>
+  <span className="inline-flex items-center gap-2">
+    {translatingPatient ? (
+      <Loader2 className="h-4 w-4 animate-spin" />
+    ) : (
+      <Languages className="h-4 w-4" />
+    )}
+    {t("Translate")}
+  </span>
+</Button>
+
           <Button full={false} variant="secondary" onClick={() => navigate("/patients")}>
              {t("patients.detail.backButton")}
           </Button>

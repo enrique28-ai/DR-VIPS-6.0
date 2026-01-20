@@ -127,3 +127,32 @@ export async function translateDiagnosisTitles(items, langLike) {
     title: translated[i] ?? d.title,
   }));
 }
+
+
+// Traduce campos del paciente (DETAIL) bajo demanda
+export async function translatePatientDoc(doc, langLike) {
+  if (!doc) return doc;
+
+  const diseases = Array.isArray(doc.diseases) ? doc.diseases : [];
+  const allergies = Array.isArray(doc.allergies) ? doc.allergies : [];
+  const medications = Array.isArray(doc.medications) ? doc.medications : [];
+
+  const pack = [...diseases, ...allergies, ...medications];
+  const translated = await deeplTranslate(pack, langLike);
+
+  if (!Array.isArray(translated)) return doc;
+
+  let idx = 0;
+  const nextDiseases = diseases.map((v) => translated[idx++] ?? v);
+  const nextAllergies = allergies.map((v) => translated[idx++] ?? v);
+  const nextMedications = medications.map((v) => translated[idx++] ?? v);
+
+ 
+  return {
+    ...doc,
+    diseases: nextDiseases,
+    allergies: nextAllergies,
+    medications: nextMedications,
+  };
+}
+
