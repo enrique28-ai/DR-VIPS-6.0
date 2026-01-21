@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { History, X } from "lucide-react";
+import { History, X, Languages, Loader2 } from "lucide-react";
 import Button from "../forms/Button.jsx";
-import { usePatientHistory, useMyHistory } from "../../features/patients/phooks.js";
+import { usePatientHistory, useMyHistory, useTranslatePatientHistorySnapshot } from "../../features/patients/phooks.js";
 import { localizeCountryName, localizeStateName, localizeCityName } from "../../utilsfront/geoLabels.js";
 
 const trOr = (t, key, fallback) => {
@@ -10,7 +10,7 @@ const trOr = (t, key, fallback) => {
   return v && v !== key ? v : fallback;
 };
 
-function SnapshotViewer({ snapshot, t, i18n }) {
+function SnapshotViewer({ snapshot, t, i18n, right }) {
   if (!snapshot) return null;
 
   const sys = (snapshot?.measurementSystem || "metric").toLowerCase();
@@ -49,9 +49,11 @@ const none = trOr(t, "patients.history.none", "None");
 
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 text-sm text-gray-700">
-      <div className="col-span-full font-semibold text-gray-900 border-b pb-2 mb-1">
-        {snapshot.fullname || "—"}
+      <div className="col-span-full flex items-start justify-between border-b pb-2 mb-1">
+      <div className="font-semibold text-gray-900">{snapshot.fullname || "—"}</div>
+        {right}
       </div>
+
 
       <div>
         <span className="font-medium text-gray-500">{t("patients.card.age")}:</span> {snapshot.age ?? "—"}
@@ -98,6 +100,33 @@ const none = trOr(t, "patients.history.none", "None");
 export default function PatientHistoryModal({ variant, patientId, onClose }) {
   const { t, i18n } = useTranslation();
   const [expandedId, setExpandedId] = useState(null);
+  const [translatedById, setTranslatedById] = useState({});
+const [translatedSnaps, setTranslatedSnaps] = useState({});
+const [translatingId, setTranslatingId] = useState(null);
+
+const { mutate: translateSnap } = useTranslatePatientHistorySnapshot();
+
+const handleTranslateSnap = (historyId) => {
+  const lang = i18n.language || "en";
+  if (translatedById[historyId] === lang) return;
+
+  setTranslatingId(historyId);
+
+  translateSnap(
+    { variant, patientId, historyId, lang },
+    {
+      onSuccess: (ver) => {
+        const snap = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
+        if (!snap) return;
+
+        setTranslatedSnaps((prev) => ({ ...prev, [historyId]: snap }));
+        setTranslatedById((prev) => ({ ...prev, [historyId]: lang }));
+      },
+      onSettled: () => setTranslatingId(null),
+    }
+  );
+};
+
 
   const isDoctor = variant === "doctor";
 
@@ -164,7 +193,9 @@ export default function PatientHistoryModal({ variant, patientId, onClose }) {
               const editedBy = ver?.editedBy?.name || systemUnknown;
 
               // ✅ soporte para ambos formatos (por si en algún momento regresa snapshot directo)
-              const snap = ver?.approvedSnapshot?.set || ver?.snapshot || null;
+              const baseSnap = ver?.approvedSnapshot?.set || ver?.snapshot || null;
+              const snap = translatedSnaps[ver._id] || baseSnap;
+
 
               return (
                 <div key={ver._id} className="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
@@ -185,11 +216,30 @@ export default function PatientHistoryModal({ variant, patientId, onClose }) {
                     </span>
                   </button>
 
-                  {expandedId === ver._id && (
-                    <div className="border-t border-gray-200 bg-white p-4">
-                      <SnapshotViewer snapshot={snap} t={t} i18n={i18n} />
-                    </div>
-                  )}
+                 {expandedId === ver._id && (
+  <div className="border-t border-gray-200 bg-white p-4">
+    <SnapshotViewer
+      snapshot={snap}
+      t={t}
+      i18n={i18n}
+      right={
+        <button
+          onClick={() => handleTranslateSnap(ver._id)}
+          disabled={translatingId === ver._id}
+          className="ml-3 rounded-full p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+          title={trOr(t, "common.translate", "Translate")}
+        >
+          {translatingId === ver._id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Languages className="h-4 w-4" />
+          )}
+        </button>
+      }
+    />
+  </div>
+)}
+
                 </div>
               );
             })}

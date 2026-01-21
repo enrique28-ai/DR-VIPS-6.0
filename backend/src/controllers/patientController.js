@@ -21,9 +21,11 @@ import {
   normUpper,
   arrKey,
   near,
+  getLang
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
-import { translatePatientDoc } from "../utils/deeplTranslate.js";
+import { translatePatientDoc,
+  translateHealthSnapshot } from "../utils/deeplTranslate.js";
 
 
 
@@ -883,9 +885,14 @@ attachPrev(snapshot.measurementSystemWrapper, prev.measurementSystem);
     snapshot.approvedBaselineAt = latest.approvedAt || null;
   }
 }
+// --- AQUÍ INSERTAMOS LA TRADUCCIÓN ---
+    const lang = getLang(req); // SOLO req.query.lang
+const outSnapshot = (lang && snapshot)
+  ? await translateHealthSnapshot(snapshot, lang)
+  : snapshot;
 
 
-    return res.json({ hasRecords, snapshot, pendingDecision });
+    return res.json({ hasRecords, snapshot: outSnapshot, pendingDecision });
   } catch (err) {
     console.error("getMyHealthInfo error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -1302,3 +1309,93 @@ export const getPatientHistory = async (req, res) => {
     return res.status(500).json({ error: "Server error fetching history" });
   }
 };
+
+// GET /api/patients/:id/history/:historyId?lang=xx  (doctor)
+export const getPatientHistoryOne = async (req, res) => {
+  try {
+    const patientId = req.params.id;
+    const historyId = req.params.historyId;
+
+    const lang = getLang(req);
+    if (!lang) return res.status(400).json({ error: "lang is required" });
+
+    // Acceso doctor: creador u owner
+    const p = await Patient.findOne({
+      _id: patientId,
+      $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
+    })
+      .select("email phoneDigits")
+      .lean();
+
+    if (!p) return res.status(403).json({ error: "Not authorized" });
+
+    const ident = identityQueryFromPatient(p);
+    if (!ident) return res.status(404).json({ error: "History not found" });
+
+    const ver = await PatientHistory.findOne({ _id: historyId, ...ident })
+      .populate("editedBy", "name email")
+      .lean();
+
+    if (!ver) return res.status(404).json({ error: "History not found" });
+
+    // Tu frontend usa: ver.approvedSnapshot?.set || ver.snapshot
+    const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
+    if (!raw) return res.json(ver);
+
+    const translated = await translatePatientDoc(raw, lang);
+
+    if (ver?.approvedSnapshot?.set) {
+      ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translated };
+    } else if (ver?.approvedSnapshot) {
+      ver.approvedSnapshot = translated;
+    } else {
+      ver.snapshot = translated;
+    }
+
+    return res.json(ver);
+  } catch (err) {
+    console.error("getPatientHistoryOne error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+// GET /api/patients/me/history/:historyId?lang=xx  (patient)
+export const getMyHistoryOne = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const historyId = req.params.historyId;
+    const lang = getLang(req);
+    if (!lang) return res.status(400).json({ error: "lang is required" });
+
+    const email = (req.user.email || "").toLowerCase().trim();
+    if (!email) return res.status(400).json({ error: "User has no email on file" });
+
+    const ver = await PatientHistory.findOne({ _id: historyId, patientEmail: email })
+      .populate("editedBy", "name email")
+      .lean();
+
+    if (!ver) return res.status(404).json({ error: "History not found" });
+
+    const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
+    if (!raw) return res.json(ver);
+
+    const translated = await translatePatientDoc(raw, lang);
+
+    if (ver?.approvedSnapshot?.set) {
+      ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translated };
+    } else if (ver?.approvedSnapshot) {
+      ver.approvedSnapshot = translated;
+    } else {
+      ver.snapshot = translated;
+    }
+
+    return res.json(ver);
+  } catch (err) {
+    console.error("getMyHistoryOne error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+

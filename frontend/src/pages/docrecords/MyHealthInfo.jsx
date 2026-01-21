@@ -8,17 +8,20 @@ import {
   Mail, // <--- Importa esto de lucide-react si quieres el icono
   Stethoscope,
   History,
-  X
+  X,
+  Languages,
+   Loader2
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 import {
   useMyHealthInfo,
   useApprovePatientProfile,
   useRejectPatientProfile,
+  useTranslateMyHealthInfo,
 } from "../../features/patients/phooks.js";
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
 import { useTranslation } from "react-i18next";
-import { useMemo,  useState } from "react";
+import { useMemo,  useState, useEffect } from "react";
 import {
    localizeCountryName,
    localizeStateName,
@@ -169,7 +172,39 @@ export default function MyHealthInfo() {
   const [showHistory, setShowHistory] = useState(false);
 
 
-  const { data, isLoading, isError } = useMyHealthInfo();
+  const { data: serverData, isLoading, isError } = useMyHealthInfo();
+  const { mutate: translateHealthInfo, isPending: isTranslating } =
+  useTranslateMyHealthInfo();
+
+const [translatedData, setTranslatedData] = useState(null);
+const [translatedLang, setTranslatedLang] = useState("");
+const displayData =
+  translatedData && translatedLang === i18n.language ? translatedData : serverData;
+
+
+useEffect(() => {
+  // si cambia el idioma, NO auto-traduzcas; solo resetea
+  setTranslatedData(null);
+  setTranslatedLang("");
+}, [serverData, i18n.language]);
+const onTranslate = () => {
+  if (!serverData) return;
+
+  // evita gastar si ya está traducido a este idioma
+  if (translatedData && translatedLang === i18n.language) return;
+
+  translateHealthInfo(
+    { lang: i18n.language },
+    {
+      onSuccess: (data) => {
+        setTranslatedData(data);
+        setTranslatedLang(i18n.language);
+      },
+    }
+  );
+};
+
+
   const approveMutation = useApprovePatientProfile();
   const rejectMutation = useRejectPatientProfile();
 
@@ -200,7 +235,7 @@ export default function MyHealthInfo() {
     );
   }
 
-  if (!data || !data.hasRecords || !data.snapshot) {
+  if (!displayData || !displayData.hasRecords || !displayData.snapshot) {
     return (
       <main className="mx-auto max-w-4xl px-4 py-10">
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -218,7 +253,7 @@ export default function MyHealthInfo() {
     );
   }
 
-  const { snapshot, pendingDecision } = data;
+  const { snapshot, pendingDecision } = displayData;
   
   const diseasesChanged = snapshot.diseasesChanged === true;
   const allergiesChanged = snapshot.allergiesChanged === true;
@@ -511,6 +546,21 @@ const prevLocations =
               <h2 className="text-lg font-semibold text-slate-900">
                 {t("myHealthInfo.sections.basic.title")}
               </h2>
+              <Button
+  full={false}
+  variant="secondary"
+  onClick={onTranslate}
+  disabled={isTranslating}
+  className="inline-flex items-center gap-2"
+>
+  {isTranslating ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : (
+    <Languages className="h-4 w-4" />
+  )}
+  {t("Translate")}
+</Button>
+
             </div>
             <p className="text-sm text-slate-600">
               {t("myHealthInfo.sections.basic.description")}

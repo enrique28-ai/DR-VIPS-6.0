@@ -155,4 +155,56 @@ export async function translatePatientDoc(doc, langLike) {
     medications: nextMedications,
   };
 }
+// Traduce SOLO las listas dinámicas del snapshot de MyHealthInfo
+export async function translateHealthSnapshot(snapshot, langLike) {
+  if (!snapshot) return snapshot;
+
+  const arrayKeys = [
+    "diseases", "allergies", "medications",
+    "commonDiseases", "commonAllergies", "commonMedications",
+    "diseasesCombined", "allergiesCombined", "medicationsCombined",
+  ];
+
+  // 1) juntar textos (dedupe para ahorrar $$$)
+  const uniq = [];
+  const seen = new Map(); // original -> index
+
+  const take = (s) => {
+    const v = (s ?? "").toString().trim();
+    if (!v) return;
+    if (seen.has(v)) return;
+    seen.set(v, uniq.length);
+    uniq.push(v);
+  };
+
+  for (const k of arrayKeys) {
+    const arr = Array.isArray(snapshot[k]) ? snapshot[k] : [];
+    for (const item of arr) take(item);
+  }
+
+  if (!uniq.length) return snapshot;
+
+  // 2) traducir en una sola llamada
+  const translated = await deeplTranslate(uniq, langLike);
+  if (!Array.isArray(translated)) return snapshot;
+
+  // 3) diccionario original->traducido
+  const dict = new Map();
+  for (let i = 0; i < uniq.length; i++) {
+    dict.set(uniq[i], translated[i] ?? uniq[i]);
+  }
+
+  // 4) reconstruir snapshot con esas listas traducidas
+  const next = { ...snapshot };
+  for (const k of arrayKeys) {
+    const arr = Array.isArray(snapshot[k]) ? snapshot[k] : null;
+    if (!arr) continue;
+    next[k] = arr.map((x) => {
+      const key = (x ?? "").toString().trim();
+      return dict.get(key) ?? x;
+    });
+  }
+
+  return next;
+}
 

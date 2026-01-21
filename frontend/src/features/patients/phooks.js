@@ -459,6 +459,26 @@ export function useTranslatePatient() {
   });
 }
 
+// ✅ Traduce SOLO 1 item del historial (barato)
+export function useTranslatePatientHistorySnapshot() {
+  return useMutation({
+    mutationFn: async ({ variant, patientId, historyId, lang }) => {
+      const url =
+        variant === "doctor"
+          ? `/patients/${patientId}/history/${historyId}`
+          : `/patients/me/history/${historyId}`;
 
+      return (await api.get(url, { params: { lang } })).data;
+    },
+    onError: () => toast.error("Translation failed"),
+  });
+}
+export function useTranslateMyHealthInfo() {
+  return useMutation({
+    mutationFn: async ({ lang }) =>
+      (await api.get("/patients/me/health-info", { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
 
 
