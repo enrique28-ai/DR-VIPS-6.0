@@ -327,7 +327,16 @@
     "selectStateOption": "Select a state…",
     "selectCityOption": "Select a city…",
     "fullnamePlaceholder": "John Doe",
-    "emailExample": "subject@domain.com"
+    "emailExample": "subject@domain.com",
+    "hasChildren": "Has children?",
+      "childrenCount": "Number of children",
+      "childName": "Child name",
+      "childNamePlaceholder": "Full name",
+      "parentEmail": "Parent/Guardian Email",
+      "parentEmailPlaceholder": "parent@domain.com",
+      "parentEmailRequired": "Parent email is required for minors.",
+      "childrenCountRequired": "Please specify the number of children.",
+      "childrenNamesRequired": "Please enter the name of each child."
   },
 
   "edit": {
@@ -380,7 +389,8 @@
     "edit": "Edit",
     "viewDiagnoses": "View diagnoses",
     "backButton": "Back",
-    "delete": "Delete"
+    "delete": "Delete",
+    "children": "Children"
   },
   "searchGlobal": {
     "title": "Add Patient",
@@ -433,7 +443,18 @@
     "importSuccess": "Patient imported successfully.",
     "importFailed": "Failed to import patient.",
     "noChanges": "No changes detected. Please modify at least one field before saving."
-  }
+  },
+  "errors": {
+      "parentEmailRequired": "Parent email is required for minor patients.",
+      "parentNotFound": "Access denied: Parent email not found in the system.",
+      "parentNotAdult": "Access denied: Parent record must be an adult.",
+      "minorNotListed": "Access denied: Minor's name is not listed in the parent's children list.",
+      "minorCannotDeclareChildren": "Minors cannot declare children.",
+      "parentEmailNotAllowed": "Parent email is only allowed for minors.",
+      "childrenCountRequired": "Please specify the number of children.",
+      "childrenCountInvalid": "Children count must be a valid number.",
+      "childrenCountMismatch": "The number of names provided does not match the children count."
+    }
 },
 "diagnoses": {
   "list": {

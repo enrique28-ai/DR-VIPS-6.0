@@ -49,6 +49,22 @@ const patientSchema = new mongoose.Schema({
   age: { type: Number, required: true, min: 0, max: 120 },
   ageCategory: { type: String, enum: AGE_BANDS.map(b => b.key) },
   bloodtype: { type: String, required: true, enum: BLOOD_TYPES, uppercase: true, trim: true },
+    // === FAMILY / DEPENDENTS ===
+  // Adult patients can declare their children (names) to enable minor validation.
+  children: {
+    type: [{
+      name: { type: String, trim: true, required: true }
+    }],
+    default: []
+  },
+
+  // Cached count for quick UI / validation; kept consistent by controller and middleware.
+  childrenCount: { type: Number, min: 0, default: 0 },
+
+  // For minors only: email of parent/guardian (used for access validation).
+  parentEmail: { type: String, lowercase: true, trim: true },
+  // ===========================
+
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
    // ✅ NUEVO: doctores que “poseen” el paciente (importado o creador)
     owners: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -116,6 +132,14 @@ patientSchema.pre("save", function(next){
     if (!this.lastEditedBy) this.lastEditedBy = this.createdBy;
   }
 
+    // Keep childrenCount consistent
+  if (Array.isArray(this.children)) {
+    this.childrenCount = this.children.length;
+  } else {
+    this.childrenCount = 0;
+  }
+
+
   if (this.heightM > 0 && this.weightKg > 0) {
     const { bmi, bmiCategory } = computeBmi(this.weightKg, this.heightM);
     this.bmi = bmi;
@@ -148,6 +172,13 @@ patientSchema.pre("findOneAndUpdate", function (next) {
   if (has("bloodtype")) {
     ensureSet().bloodtype = String(get("bloodtype") || "").toUpperCase().trim();
   }
+
+    // If children updated, keep childrenCount consistent
+  if (has("children")) {
+    const ch = get("children");
+    ensureSet().childrenCount = Array.isArray(ch) ? ch.length : 0;
+  }
+
 
   // ¿tocaron antropometría con height/weight + measurementSystem?
   const touchedSys = has("measurementSystem");

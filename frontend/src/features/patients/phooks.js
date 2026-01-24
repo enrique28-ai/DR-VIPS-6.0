@@ -3,6 +3,24 @@ import api from "../../lib/axios.js";
 import { toast } from "react-hot-toast";
 import i18n from "../../i18n";
 
+
+const patientErrorKey = (code) => {
+  const map = {
+    // Minors / Parents
+    PARENT_EMAIL_REQUIRED: "patients.errors.parentEmailRequired",
+    PARENT_NOT_FOUND: "patients.errors.parentNotFound",
+    PARENT_NOT_ADULT: "patients.errors.parentNotAdult",
+    MINOR_NOT_LISTED: "patients.errors.minorNotListed",
+    MINOR_CANNOT_DECLARE_CHILDREN: "patients.errors.minorCannotDeclareChildren",
+    PARENT_EMAIL_NOT_ALLOWED: "patients.errors.parentEmailNotAllowed",
+
+    // Children (Adults)
+    CHILDREN_COUNT_REQUIRED: "patients.errors.childrenCountRequired",
+    CHILDREN_COUNT_INVALID: "patients.errors.childrenCountInvalid",
+    CHILDREN_COUNT_MISMATCH: "patients.errors.childrenCountMismatch",
+  };
+  return map[code] || null;
+};
 // Build a stable params object (omit "All"/empty so cache keys are clean)
 export const buildPatientParams = ({ q = "", category = "All", bloodtype = "All", gender = "All", organDonor = "All", bloodDonor = "All",
    bmiCategory = "All", status = "All", country = "All", hasDiseases = "All", hasAllergies = "All", hasMedications = "All", page = 1 }) => ({
@@ -96,6 +114,12 @@ export function useCreatePatient() {
         return;
       }
 
+       const key = patientErrorKey(code);
+  if ((status === 400 || status === 403) && key) {
+    toast.error(i18n.t(key));
+    return;
+  }
+
       if (status !== 429) {
         toast.error(i18n.t("patients.toasts.createFailed"));
       }
@@ -176,6 +200,12 @@ export function useUpdatePatient(id) {
         toast.error(i18n.t("patients.toasts.conflictPendingPortal")); // "This patient has a pending profile..." etc.
         return;
       }
+
+       const key = patientErrorKey(code);
+  if ((status === 400 || status === 403) && key) {
+    toast.error(i18n.t(key));
+    return;
+  }
 
       if (status !== 429) {
         toast.error(i18n.t("patients.toasts.updateFailed"));

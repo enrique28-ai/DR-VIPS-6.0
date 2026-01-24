@@ -31,6 +31,47 @@ export default function PatientCreatePage() {
   const ageNum = Number(form.age);
   const isMinor = Number.isFinite(ageNum) && ageNum < 18;
 
+  // === Children + Parent email ===
+const [parentEmail, setParentEmail] = useState("");
+const parentEmailNorm = (parentEmail || "").trim().toLowerCase();
+const isParentEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmailNorm);
+
+const [hasChildren, setHasChildren] = useState("no"); // "yes" | "no"
+const [childrenCount, setChildrenCount] = useState(0);
+const [childrenNames, setChildrenNames] = useState([]);
+
+const clampChildrenCount = (n) => Math.max(0, Math.min(20, Number.isFinite(n) ? n : 0));
+const setChildrenCountAndResize = (nextCount, seedNames = []) => {
+  const n = clampChildrenCount(Number(nextCount));
+  setChildrenCount(n);
+  setChildrenNames(() => {
+    const base = Array.isArray(seedNames) ? seedNames : [];
+    const arr = base.slice(0, n).map((x) => String(x ?? ""));
+    while (arr.length < n) arr.push("");
+    return arr;
+  });
+};
+
+const onChildNameChange = (idx, value) => {
+  setChildrenNames((prev) => {
+    const next = prev.slice();
+    next[idx] = value;
+    return next;
+  });
+};
+
+useEffect(() => {
+  if (isMinor) {
+    setHasChildren("no");
+    setChildrenCountAndResize(0);
+  } else {
+    setParentEmail("");
+    if (hasChildren === "yes" && childrenCount === 0) setChildrenCountAndResize(1);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isMinor]);
+
+
   // Email: normalizar y validar formato
   const normalizedEmail = (form.email || "").trim().toLowerCase();
   const isEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
@@ -195,6 +236,36 @@ const handleSystem = (next) => {
       return;
     }
 
+    // === Children / Parent email validation ===
+const needsChildren = !isMinor && hasChildren === "yes";
+const finalChildrenCount = needsChildren ? clampChildrenCount(Number(childrenCount)) : 0;
+
+let finalChildren = [];
+if (needsChildren) {
+  if (!(finalChildrenCount > 0)) {
+    toast.error(t("patients.create.childrenCountRequired"));
+    return;
+  }
+  const names = (childrenNames || [])
+    .slice(0, finalChildrenCount)
+    .map((n) => String(n || "").trim());
+
+  const allFilled = names.length === finalChildrenCount && names.every(Boolean);
+  if (!allFilled) {
+    toast.error(t("patients.create.childrenNamesRequired"));
+    return;
+  }
+  finalChildren = names.map((name) => ({ name }));
+}
+
+if (isMinor) {
+  if (!isParentEmailFormatValid) {
+    toast.error(t("patients.create.parentEmailRequired"));
+    return;
+  }
+}
+
+
     const diseasesArr = hasDiseases === "yes"
       ? form.diseases.split(",").map(s=>s.trim()).filter(Boolean)
       : [];
@@ -255,6 +326,8 @@ const handleSystem = (next) => {
         diseases: diseasesArr,
         allergies: allergiesArr,
         medications: medicationsArr,
+        ...(isMinor ? { parentEmail: parentEmailNorm } : {}),
+        ...(!isMinor ? { childrenCount: finalChildrenCount, children: finalChildren } : {}),
         bloodtype: form.bloodtype,
         gender,
         organDonor: organDonor === "yes",
@@ -285,47 +358,160 @@ const handleSystem = (next) => {
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={createPatient.isPending}>
           <label className="block text-sm font-medium text-gray-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
           <Input name="fullname" value={form.fullname} onChange={onChange} required placeholder={t("patients.create.fullnamePlaceholder")} />
-          <label className="block text-sm font-medium text-gray-700">{t("patients.create.email")}{!isMinor && <span className="text-red-500">*</span>}</label>
-          <Input
-            name="email"
-            type="email"
-            placeholder={t("patients.create.emailExample")}
-            value={form.email}
-            onChange={onChange}
-            onBlur={onEmailBlur}
-            required={!isMinor}
-         />
-          {!isEmailFormatValid && form.email && (
-            <p className="text-xs text-red-600 mt-1">{t("patients.create.invalidEmail")}</p>
-          )}
+         {!isMinor && (
+  <>
+    <label className="block text-sm font-medium text-gray-700">
+      {t("patients.create.email")}<span className="text-red-500">*</span>
+    </label>
+
+    <Input
+      name="email"
+      type="email"
+      placeholder={t("patients.create.emailExample")}
+      value={form.email}
+      onChange={onChange}
+      onBlur={onEmailBlur}
+      required
+    />
+
+    {!isEmailFormatValid && form.email && (
+      <p className="text-xs text-red-600 mt-1">{t("patients.create.invalidEmail")}</p>
+    )}
+  </>
+)}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="block text-sm font-medium text-gray-700"> {t("patients.create.phone")}{!isMinor && <span className="text-red-500">*</span>}</label>
-          <div className="flex gap-2">
+  {!isMinor && (
+    <div>
+      <label className="block text-sm font-medium text-gray-700">
+        {t("patients.create.phone")}<span className="text-red-500">*</span>
+      </label>
+
+      <div className="flex gap-2">
+        <Input
+          value={dialCode}
+          readOnly
+          className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-700"
+          placeholder="+CC"
+        />
+        <Input
+          value={form.phone}
+          onChange={onPhoneChange}
+          onKeyDown={allowDigitKeys}
+          onPaste={onPasteDigits}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          disabled={!countryIso}
+          placeholder={country ? t("patients.create.phoneAreaDigitsPlaceholder") : t("patients.create.selectCountryFirst")}
+          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+      </div>
+
+      <p className="text-xs mt-1">
+        {t("patients.create.phoneDigitsCounter")}: {(form.phone || "").length}/10
+      </p>
+    </div>
+  )}
+
+  <div className={!isMinor ? "" : "sm:col-span-2"}>
+    <Input
+      label={t("patients.create.age")}
+      type="number"
+      min={AGE_MIN}
+      max={AGE_MAX}
+      name="age"
+      value={form.age}
+      onChange={onChange}
+      required
+      placeholder="45"
+    />
+  </div>
+</div>
+
+            {/* Children / Parent email */}
+{isMinor ? (
+  <div>
+    <label className="block text-sm font-medium text-gray-700">
+      {t("patients.create.parentEmail")}<span className="text-red-500">*</span>
+    </label>
+    <Input
+      name="parentEmail"
+      type="email"
+      value={parentEmail}
+      onChange={(e) => setParentEmail(e.target.value)}
+      onBlur={() => setParentEmail(parentEmailNorm)}
+      placeholder={t("patients.create.parentEmailPlaceholder")}
+      required
+      disabled={createPatient.isPending}
+    />
+  </div>
+) : (
+  <div className="sm:col-span-2">
+    <label className="block text-sm font-medium text-gray-700">{t("patients.create.hasChildren")}</label>
+
+    <div className="mt-2 flex gap-4">
+      <label className="inline-flex items-center gap-2">
+        <input
+          type="radio"
+          name="hasChildren"
+          value="no"
+          checked={hasChildren === "no"}
+          onChange={() => {
+            setHasChildren("no");
+            setChildrenCountAndResize(0);
+          }}
+          disabled={createPatient.isPending}
+        />
+        <span className="text-sm">{t("patients.create.no")}</span>
+      </label>
+
+      <label className="inline-flex items-center gap-2">
+        <input
+          type="radio"
+          name="hasChildren"
+          value="yes"
+          checked={hasChildren === "yes"}
+          onChange={() => {
+            setHasChildren("yes");
+            if (childrenCount === 0) setChildrenCountAndResize(1);
+          }}
+          disabled={createPatient.isPending}
+        />
+        <span className="text-sm">{t("patients.create.yes")}</span>
+      </label>
+    </div>
+
+    {hasChildren === "yes" && (
+      <div className="mt-3 space-y-3">
+        <Input
+          label={t("patients.create.childrenCount")}
+          type="number"
+          min={1}
+          max={20}
+          value={childrenCount}
+          onChange={(e) => setChildrenCountAndResize(e.target.value)}
+          required
+          disabled={createPatient.isPending}
+        />
+
+        <div className="space-y-2">
+          {Array.from({ length: childrenCount }).map((_, idx) => (
             <Input
-              value={dialCode}
-              readOnly
-              className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-700"
-              placeholder="+CC"
+              key={idx}
+              label={`${t("patients.create.childName")} #${idx + 1}`}
+              value={childrenNames[idx] || ""}
+              onChange={(e) => onChildNameChange(idx, e.target.value)}
+              placeholder={t("patients.create.childNamePlaceholder")}
+              required
+              disabled={createPatient.isPending}
             />
-            <Input
-              value={form.phone}
-              onChange={onPhoneChange}
-              onKeyDown={allowDigitKeys}
-              onPaste={onPasteDigits}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              disabled={!countryIso}
-              placeholder={country ? t("patients.create.phoneAreaDigitsPlaceholder") : t("patients.create.selectCountryFirst")}
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-              required={!isMinor}
-            />
-          </div>
-          <p className="text-xs mt-1">
-             {t("patients.create.phoneDigitsCounter")}: {(form.phone || "").length}/10
-          </p>
-            <Input label={t("patients.create.age")} type="number" min={AGE_MIN} max={AGE_MAX} name="age" value={form.age} onChange={onChange} required placeholder="45" />
-          </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
           <div>
             <label className="block text-sm font-medium text-gray-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
@@ -596,6 +782,8 @@ const handleSystem = (next) => {
               (!isMinor && !isEmailFormatValid) ||
               (!isMinor && (form.phone || "").length !== 10) ||
               (isMinor && form.email && !isEmailFormatValid) ||
+              (isMinor && !isParentEmailFormatValid) ||
+              (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
               (isMinor && (form.phone || "").length !== 0 && (form.phone || "").length !== 10) ||!gender || !organDonor || (hasDiseases === "yes" && form.diseases.trim() === "")||
                !bloodDonor || (hasAllergies === "yes" && form.allergies.trim() === "") || !system || !height 
                || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim()) 

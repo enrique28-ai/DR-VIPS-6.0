@@ -314,8 +314,16 @@
       "selectStateOption": "Seleccione un estado…",
       "selectCityOption": "Seleccione una ciudad…",
       "fullnamePlaceholder": "Juan Pérez",
-      "emailExample": "usuario@dominio.com"
-
+      "emailExample": "usuario@dominio.com",
+      "hasChildren": "¿Tiene hijos?",
+      "childrenCount": "Cantidad de hijos",
+      "childName": "Nombre del hijo",
+      "childNamePlaceholder": "Nombre completo",
+      "parentEmail": "Correo de padre/tutor",
+      "parentEmailPlaceholder": "padre@dominio.com",
+      "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
+      "childrenCountRequired": "Indica la cantidad de hijos.",
+      "childrenNamesRequired": "Escribe el nombre de cada hijo."
 
     },
     "edit": {
@@ -367,7 +375,8 @@
       "edit": "Editar",
       "viewDiagnoses": "Ver diagnósticos",
       "backButton": "Volver",
-      "delete": "Borrar"
+      "delete": "Borrar",
+      "children": "Hijos"
     },
     "history": {
       "title": "Historial del Paciente",
@@ -419,6 +428,17 @@
       "importSuccess": "Paciente importado correctamente.",
       "importFailed": "Error al importar el paciente.",
       "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar."
+    },
+    "errors": {
+      "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
+      "parentNotFound": "Acceso denegado: No se encontró un padre/madre registrado con ese correo.",
+      "parentNotAdult": "Acceso denegado: El registro del padre/madre debe corresponder a un adulto.",
+      "minorNotListed": "Acceso denegado: El nombre del menor no aparece en la lista de hijos del padre/madre.",
+      "minorCannotDeclareChildren": "Un menor de edad no puede registrar hijos.",
+      "parentEmailNotAllowed": "El correo de padre/madre solo se permite para menores.",
+      "childrenCountRequired": "Indica la cantidad de hijos.",
+      "childrenCountInvalid": "La cantidad de hijos debe ser un número válido.",
+      "childrenCountMismatch": "La cantidad de nombres no coincide con la cantidad de hijos."
     }
   },
 
@@ -540,6 +560,7 @@
   "loadHistoryFailed": "Error al cargar historial del diagnóstico",
   "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar."
 }
+
 },
 "myHealthState": {
   "list": {

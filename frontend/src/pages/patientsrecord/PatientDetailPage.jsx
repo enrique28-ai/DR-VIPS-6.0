@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
 import { usePatient, useTranslatePatient } from "../../features/patients/phooks.js";
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
-import { Droplet, Globe, User2, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle, Languages, Loader2 } from "lucide-react";
+import { Droplet, Globe, User2, Users, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle, Languages, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName } from "../../utilsfront/geoLabels.js";
 
@@ -131,6 +131,11 @@ const locationText = useMemo(() => {
   const { fullname, email, phone, age, diseases, allergies, bloodtype, createdAt, updatedAt } = patientView;
 
   
+  const kidsCount = Number(
+  patientView?.childrenCount ??
+  (Array.isArray(patientView?.children) ? patientView.children.length : 0)
+);
+
 
   const sys = (patientView?.measurementSystem || "metric").toLowerCase();
 const isImp = sys === "imperial";
@@ -185,6 +190,10 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
           {age != null && <Chip label={t("patients.card.age")} value={age} />}
           {categoryLabel && <Chip label={t("patients.detail.category")} value={categoryLabel} />}
           {bloodtype && <Chip icon={Droplet} label={t("patients.card.blood")} value={bloodtype} />}
+          {kidsCount > 0 && (
+          <Chip icon={Users} label={t("patients.create.childrenCount")} value={kidsCount} />
+)}
+
           {patientView.country && (
           <Chip
           icon={Globe}

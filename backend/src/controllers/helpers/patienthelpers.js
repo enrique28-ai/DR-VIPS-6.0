@@ -422,3 +422,35 @@ export const arrKey = (v) => normalize(v).slice().sort().join("||");
 export const near = (a, b, eps = 0.005) => Math.abs(Number(a) - Number(b)) <= eps;
 
 export const getLang = (req) => (req.query.lang || "").trim();
+
+
+// === FAMILY HELPERS ===
+export const normNameKey = (v) =>
+  String(v ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+export function sanitizeChildren(childrenLike) {
+  if (!Array.isArray(childrenLike)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const c of childrenLike) {
+    const nameRaw = typeof c === "string" ? c : c?.name;
+    const name = String(nameRaw ?? "").trim().replace(/\s+/g, " ");
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name });
+  }
+  return out;
+}
+
+export function parseChildrenCount(v) {
+  if (v === null || typeof v === "undefined" || v === "") return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+// =======================

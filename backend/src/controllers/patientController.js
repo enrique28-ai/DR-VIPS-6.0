@@ -21,7 +21,10 @@ import {
   normUpper,
   arrKey,
   near,
-  getLang
+  getLang,
+  sanitizeChildren,
+  normNameKey,
+  parseChildrenCount
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
 import { translatePatientDoc,
@@ -35,7 +38,7 @@ import { translatePatientDoc,
 export const createPatient = async (req, res) => {
   try {
     const { fullname, diseases, allergies, medications, email, phone, age, bloodtype, gender, organDonor: organIn, bloodDonor: bloodIn, 
-      measurementSystem, height, weight, country, state, city
+      measurementSystem, height, weight, country, state, city, children, childrenCount, parentEmail
     } = req.body;
 
     const gRaw = normGender(gender);
@@ -70,6 +73,108 @@ export const createPatient = async (req, res) => {
     
     const organDonor = toBool(organIn);
     const bloodDonor = toBool(bloodIn);
+
+    // === FAMILY BUSINESS RULES ===
+// Adults: can optionally declare children. If they send children/childrenCount, both are validated.
+// Minors: must send parentEmail; parent must exist and must list the minor name in their children list.
+
+// Minors cannot declare children.
+if (isMinor && (typeof children !== "undefined" || typeof childrenCount !== "undefined")) {
+      return res.status(400).json({ 
+        errorCode: "MINOR_CANNOT_DECLARE_CHILDREN",
+        error: "Minors cannot declare children." 
+      });
+    }
+
+let finalChildren = [];
+let finalChildrenCount = 0;
+let finalParentEmail = undefined;
+
+if (!isMinor) {
+  const wantsChildren =
+    typeof children !== "undefined" || typeof childrenCount !== "undefined";
+
+  if (wantsChildren) {
+        const n = parseChildrenCount(childrenCount);
+        if (n === null) {
+          return res.status(400).json({ 
+            errorCode: "CHILDREN_COUNT_INVALID",
+            error: "childrenCount must be an integer >= 0" 
+          });
+        }
+        if (typeof n === "undefined") {
+          return res.status(400).json({ 
+            errorCode: "CHILDREN_COUNT_REQUIRED",
+            error: "childrenCount is required when declaring children" 
+          });
+        }
+
+    if (n === 0) {
+      finalChildren = [];
+      finalChildrenCount = 0;
+    } else {
+      const list = sanitizeChildren(children);
+     if (list.length !== n) {
+            return res.status(400).json({
+              errorCode: "CHILDREN_COUNT_MISMATCH",
+              error: "children must include the name of each child and match childrenCount",
+            });
+          }
+      finalChildren = list;
+      finalChildrenCount = n;
+    }
+  }
+}
+
+if (isMinor) {
+      const peIn = normLower(parentEmail);
+      if (!peIn) {
+        return res.status(400).json({
+          errorCode: "PARENT_EMAIL_REQUIRED",
+          error: "Parent email is required to create a minor patient.",
+        });
+      }
+
+  finalParentEmail = peIn;
+  const parentEmailCheck = await verifyEmail(finalParentEmail);
+  if (!parentEmailCheck.ok) {
+    return res.status(400).json({ error: parentEmailCheck.error });
+  }
+
+  const parentDoc = await Patient.findOne({ email: finalParentEmail })
+    .select("_id age children")
+    .lean();
+
+  if (!parentDoc) {
+        return res.status(403).json({
+          errorCode: "PARENT_NOT_FOUND",
+          error: "Access denied: parent email not found in the system.",
+        });
+      }
+
+      if (!(Number(parentDoc.age) >= 18)) {
+        return res.status(403).json({
+          errorCode: "PARENT_NOT_ADULT",
+          error: "Access denied: parent record must be an adult.",
+        });
+      }
+
+  const childKey = normNameKey(fullname);
+  const parentChildren = Array.isArray(parentDoc.children) ? parentDoc.children : [];
+  const isListed = parentChildren.some((c) => {
+    const cName = typeof c === "string" ? c : c?.name;
+    return normNameKey(cName) === childKey;
+  });
+
+ if (!isListed) {
+        return res.status(403).json({
+          errorCode: "MINOR_NOT_LISTED",
+          error: "Access denied: minor name is not listed in the parent's children list.",
+        });
+      }
+    }
+// ============================
+
 
      // Email: validar si viene o si es adulto
     let normalizedEmail;
@@ -129,6 +234,10 @@ export const createPatient = async (req, res) => {
       lastEditedBy: req.user._id,
       // NEW: cachea exactamente lo que tecleó el usuario
       originalAnthro: { system: sys, height: H, weight: W },
+      children: finalChildren,
+      childrenCount: finalChildrenCount,
+      parentEmail: finalParentEmail,
+
     });
 
     return res.status(201).json(doc);
@@ -424,7 +533,8 @@ export const getPatientById = async (req, res) => {
 export const updatePatient = async (req, res) => {
   try {
     const { fullname, diseases, allergies, medications, email, phone, age, bloodtype,  gender, organDonor: organIn, bloodDonor: bloodIn,
-       measurementSystem, height, weight, heightM, weightKg,  country,
+       measurementSystem, height, weight, heightM, weightKg,  country,state, city, children, childrenCount, parentEmail,
+
      } = req.body;
 
      // Leemos el doc actual para validar regla adulto/menor
@@ -465,6 +575,121 @@ if (!current) return res.status(404).json({ error: "Patient not found" });
     if (typeof medications  !== "undefined") update.medications  = normalize(medications);
     if (typeof age       !== "undefined") update.age       = age;
     if (typeof bloodtype !== "undefined") update.bloodtype = bloodtype;
+
+    // === FAMILY BUSINESS RULES ===
+// Adults (>=18): if children/childrenCount is sent, it must be consistent.
+// Minors (<18): parentEmail is required (either already saved or sent now), and
+// the parent's children list must include the minor fullname.
+
+const nextFullname = "fullname" in update ? update.fullname : current.fullname;
+
+// Children updates (adults only)
+const wantsChildrenUpdate = ("children" in req.body) || ("childrenCount" in req.body);
+
+if (wantsChildrenUpdate) {
+      if (isMinorNext) {
+        return res.status(400).json({ 
+          errorCode: "MINOR_CANNOT_DECLARE_CHILDREN",
+          error: "Minors cannot declare children." 
+        });
+      }
+
+      const n = parseChildrenCount(childrenCount);
+      if (n === null) {
+        return res.status(400).json({ 
+          errorCode: "CHILDREN_COUNT_INVALID",
+          error: "childrenCount must be an integer >= 0" 
+        });
+      }
+      if (typeof n === "undefined") {
+        return res.status(400).json({ 
+          errorCode: "CHILDREN_COUNT_REQUIRED",
+          error: "childrenCount is required when declaring children" 
+        });
+      }
+
+  if (n === 0) {
+    update.children = [];
+    update.childrenCount = 0;
+  } else {
+    const list = sanitizeChildren(children);
+    if (list.length !== n) {
+          return res.status(400).json({
+            errorCode: "CHILDREN_COUNT_MISMATCH",
+            error: "children must include the name of each child and match childrenCount",
+          });
+        }
+    update.children = list;
+    update.childrenCount = n;
+  }
+}
+
+// parentEmail (minors only)
+if (isMinorNext) {
+  const parentEmailEffective =
+    "parentEmail" in req.body ? normLower(parentEmail) : normLower(current.parentEmail);
+
+  if (!parentEmailEffective) {
+        return res.status(400).json({ 
+          errorCode: "PARENT_EMAIL_REQUIRED",
+          error: "Parent email is required for minors." 
+        });
+      }
+
+  const parentEmailCheck = await verifyEmail(parentEmailEffective);
+  if (!parentEmailCheck.ok) {
+    return res.status(400).json({ error: parentEmailCheck.error });
+  }
+
+  const parentDoc = await Patient.findOne({ email: parentEmailEffective })
+    .select("_id age children")
+    .lean();
+
+  if (!parentDoc) {
+        return res.status(403).json({ 
+          errorCode: "PARENT_NOT_FOUND",
+          error: "Access denied: parent email not found in the system." 
+        });
+      }
+
+      if (!(Number(parentDoc.age) >= 18)) {
+        return res.status(403).json({ 
+          errorCode: "PARENT_NOT_ADULT",
+          error: "Access denied: parent record must be an adult." 
+        });
+      }
+
+  const childKey = normNameKey(nextFullname);
+  const parentChildren = Array.isArray(parentDoc.children) ? parentDoc.children : [];
+  const isListed = parentChildren.some((c) => {
+    const cName = typeof c === "string" ? c : c?.name;
+    return normNameKey(cName) === childKey;
+  });
+
+  if (!isListed) {
+        return res.status(403).json({
+          errorCode: "MINOR_NOT_LISTED",
+          error: "Access denied: minor name is not listed in the parent's children list.",
+        });
+      }
+
+  // Only set if user sent it or it's missing in DB
+  if ("parentEmail" in req.body || !current.parentEmail) {
+    update.parentEmail = parentEmailEffective;
+  }
+} else {
+  // Adults: parentEmail must not be set
+  if ("parentEmail" in req.body) {
+        return res.status(400).json({ 
+          errorCode: "PARENT_EMAIL_NOT_ALLOWED",
+          error: "parentEmail is only allowed for minors." 
+        });
+      }
+  if (current.parentEmail) {
+    unset.parentEmail = 1;
+  }
+}
+
 
     if ("email" in req.body) {
       const e = String(req.body.email ?? "").trim().toLowerCase();
@@ -604,6 +829,13 @@ if (!changesFound) {
   if ("allergies" in update && arrKey(update.allergies) !== arrKey(current.allergies)) changesFound = true;
   if ("medications" in update && arrKey(update.medications) !== arrKey(current.medications)) changesFound = true;
 
+  if ("children" in update) {
+  const u = Array.isArray(update.children) ? update.children.map((c) => normNameKey(c?.name)) : [];
+  const c = Array.isArray(current.children) ? current.children.map((x) => normNameKey(x?.name)) : [];
+  if (u.join("|") !== c.join("|")) changesFound = true;
+}
+
+
   // Scalars comunes
   if (!changesFound && "fullname" in update && normStr(update.fullname) !== normStr(current.fullname)) changesFound = true;
   if (!changesFound && "age" in update && Number(update.age) !== Number(current.age)) changesFound = true;
@@ -623,6 +855,10 @@ if (!changesFound) {
   // Estado de vida
   if (!changesFound && "isDeceased" in update && Boolean(update.isDeceased) !== Boolean(current.isDeceased)) changesFound = true;
   if (!changesFound && "causeOfDeath" in update && normStr(update.causeOfDeath) !== normStr(current.causeOfDeath)) changesFound = true;
+
+  // FAMILY scalars
+if (!changesFound && "childrenCount" in update && Number(update.childrenCount) !== Number(current.childrenCount)) changesFound = true;
+if (!changesFound && "parentEmail" in update && normLower(update.parentEmail) !== normLower(current.parentEmail)) changesFound = true;
 
   // Antropometría: si mandaron measurementSystem + height + weight
   const touchedAnthro = ("measurementSystem" in update) || ("height" in update) || ("weight" in update);
@@ -921,9 +1157,10 @@ const SYNC_FIELDS_SCALAR = [
   "city",
   "phone",
   "phoneDigits",
+  "childrenCount"
 ];
 
-const SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications"];
+const SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications", "children"];
 
 /**
  * Paciente APRUEBA la versión de un doctor.
