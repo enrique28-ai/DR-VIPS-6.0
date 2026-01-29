@@ -24,7 +24,10 @@ import {
   getLang,
   sanitizeChildren,
   normNameKey,
-  parseChildrenCount
+  parseChildrenCount,
+   minorKeyOf,
+  hasPendingGuardianDecisionForMinorKey,
+  computeHealthSnapshotByMinorKey,
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
 import { translatePatientDoc,
@@ -173,6 +176,22 @@ if (isMinor) {
         });
       }
     }
+
+   let mk;
+
+if (isMinor) {
+  mk = minorKeyOf(finalParentEmail, fullname);
+  if (!mk) {
+    return res.status(400).json({ errorCode: "MINOR_KEY_INVALID" });
+  }
+
+  const lockedMinor = await hasPendingGuardianDecisionForMinorKey(mk, finalParentEmail);
+  if (lockedMinor) {
+    return res.status(409).json({ errorCode: "PENDING_GUARDIAN_DECISION" });
+  }
+}
+
+
 // ============================
 
 
@@ -237,6 +256,7 @@ if (isMinor) {
       children: finalChildren,
       childrenCount: finalChildrenCount,
       parentEmail: finalParentEmail,
+      ...(isMinor ? { minorKey: mk } : {}),
 
     });
 
@@ -569,7 +589,7 @@ if (!current) return res.status(404).json({ error: "Patient not found" });
     const unset = {};
     const nextAge = typeof age !== "undefined" ? Number(age) : current.age;
     const isMinorNext = Number.isFinite(nextAge) && nextAge < 18;
-    if (typeof fullname  !== "undefined") update.fullname  = fullname;
+    if (typeof fullname !== "undefined" && !isMinorNext) update.fullname = fullname;
     if (typeof diseases  !== "undefined") update.diseases  = normalize(diseases);
     if (typeof allergies  !== "undefined") update.allergies  = normalize(allergies);
     if (typeof medications  !== "undefined") update.medications  = normalize(medications);
@@ -581,7 +601,35 @@ if (!current) return res.status(404).json({ error: "Patient not found" });
 // Minors (<18): parentEmail is required (either already saved or sent now), and
 // the parent's children list must include the minor fullname.
 
+if (isMinorNext) {
+  if ("fullname" in req.body) {
+    const incomingNameKey = normNameKey(fullname);
+    const currentNameKey = normNameKey(current.fullname);
+    if (incomingNameKey && currentNameKey && incomingNameKey !== currentNameKey) {
+      return res.status(400).json({ errorCode: "MINOR_FULLNAME_IMMUTABLE" });
+    }
+  }
+
+  if ("parentEmail" in req.body && current.parentEmail) {
+    const incomingPE = normLower(parentEmail);
+    const currentPE = normLower(current.parentEmail);
+    if (incomingPE && currentPE && incomingPE !== currentPE) {
+      return res.status(400).json({ errorCode: "MINOR_PARENT_EMAIL_IMMUTABLE" });
+    }
+  }
+}
+
 const nextFullname = "fullname" in update ? update.fullname : current.fullname;
+
+const isCurrentMinor = Number(current.age) < 18 && current.parentEmail;
+if (isCurrentMinor) {
+  const mk = current.minorKey || minorKeyOf(current.parentEmail, current.fullname);
+  const lockedMinor = await hasPendingGuardianDecisionForMinorKey(mk, current.parentEmail);
+  if (lockedMinor) {
+    return res.status(409).json({ errorCode: "PENDING_GUARDIAN_DECISION" });
+  }
+}
+
 
 // Children updates (adults only)
 const wantsChildrenUpdate = ("children" in req.body) || ("childrenCount" in req.body);
@@ -673,6 +721,14 @@ if (isMinorNext) {
         });
       }
 
+      // Ensure minorKey exists (migration / first time parentEmail is set)
+if (!current.minorKey) {
+  const newMk = minorKeyOf(parentEmailEffective, current.fullname);
+  if (!newMk) return res.status(400).json({ errorCode: "MINOR_KEY_INVALID" });
+  update.minorKey = newMk;
+}
+
+
   // Only set if user sent it or it's missing in DB
   if ("parentEmail" in req.body || !current.parentEmail) {
     update.parentEmail = parentEmailEffective;
@@ -688,7 +744,11 @@ if (isMinorNext) {
   if (current.parentEmail) {
     unset.parentEmail = 1;
   }
+  if (current.minorKey) {
+  unset.minorKey = 1; // ✅ detach guardian access once adult
 }
+}
+
 
 
     if ("email" in req.body) {
@@ -1633,6 +1693,341 @@ export const getMyHistoryOne = async (req, res) => {
   } catch (err) {
     console.error("getMyHistoryOne error:", err);
     return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const getMyChildrenHealthInfo = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    if (!parentEmail) return res.json([]);
+
+    const all = await Patient.find({
+      parentEmail,
+      age: { $lt: 18 },
+    })
+      .sort({ updatedAt: -1 })
+      .populate("createdBy", "name email role")
+      .lean({ virtuals: true });
+
+    if (!all.length) return res.json([]);
+
+    // Agrupar por minorKey
+    const groups = new Map();
+    for (const p of all) {
+      const key = p.minorKey || minorKeyOf(parentEmail, p.fullname);
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(p);
+    }
+
+    const results = [];
+    for (const [key, list] of groups.entries()) {
+      const base = buildHealthSnapshotFromPatients(list, null);
+
+      const latest = list[0];
+      const pendingDecision =
+        !latest.approvedAt ||
+        new Date(latest.updatedAt).getTime() > new Date(latest.approvedAt).getTime();
+
+      results.push({
+        childKey: key,
+        pendingDecision,
+        hasRecords: base.hasRecords,
+        snapshot: base.snapshot,
+      });
+    }
+
+    return res.json(results);
+  } catch (err) {
+    console.error("getMyChildrenHealthInfo error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const approveChildProfile = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const profileId = req.params.id;
+
+    const doc = await Patient.findOne({
+      _id: profileId,
+      parentEmail,
+      age: { $lt: 18 },
+    }).lean();
+
+    if (!doc) {
+      return res.status(404).json({ errorCode: "CHILD_PROFILE_NOT_FOUND" });
+    }
+
+    const oldKey = doc.minorKey || minorKeyOf(parentEmail, doc.fullname);
+    const newKey = minorKeyOf(parentEmail, doc.fullname);
+
+    // Canonical (igual que adulto)
+    const canonical = {};
+    for (const field of SYNC_FIELDS_SCALAR) {
+      if (Object.prototype.hasOwnProperty.call(doc, field) && doc[field] !== undefined) {
+        canonical[field] = doc[field];
+      }
+    }
+    for (const field of SYNC_FIELDS_ARRAY) {
+      canonical[field] = Array.isArray(doc[field]) ? doc[field] : [];
+    }
+
+    const canonicalSet = { ...canonical };
+    const canonicalUnset = {};
+    for (const f of SYNC_FIELDS_SCALAR) {
+      if (!(f in canonicalSet)) canonicalUnset[f] = 1;
+    }
+    for (const f of SYNC_FIELDS_ARRAY) {
+      if (!(f in canonicalSet)) canonicalSet[f] = [];
+    }
+
+    const approvedAt = new Date();
+    const approvedSnapshot = { set: canonicalSet, unset: canonicalUnset };
+
+    const updateDoc = {
+      $set: {
+        ...canonicalSet,
+        approvedSnapshot,
+        approvedAt,
+         updatedAt: approvedAt,
+        minorKey: newKey,
+        parentEmail,
+      },
+    };
+    if (Object.keys(canonicalUnset).length > 0) updateDoc.$unset = canonicalUnset;
+
+    await Patient.updateMany(
+      { parentEmail, age: { $lt: 18 }, minorKey: oldKey },
+      updateDoc, { timestamps: false }
+    );
+
+    // Historial (para menores por patientKey)
+    await PatientHistory.create({
+      patientKey: newKey,
+      approvedAt,
+      approvedSnapshot,
+      approvedFromProfile: profileId,
+      editedBy: doc.lastEditedBy || doc.createdBy || null,
+    });
+
+    const { hasRecords, snapshot } = await computeHealthSnapshotByMinorKey(newKey, parentEmail);
+    return res.json({ ok: true, hasRecords, snapshot, pendingDecision: false });
+  } catch (err) {
+    console.error("approveChildProfile error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const rejectChildProfile = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const profileId = req.params.id;
+
+    const target = await Patient.findOne({
+      _id: profileId,
+      parentEmail,
+      age: { $lt: 18 },
+    }).lean();
+
+    if (!target) {
+      return res.status(404).json({ errorCode: "CHILD_PROFILE_NOT_FOUND" });
+    }
+
+    const key = target.minorKey || minorKeyOf(parentEmail, target.fullname);
+
+    const allPats = await Patient.find({
+      parentEmail,
+      minorKey: key,
+      age: { $lt: 18 },
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    if (!allPats.length) {
+      return res.status(404).json({ errorCode: "CHILD_GROUP_NOT_FOUND" });
+    }
+
+    const withoutTarget = allPats.filter((p) => String(p._id) !== String(profileId));
+
+    const decidedAt = new Date();
+
+    // Caso 1: solo existía esa versión
+    if (withoutTarget.length === 0) {
+      const snap = target.approvedSnapshot;
+
+      const prevSet =
+        snap && typeof snap === "object"
+          ? (snap.set && typeof snap.set === "object" ? snap.set : snap)
+          : null;
+
+      const prevUnset =
+        snap && typeof snap === "object" && snap.unset && typeof snap.unset === "object"
+          ? snap.unset
+          : {};
+
+      // Si existe snapshot anterior -> rollback y marcamos aprobado (para quitar pending)
+      if (prevSet && Object.keys(prevSet).length > 0) {
+        const updateDoc = {
+          $set: {
+            ...prevSet,
+            approvedSnapshot: snap,
+            approvedAt: decidedAt,
+          },
+        };
+        if (Object.keys(prevUnset).length > 0) updateDoc.$unset = prevUnset;
+
+        await Patient.updateMany(
+          { parentEmail, minorKey: key, age: { $lt: 18 } },
+          updateDoc,
+  { timestamps: false }
+        );
+
+        const finalState = await computeHealthSnapshotByMinorKey(key, parentEmail);
+        return res.json({
+          ok: true,
+          hasRecords: finalState.hasRecords,
+          snapshot: finalState.snapshot,
+          pendingDecision: false,
+        });
+      }
+
+      // Si nunca hubo snapshot anterior aprobada -> eliminar todo (igual que adulto)
+      await Diagnosis.deleteMany({ patient: profileId });
+      await Patient.deleteOne({ _id: profileId, parentEmail });
+
+      return res.json({ ok: true, hasRecords: false, snapshot: null, pendingDecision: false });
+    }
+
+    // Caso 2: quedan otras versiones -> reconstruimos snapshot desde las restantes
+    const prevBase = buildHealthSnapshotFromPatients(withoutTarget, null);
+    const { snapshot } = prevBase;
+
+    // Convertir snapshot wrapper -> canonical
+    const canonical = {};
+    const sv = (w) => (w && typeof w === "object" ? w.value : undefined);
+
+    if (snapshot.fullname) canonical.fullname = snapshot.fullname;
+    if (snapshot.ageCategory) canonical.ageCategory = snapshot.ageCategory;
+
+    const ageVal = sv(snapshot.age);
+    if (ageVal !== undefined) canonical.age = ageVal;
+
+    const genderVal = sv(snapshot.gender);
+    if (genderVal !== undefined) canonical.gender = genderVal;
+
+    const btVal = sv(snapshot.bloodtype);
+    if (btVal !== undefined) canonical.bloodtype = btVal;
+
+    const organVal = sv(snapshot.organDonor);
+    if (organVal !== undefined) canonical.organDonor = organVal;
+
+    const bloodVal = sv(snapshot.bloodDonor);
+    if (bloodVal !== undefined) canonical.bloodDonor = bloodVal;
+
+    const countryVal = sv(snapshot.country);
+    if (countryVal !== undefined) canonical.country = countryVal;
+
+    const stateVal = sv(snapshot.state);
+    if (stateVal !== undefined) canonical.state = stateVal;
+
+    const cityVal = sv(snapshot.city);
+    if (cityVal !== undefined) canonical.city = cityVal;
+
+    if (snapshot.measurementSystem) canonical.measurementSystem = snapshot.measurementSystem;
+    if (typeof snapshot.heightM === "number") canonical.heightM = snapshot.heightM;
+    if (typeof snapshot.weightKg === "number") canonical.weightKg = snapshot.weightKg;
+    if (typeof snapshot.bmi === "number") canonical.bmi = snapshot.bmi;
+    if (snapshot.bmiCategory) canonical.bmiCategory = snapshot.bmiCategory;
+
+    canonical.diseases = Array.isArray(snapshot.diseases) ? snapshot.diseases : [];
+    canonical.allergies = Array.isArray(snapshot.allergies) ? snapshot.allergies : [];
+    canonical.medications = Array.isArray(snapshot.medications) ? snapshot.medications : [];
+
+    // Nuevo baseline aprobado (para quitar pending)
+    const canonicalSet = { ...canonical };
+    const canonicalUnset = {};
+    for (const f of SYNC_FIELDS_SCALAR) {
+      if (!(f in canonicalSet)) canonicalUnset[f] = 1;
+    }
+    for (const f of SYNC_FIELDS_ARRAY) {
+      if (!(f in canonicalSet)) canonicalSet[f] = [];
+    }
+
+    const approvedSnapshot = { set: canonicalSet, unset: canonicalUnset };
+
+    const updateDoc = {
+      $set: {
+        ...canonicalSet,
+        approvedSnapshot,
+        approvedAt: decidedAt,
+      },
+    };
+    if (Object.keys(canonicalUnset).length > 0) updateDoc.$unset = canonicalUnset;
+
+    await Patient.updateMany(
+      { parentEmail, minorKey: key, age: { $lt: 18 } },
+      updateDoc,
+  { timestamps: false }
+    );
+
+    const finalState = await computeHealthSnapshotByMinorKey(key, parentEmail);
+    return res.json({
+      ok: true,
+      hasRecords: finalState.hasRecords,
+      snapshot: finalState.snapshot,
+      pendingDecision: false,
+    });
+  } catch (err) {
+    console.error("rejectChildProfile error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const getChildHistory = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ error: "Insufficient role" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const childProfileId = req.params.childId;
+
+    const child = await Patient.findOne({
+      _id: childProfileId,
+      parentEmail,
+      age: { $lt: 18 },
+    })
+      .select("minorKey fullname parentEmail")
+      .lean();
+
+    if (!child) {
+      return res.status(404).json({ errorCode: "CHILD_PROFILE_NOT_FOUND" });
+    }
+
+    const key = child.minorKey || minorKeyOf(parentEmail, child.fullname);
+
+    const history = await PatientHistory.find({ patientKey: key })
+      .sort({ approvedAt: -1 })
+      .populate("editedBy", "name email role")
+      .lean();
+
+    return res.json(history);
+  } catch (err) {
+    console.error("getChildHistory error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 

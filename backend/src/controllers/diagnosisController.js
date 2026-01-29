@@ -559,3 +559,286 @@ export const getDiagnosisHistoryOne = async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+
+// === PARENT/TUTOR: MINOR DIAGNOSES (HealthState for children) ===
+const normLower = (v) => String(v || "").toLowerCase().trim();
+const normNameKey = (v) =>
+  String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+const minorKeyOfLocal = (parentEmail, childFullname) => {
+  const pe = normLower(parentEmail);
+  const nk = normNameKey(childFullname);
+  return pe && nk ? `${pe}::${nk}` : "";
+};
+
+async function resolveMinorGroupPatientIdsOrThrow(childId, parentEmail) {
+  const pe = normLower(parentEmail);
+
+  // 1) verificar que ese childId exista y sea hijo de ese parentEmail
+  const base = await Patient.findOne({ _id: childId, parentEmail: pe })
+    .select("_id fullname parentEmail minorKey age isDeceased")
+    .lean();
+
+  if (!base) {
+    const err = new Error("CHILD_NOT_FOUND");
+    err.statusCode = 404;
+    err.errorCode = "CHILD_NOT_FOUND";
+    throw err;
+  }
+
+  // 2) si ya no es menor, el padre pierde acceso
+  if (!(Number(base.age) < 18)) {
+    const err = new Error("CHILD_NOT_MINOR");
+    err.statusCode = 403;
+    err.errorCode = "CHILD_NOT_MINOR";
+    throw err;
+  }
+
+  // 3) armar minorKey (fallback si no existiera en data vieja)
+  const mk = base.minorKey || minorKeyOfLocal(pe, base.fullname);
+  if (!mk) {
+    const err = new Error("CHILD_KEY_MISSING");
+    err.statusCode = 500;
+    err.errorCode = "CHILD_KEY_MISSING";
+    throw err;
+  }
+
+  // 4) obtener TODOS los Patient docs de ese menor (mismo minorKey)
+  const pats = await Patient.find({
+    parentEmail: pe,
+    minorKey: mk,
+    age: { $lt: 18 },
+    isDeceased: false,
+  })
+    .select("_id")
+    .lean();
+
+  return { minorKey: mk, patientIds: pats.map((p) => p._id) };
+}
+
+// GET /api/diagnoses/children/:childId/mine
+// GET /api/diagnoses/children/:childId/mine?q=&date=&hasMedicines=&hasTreatments=&hasOperations=&page=&limit=
+export const getMyChildDiagnosesPortal = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ errorCode: "INSUFFICIENT_ROLE" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const { childId } = req.params;
+
+    const { patientIds } = await resolveMinorGroupPatientIdsOrThrow(childId, parentEmail);
+
+    const q     = req.query.q?.trim();
+    const date  = req.query.date?.trim();
+    const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit ?? "20", 10)));
+    const skip  = (page - 1) * limit;
+
+    const filter = { patient: { $in: patientIds } };
+
+    // filtros booleanos iguales a /mine
+    const asBool = (v) => {
+      const t = String(v).toLowerCase();
+      if (["true", "yes", "1"].includes(t)) return true;
+      if (["false", "no", "0"].includes(t)) return false;
+      return undefined;
+    };
+
+    const hm = asBool(req.query.hasMedicines);
+    const ht = asBool(req.query.hasTreatments);
+    const ho = asBool(req.query.hasOperations);
+
+    if (hm === true)  filter["medicine.0"] = { $exists: true };
+    if (hm === false) filter.medicine = { $size: 0 };
+    if (ht === true)  filter["treatment.0"] = { $exists: true };
+    if (ht === false) filter.treatment = { $size: 0 };
+    if (ho === true)  filter["operation.0"] = { $exists: true };
+    if (ho === false) filter.operation = { $size: 0 };
+
+    // filtro por date (igual idea que usas en otros endpoints)
+    if (date) {
+      const start = new Date(`${date}T00:00:00.000Z`);
+      const end   = new Date(`${date}T23:59:59.999Z`);
+      filter.$and = [{
+        $or: [
+          { createdAt: { $gte: start, $lt: end } },
+          { updatedAt: { $gte: start, $lt: end } },
+        ],
+      }];
+    }
+
+    // --- SIN q: paginado DB (rápido) ---
+    if (!q) {
+      const [itemsRaw, total] = await Promise.all([
+        Diagnosis.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .populate("createdBy", "name email role")
+          .lean(),
+        Diagnosis.countDocuments(filter),
+      ]);
+
+      const lang = getLang(req);
+      const items = lang ? await translateDiagnosisTitles(itemsRaw, lang) : itemsRaw;
+
+      return res.json({ items, total, page, pages: Math.ceil(total / limit) });
+    }
+
+    // --- CON q: filtra in-memory (igual estilo a tu /mine) ---
+    let docs = await Diagnosis.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("createdBy", "name email role")
+      .lean();
+
+    const qn = q.toLowerCase();
+
+    docs = docs.filter((d) => {
+      const title       = (d.title ?? "").toLowerCase();
+      const extra       = (d.description ?? d.symptoms ?? "").toLowerCase();
+      const doctorName  = (d.createdBy?.name ?? "").toLowerCase();
+      const doctorEmail = (d.createdBy?.email ?? "").toLowerCase();
+
+      return (
+        title.includes(qn) ||
+        extra.includes(qn) ||
+        doctorName.includes(qn) ||
+        doctorEmail.includes(qn)
+      );
+    });
+
+    const total = docs.length;
+    const pages = Math.ceil(total / limit) || 0;
+    let items = docs.slice(skip, skip + limit);
+
+    const lang = getLang(req);
+    if (lang && items.length > 0) {
+      items = await translateDiagnosisTitles(items, lang);
+    }
+
+    return res.json({ items, total, page, pages });
+
+  } catch (err) {
+    const status = err.statusCode || 500;
+    if (err.errorCode) return res.status(status).json({ errorCode: err.errorCode });
+    console.error("getMyChildDiagnosesPortal error:", err);
+    return res.status(500).json({ errorCode: "SERVER_ERROR" });
+  }
+};
+
+
+// GET /api/diagnoses/children/:childId/mine/:id
+export const getMyChildDiagnosisPortalById = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ errorCode: "INSUFFICIENT_ROLE" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const { childId, id } = req.params;
+
+    const { patientIds } = await resolveMinorGroupPatientIdsOrThrow(childId, parentEmail);
+
+    const d = await Diagnosis.findById(id)
+      .populate("createdBy", "name email role")
+      .lean();
+
+    if (!d) return res.status(404).json({ errorCode: "DIAGNOSIS_NOT_FOUND" });
+
+    // Seguridad: ese diagnóstico debe pertenecer a ese menor (grupo)
+    const pid = String(d.patient);
+    const allowed = patientIds.some((x) => String(x) === pid);
+    if (!allowed) return res.status(403).json({ errorCode: "ACCESS_DENIED_CHILD_DIAGNOSIS" });
+
+    const lang = getLang(req);
+if (lang) {
+  const translated = await translateDiagnosisDoc(d, lang);
+  return res.json(translated);
+}
+
+
+    return res.json(d);
+  } catch (err) {
+    const status = err.statusCode || 500;
+    if (err.errorCode) return res.status(status).json({ errorCode: err.errorCode });
+    console.error("getMyChildDiagnosisPortalById error:", err);
+    return res.status(500).json({ errorCode: "SERVER_ERROR" });
+  }
+};
+
+// === CHILD PORTAL: DIAGNOSIS HISTORY (parent/tutor) ===
+
+// GET /api/diagnoses/children/:childId/mine/:id/history
+export const getMyChildDiagnosisHistory = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ errorCode: "INSUFFICIENT_ROLE" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const { childId, id } = req.params;
+
+    const { patientIds } = await resolveMinorGroupPatientIdsOrThrow(childId, parentEmail);
+
+    const d = await Diagnosis.findById(id);
+    if (!d) return res.status(404).json({ errorCode: "DIAGNOSIS_NOT_FOUND" });
+
+    // El diagnóstico debe pertenecer a ese menor (grupo)
+    const pid = String(d.patient);
+    const allowed = patientIds.some((x) => String(x) === pid);
+    if (!allowed) return res.status(403).json({ errorCode: "ACCESS_DENIED_CHILD_DIAGNOSIS" });
+
+    const history = await DiagnosisHistory.find({ diagnosisId: id })
+      .sort({ createdAt: -1 })
+      .populate("editedBy", "name email")
+      .lean();
+
+    return res.json(history);
+  } catch (err) {
+    const status = err.statusCode || 500;
+    if (err.errorCode) return res.status(status).json({ errorCode: err.errorCode });
+    console.error("getMyChildDiagnosisHistory error:", err);
+    return res.status(500).json({ errorCode: "SERVER_ERROR" });
+  }
+};
+
+// GET /api/diagnoses/children/:childId/mine/:id/history/:historyId?lang=xx
+export const getMyChildDiagnosisHistoryOne = async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({ errorCode: "INSUFFICIENT_ROLE" });
+    }
+
+    const parentEmail = normLower(req.user.email);
+    const { childId, id, historyId } = req.params;
+
+    const { patientIds } = await resolveMinorGroupPatientIdsOrThrow(childId, parentEmail);
+
+    const d = await Diagnosis.findById(id);
+    if (!d) return res.status(404).json({ errorCode: "DIAGNOSIS_NOT_FOUND" });
+
+    const pid = String(d.patient);
+    const allowed = patientIds.some((x) => String(x) === pid);
+    if (!allowed) return res.status(403).json({ errorCode: "ACCESS_DENIED_CHILD_DIAGNOSIS" });
+
+    let ver = await DiagnosisHistory.findOne({ _id: historyId, diagnosisId: id })
+      .populate("editedBy", "name email")
+      .lean();
+
+    if (!ver) return res.status(404).json({ errorCode: "HISTORY_VERSION_NOT_FOUND" });
+
+    // traducir snapshot (igual que tu endpoint normal)
+    const lang = getLang(req);
+    if (lang && ver.snapshot) {
+      ver = { ...ver, snapshot: await translateDiagnosisDoc(ver.snapshot, lang) };
+    }
+
+    return res.json(ver);
+  } catch (err) {
+    const status = err.statusCode || 500;
+    if (err.errorCode) return res.status(status).json({ errorCode: err.errorCode });
+    console.error("getMyChildDiagnosisHistoryOne error:", err);
+    return res.status(500).json({ errorCode: "SERVER_ERROR" });
+  }
+};

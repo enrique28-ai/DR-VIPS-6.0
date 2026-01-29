@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { History, X, Languages, Loader2 } from "lucide-react";
 import Button from "../forms/Button.jsx";
-import { usePatientHistory, useMyHistory, useTranslatePatientHistorySnapshot } from "../../features/patients/phooks.js";
+import { usePatientHistory, useMyHistory, useTranslatePatientHistorySnapshot, useChildHistory } from "../../features/patients/phooks.js";
 import { localizeCountryName, localizeStateName, localizeCityName } from "../../utilsfront/geoLabels.js";
 
 const trOr = (t, key, fallback) => {
@@ -128,18 +128,23 @@ const handleTranslateSnap = (historyId) => {
 };
 
 
-  const isDoctor = variant === "doctor";
+    const isDoctor = variant === "doctor";
+  const isChild = variant === "child";
 
-   const doctorQ = usePatientHistory(patientId, {
+  const doctorQ = usePatientHistory(patientId, {
     enabled: isDoctor && !!patientId,
   });
 
-  const myQ = useMyHistory({
-    enabled: !isDoctor,
+  const childQ = useChildHistory(patientId, {
+    enabled: isChild && !!patientId,
   });
 
-  const history = isDoctor ? doctorQ.data : myQ.data;
-  const isLoading = isDoctor ? doctorQ.isLoading : myQ.isLoading;
+  const myQ = useMyHistory({
+    enabled: !isDoctor && !isChild,
+  });
+
+  const history = isDoctor ? doctorQ.data : isChild ? childQ.data : myQ.data;
+  const isLoading = isDoctor ? doctorQ.isLoading : isChild ? childQ.isLoading : myQ.isLoading;
 
 
   const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
@@ -223,19 +228,22 @@ const handleTranslateSnap = (historyId) => {
       t={t}
       i18n={i18n}
       right={
-        <button
-          onClick={() => handleTranslateSnap(ver._id)}
-          disabled={translatingId === ver._id}
-          className="ml-3 rounded-full p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
-          title={trOr(t, "common.translate", "Translate")}
-        >
-          {translatingId === ver._id ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Languages className="h-4 w-4" />
-          )}
-        </button>
-      }
+  variant === "child" ? null : (
+    <button
+      onClick={() => handleTranslateSnap(ver._id)}
+      disabled={translatingId === ver._id}
+      className="ml-3 rounded-full p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+      title={trOr(t, "common.translate", "Translate")}
+    >
+      {translatingId === ver._id ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Languages className="h-4 w-4" />
+      )}
+    </button>
+  )
+}
+
     />
   </div>
 )}

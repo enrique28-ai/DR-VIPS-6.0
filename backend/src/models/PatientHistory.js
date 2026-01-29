@@ -4,6 +4,8 @@ const patientHistorySchema = new mongoose.Schema(
   {
     // Para agrupar historial aunque existan varias versiones/docs por doctor
     patientEmail: { type: String, lowercase: true, trim: true, index: true },
+    patientKey: { type: String, lowercase: true, trim: true, index: true },
+
     patientPhoneDigits: { type: String, trim: true, index: true },
 
     // Auditoría
@@ -19,6 +21,8 @@ const patientHistorySchema = new mongoose.Schema(
 
 patientHistorySchema.index({ patientEmail: 1, approvedAt: -1 });
 patientHistorySchema.index({ patientPhoneDigits: 1, approvedAt: -1 });
+patientHistorySchema.index({ patientKey: 1, approvedAt: -1 });
+
 
 const PatientHistory = mongoose.model("PatientHistory", patientHistorySchema);
 export default PatientHistory;

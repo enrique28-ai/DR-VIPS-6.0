@@ -511,4 +511,63 @@ export function useTranslateMyHealthInfo() {
   });
 }
 
+// === PARENT/TUTOR: CHILDREN HEALTH INFO (MINORS) ===
+export function useMyChildrenHealthInfo(options = {}) {
+  return useQuery({
+    queryKey: ["my-children-health-info"],
+    queryFn: async () => (await api.get("/patients/me/children/health-info")).data,
+    retry: false,
+    refetchOnWindowFocus: false,
+    ...(options || {}),
+    onError: (e) => {
+      if (e?.response?.status !== 429) toast.error(i18n.t("myChildren.toasts.loadFailed"));
+      options?.onError?.(e);
+    },
+  });
+}
+
+// Nota: aquí el parámetro debe ser un Patient _id (profileId), no childKey.
+export function useApproveChildProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (profileId) =>
+      (await api.post(`/patients/me/children/health-info/approve/${profileId}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-children-health-info"] });
+      qc.invalidateQueries({ queryKey: ["child-history"] });
+      toast.success(i18n.t("myChildren.toasts.approveOk"));
+    },
+    onError: () => {
+      toast.error(i18n.t("myChildren.toasts.approveFail"));
+    },
+  });
+}
+
+export function useRejectChildProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (profileId) =>
+      (await api.post(`/patients/me/children/health-info/reject/${profileId}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-children-health-info"] });
+      qc.invalidateQueries({ queryKey: ["child-history"] });
+      toast.success(i18n.t("myChildren.toasts.rejectOk"));
+    },
+    onError: () => {
+      toast.error(i18n.t("myChildren.toasts.rejectFail"));
+    },
+  });
+}
+
+// Nota: childId aquí también es un Patient _id (cualquier doc del grupo sirve)
+export function useChildHistory(childId, options = {}) {
+  return useQuery({
+    queryKey: ["child-history", childId],
+    enabled: !!childId && (options.enabled ?? true),
+    queryFn: async () => (await api.get(`/patients/me/children/${childId}/history`)).data,
+    retry: false,
+    refetchOnWindowFocus: false,
+    ...(options || {}),
+  });
+}
 

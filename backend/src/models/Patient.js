@@ -61,8 +61,12 @@ const patientSchema = new mongoose.Schema({
   // Cached count for quick UI / validation; kept consistent by controller and middleware.
   childrenCount: { type: Number, min: 0, default: 0 },
 
-  // For minors only: email of parent/guardian (used for access validation).
-  parentEmail: { type: String, lowercase: true, trim: true },
+  // === Parental control (menores) ===
+parentEmail: { type: String, lowercase: true, trim: true, index: true },
+
+// clave estable para agrupar “versiones” del mismo menor (por padre + nombre normalizado)
+minorKey: { type: String, lowercase: true, trim: true, index: true },
+
   // ===========================
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },

@@ -33,6 +33,8 @@ const diagnosisSchema = new mongoose.Schema({
 
 diagnosisSchema.index({ createdBy: 1, patient: 1, createdAt: -1 });
 diagnosisSchema.index({ title: "text", description: "text" });
+diagnosisSchema.index({ patient: 1, createdAt: -1 });
+
 
 const Diagnosis = mongoose.model("Diagnosis", diagnosisSchema);
 export default Diagnosis;

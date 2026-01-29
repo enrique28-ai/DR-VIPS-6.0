@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { History, X, Languages, Loader2 } from "lucide-react";
 import Button from "../forms/Button.jsx";
-import { useDiagnosisHistory, useTranslateDiagnosisHistorySnapshot } from "../../features/diagnostics/dhooks.js";
+import { useDiagnosisHistory, useTranslateDiagnosisHistorySnapshot, useMyChildDiagnosisHistory,
+  useTranslateChildDiagnosisHistorySnapshot, } from "../../features/diagnostics/dhooks.js";
 
 const trOr = (t, key, fallback) => {
   const v = t(key);
@@ -61,36 +62,53 @@ function SnapshotViewer({ snapshot, t, right }) {
   );
 }
 
-export default function DiagnosisHistoryModal({ diagnosisId, onClose }) {
+export default function DiagnosisHistoryModal({ diagnosisId, onClose,  variant = "self", childId = null, }) {
   const { t, i18n } = useTranslation();
   const [expandedId, setExpandedId] = useState(null);
   const [translatedById, setTranslatedById] = useState({});
   const [translatingId, setTranslatingId] = useState(null);
 
 
-  const { data: history, isLoading } = useDiagnosisHistory(diagnosisId, {
-    enabled: !!diagnosisId,
-  });
-  const { mutate: translateSnap } = useTranslateDiagnosisHistorySnapshot();
+    const isChild = variant === "child";
 
-  const handleTranslateSnap = (historyId) => {
-    // si ya está traducido a este idioma, no gastes otra vez
+  const selfQ = useDiagnosisHistory(diagnosisId, {
+    enabled: !isChild && !!diagnosisId,
+  });
+
+  const childQ = useMyChildDiagnosisHistory(childId, diagnosisId, {
+    enabled: isChild && !!childId && !!diagnosisId,
+  });
+
+  const history = isChild ? childQ.data : selfQ.data;
+  const isLoading = isChild ? childQ.isLoading : selfQ.isLoading;
+
+  const { mutate: translateSnap } = useTranslateDiagnosisHistorySnapshot();
+  const { mutate: translateChildSnap } = useTranslateChildDiagnosisHistorySnapshot();
+
+
+    const handleTranslateSnap = (historyId) => {
     if (translatedById[historyId]?.lang === i18n.language) return;
 
+    const isChild = variant === "child";
+    const mut = isChild ? translateChildSnap : translateSnap;
+
+    const payload = isChild
+      ? { childId, diagnosisId, historyId, lang: i18n.language }
+      : { diagnosisId, historyId, lang: i18n.language };
+
     setTranslatingId(historyId);
-    translateSnap(
-      { diagnosisId, historyId, lang: i18n.language },
-      {
-        onSuccess: (ver) => {
-          setTranslatedById((prev) => ({
-            ...prev,
-            [historyId]: { lang: i18n.language, snapshot: ver.snapshot },
-          }));
-        },
-        onSettled: () => setTranslatingId(null),
-      }
-    );
+
+    mut(payload, {
+      onSuccess: (ver) => {
+        setTranslatedById((prev) => ({
+          ...prev,
+          [historyId]: { lang: i18n.language, snapshot: ver.snapshot },
+        }));
+      },
+      onSettled: () => setTranslatingId(null),
+    });
   };
+
 
   const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
 

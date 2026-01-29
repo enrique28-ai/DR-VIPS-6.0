@@ -222,5 +222,56 @@ export function useTranslateDiagnosisHistorySnapshot() {
   });
 }
 
+// === CHILDREN (PARENT PORTAL) ===
+export function useMyChildDiagnoses(childId, params = {}, options = {}) {
+  return useQuery({
+    queryKey: ["child-diagnoses", childId, params],
+    enabled: !!childId && (options.enabled ?? true),
+    queryFn: async () => {
+      const res = await api.get(`/diagnoses/children/${childId}/mine`, { params });
+      return res.data;
+    },
+    retry: false,
+    ...(options || {}),
+  });
+}
+
+export function useMyChildDiagnosis(childId, diagnosisId, options = {}) {
+  return useQuery({
+    queryKey: ["child-diagnosis", childId, diagnosisId],
+    enabled: !!childId && !!diagnosisId && (options.enabled ?? true),
+    queryFn: async () => (await api.get(`/diagnoses/children/${childId}/mine/${diagnosisId}`)).data,
+    retry: false,
+    ...(options || {}),
+  });
+}
+
+// === CHILD (MINORS): HISTORY ===
+export function useMyChildDiagnosisHistory(childId, diagnosisId, options = {}) {
+  const enabled = options.enabled ?? (!!childId && !!diagnosisId);
+
+  return useQuery({
+    queryKey: ["child-diagnosis-history", childId, diagnosisId],
+    enabled: enabled && !!childId && !!diagnosisId,
+    queryFn: async () =>
+      (await api.get(`/diagnoses/children/${childId}/mine/${diagnosisId}/history`)).data,
+    retry: false,
+    staleTime: 30_000,
+    ...(options || {}),
+  });
+}
+
+export function useTranslateChildDiagnosisHistorySnapshot() {
+  return useMutation({
+    mutationFn: async ({ childId, diagnosisId, historyId, lang }) =>
+      (
+        await api.get(
+          `/diagnoses/children/${childId}/mine/${diagnosisId}/history/${historyId}`,
+          { params: { lang } }
+        )
+      ).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
 
 

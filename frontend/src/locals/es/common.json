@@ -8,6 +8,28 @@
   "reject": "Rechazar"
 
 },
+"myChildren": {
+  "title": "Mis hijos",
+  "subtitle": "Gestiona aprobaciones y diagnósticos de tus hijos menores.",
+  "empty": "No hay hijos menores vinculados a tu cuenta.",
+  "unknownChild": "Hijo",
+  "ageYears": "{{age}} años",
+  "pending": "Cambios pendientes requieren tu aprobación.",
+  "upToDate": "Actualizado.",
+  "healthInfo": "Info de Salud",
+  "healthState": "Estado de Salud",
+  "approve": "Aprobar",
+  "reject": "Rechazar",
+  "back": "Volver",
+  "childNotFound": "Hijo no encontrado o ya no accesible.",
+  "noDiagnoses": "Aún no hay diagnósticos.",
+  "toasts": {
+    "approveOk": "Cambios aprobados.",
+    "approveFail": "Error al aprobar cambios.",
+    "rejectOk": "Cambios rechazados.",
+    "rejectFail": "Error al rechazar cambios."
+  }
+},
 
   "home": {
     "title": "DR VIPS - Historias clínicas simplificadas",
@@ -174,7 +196,8 @@
     "myHealthState": "Mi estado de salud",
     "profile": "Perfil",
     "patients": "Pacientes",
-    "logout": "Cierre de sesión"
+    "logout": "Cierre de sesión",
+    "myChildren": "Mis hijos"
   },
   "password": {
     "strengthLabel": "Seguridad de la contraseña",

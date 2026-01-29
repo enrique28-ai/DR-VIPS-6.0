@@ -454,3 +454,48 @@ export function parseChildrenCount(v) {
   return n;
 }
 // =======================
+export const minorKeyOf = (parentEmail, childFullname) => {
+  const pe = normLower(parentEmail);
+  const nk = normNameKey(childFullname); // <--- CORRECCIÓN (usa la función exportada)
+  return pe && nk ? `${pe}::${nk}` : "";
+};
+
+export async function hasPendingGuardianDecisionForMinorKey(minorKey, parentEmail) {
+  const mk = normLower(minorKey);
+  const pe = normLower(parentEmail);
+  if (!mk || !pe) return false;
+
+  const latest = await Patient.findOne({
+    parentEmail: pe,
+    minorKey: mk,
+    age: { $lt: 18 },
+  })
+    .sort({ updatedAt: -1 })
+    .select("updatedAt approvedAt")
+    .lean();
+
+  if (!latest) return false;
+  if (!latest.approvedAt) return true;
+
+  return new Date(latest.updatedAt).getTime() > new Date(latest.approvedAt).getTime();
+}
+
+export async function computeHealthSnapshotByMinorKey(minorKey, parentEmail) {
+  const mk = normLower(minorKey);
+  const pe = normLower(parentEmail);
+
+  const pats = await Patient.find({
+    parentEmail: pe,
+    minorKey: mk,
+    age: { $lt: 18 },
+  })
+    .sort({ updatedAt: -1 })
+    .populate("createdBy", "name email role")
+    .lean({ virtuals: true });
+
+  if (!pats.length) return { hasRecords: false, snapshot: null, patients: [] };
+
+  // reutiliza tu helper existente
+  const base = buildHealthSnapshotFromPatients(pats, null);
+  return { ...base, patients: pats };
+}

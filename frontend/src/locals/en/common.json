@@ -8,6 +8,28 @@
   "reject": "Reject"
 
 },
+"myChildren": {
+  "title": "My children",
+  "subtitle": "Manage approvals and diagnoses for your minor children.",
+  "empty": "No minor children linked to your account.",
+  "unknownChild": "Child",
+  "ageYears": "{{age}} years",
+  "pending": "Pending changes require your approval.",
+  "upToDate": "Up to date.",
+  "healthInfo": "Health Info",
+  "healthState": "Health State",
+  "approve": "Approve",
+  "reject": "Reject",
+  "back": "Back",
+  "childNotFound": "Child not found or no longer accessible.",
+  "noDiagnoses": "No diagnoses yet.",
+  "toasts": {
+    "approveOk": "Changes approved.",
+    "approveFail": "Failed to approve changes.",
+    "rejectOk": "Changes rejected.",
+    "rejectFail": "Failed to reject changes."
+  }
+},
 
   "home": {
     "title": "DR VIPS — Medical Records, Simplified",
@@ -177,7 +199,8 @@
   "myHealthState": "My health state",
   "profile": "Profile",
   "patients": "Patients",
-  "logout": "Logout"
+  "logout": "Logout",
+  "myChildren": "My children"
 },
 
 "password": {

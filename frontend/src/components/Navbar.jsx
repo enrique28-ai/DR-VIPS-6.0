@@ -147,6 +147,15 @@ export default function Navbar() {
                         >
                           {t("navbar.profile")}
                         </Link>
+                        <Link
+                          to="/docrecords/mychildren"
+                          onClick={() => setOpen(false)}
+                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          role="menuitem"
+                        >
+                          {t("navbar.myChildren")}
+                        </Link>
+
                       </>
                     ) : (
                       <>
