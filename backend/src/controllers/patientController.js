@@ -145,37 +145,50 @@ if (isMinor) {
   }
 
   const parentDoc = await Patient.findOne({ email: finalParentEmail })
-    .select("_id age children")
-    .lean();
+  .select("_id age children approvedAt approvedSnapshot")
+  .lean();
 
-  if (!parentDoc) {
-        return res.status(403).json({
-          errorCode: "PARENT_NOT_FOUND",
-          error: "Access denied: parent email not found in the system.",
-        });
-      }
-
-      if (!(Number(parentDoc.age) >= 18)) {
-        return res.status(403).json({
-          errorCode: "PARENT_NOT_ADULT",
-          error: "Access denied: parent record must be an adult.",
-        });
-      }
-
-  const childKey = normNameKey(fullname);
-  const parentChildren = Array.isArray(parentDoc.children) ? parentDoc.children : [];
-  const isListed = parentChildren.some((c) => {
-    const cName = typeof c === "string" ? c : c?.name;
-    return normNameKey(cName) === childKey;
+if (!parentDoc) {
+  return res.status(403).json({
+    errorCode: "PARENT_NOT_FOUND",
+    error: "Access denied: parent email not found in the system.",
   });
+}
 
- if (!isListed) {
-        return res.status(403).json({
-          errorCode: "MINOR_NOT_LISTED",
-          error: "Access denied: minor name is not listed in the parent's children list.",
-        });
-      }
-    }
+if (!(Number(parentDoc.age) >= 18)) {
+  return res.status(403).json({
+    errorCode: "PARENT_NOT_ADULT",
+    error: "Access denied: parent record must be an adult.",
+  });
+}
+
+// ✅ NEW: Parent must have approved at least their first version
+if (!parentDoc.approvedAt) {
+  return res.status(403).json({
+    errorCode: "PARENT_NOT_APPROVED",
+    error: "Access denied: the parent/tutor must approve their profile before registering minors.",
+  });
+}
+
+const childKey = normNameKey(fullname);
+const snap = parentDoc.approvedSnapshot;
+const parentChildren =
+  Array.isArray(snap?.set?.children) ? snap.set.children :
+  Array.isArray(snap?.children) ? snap.children :
+  (Array.isArray(parentDoc.children) ? parentDoc.children : []);
+
+const isListed = parentChildren.some((c) => {
+  const cName = typeof c === "string" ? c : c?.name;
+  return normNameKey(cName) === childKey;
+});
+
+if (!isListed) {
+  return res.status(403).json({
+    errorCode: "MINOR_NOT_LISTED",
+    error: "Access denied: minor name is not listed in the parent's children list.",
+  });
+}
+}
 
    let mk;
 
@@ -632,45 +645,75 @@ if (isCurrentMinor) {
 
 
 // Children updates (adults only)
+// Children updates (adults only): ✅ can only ADD, cannot remove or rename existing
 const wantsChildrenUpdate = ("children" in req.body) || ("childrenCount" in req.body);
 
 if (wantsChildrenUpdate) {
-      if (isMinorNext) {
-        return res.status(400).json({ 
-          errorCode: "MINOR_CANNOT_DECLARE_CHILDREN",
-          error: "Minors cannot declare children." 
-        });
-      }
+  if (isMinorNext) {
+    return res.status(400).json({
+      errorCode: "MINOR_CANNOT_DECLARE_CHILDREN",
+      error: "Minors cannot declare children.",
+    });
+  }
 
-      const n = parseChildrenCount(childrenCount);
-      if (n === null) {
-        return res.status(400).json({ 
-          errorCode: "CHILDREN_COUNT_INVALID",
-          error: "childrenCount must be an integer >= 0" 
-        });
-      }
-      if (typeof n === "undefined") {
-        return res.status(400).json({ 
-          errorCode: "CHILDREN_COUNT_REQUIRED",
-          error: "childrenCount is required when declaring children" 
-        });
-      }
+  const curChildren = Array.isArray(current.children) ? current.children : [];
+  const lockedCount = curChildren.length;
 
-  if (n === 0) {
-    update.children = [];
-    update.childrenCount = 0;
+  const nextCountParsed = ("childrenCount" in req.body)
+    ? parseChildrenCount(childrenCount)
+    : undefined;
+
+  if (("childrenCount" in req.body) && nextCountParsed === null) {
+    return res.status(400).json({
+      errorCode: "CHILDREN_COUNT_INVALID",
+      error: "childrenCount must be an integer >= 0",
+    });
+  }
+
+  // If changing count, we REQUIRE children[] so we don't create “empty slots”
+  if (!("children" in req.body)) {
+    if (typeof nextCountParsed === "number" && nextCountParsed !== lockedCount) {
+      return res.status(400).json({
+        errorCode: "CHILDREN_LIST_REQUIRED",
+        error: "To change childrenCount you must send children[] with names.",
+      });
+    }
   } else {
-    const list = sanitizeChildren(children);
-    if (list.length !== n) {
-          return res.status(400).json({
-            errorCode: "CHILDREN_COUNT_MISMATCH",
-            error: "children must include the name of each child and match childrenCount",
-          });
-        }
-    update.children = list;
-    update.childrenCount = n;
+    const incoming = sanitizeChildren(children);
+
+    // childrenCount must match children[].length (if provided)
+    if (typeof nextCountParsed === "number" && incoming.length !== nextCountParsed) {
+      return res.status(400).json({
+        errorCode: "CHILDREN_COUNT_MISMATCH",
+        error: "childrenCount must match children[].length",
+      });
+    }
+
+    // ❌ Cannot remove
+    if (incoming.length < lockedCount) {
+      return res.status(400).json({
+        errorCode: "CHILDREN_COUNT_DECREASE_FORBIDDEN",
+        error: "You can only add more children; removing is not allowed.",
+      });
+    }
+
+    // ❌ Existing names immutable (order + normalized name)
+    for (let i = 0; i < lockedCount; i++) {
+      const oldKey = normNameKey(curChildren[i]?.name);
+      const newKey = normNameKey(incoming[i]?.name);
+      if (!newKey || oldKey !== newKey) {
+        return res.status(400).json({
+          errorCode: "CHILDREN_NAMES_IMMUTABLE",
+          error: "Existing children names cannot be edited.",
+        });
+      }
+    }
+
+    update.children = incoming;
+    // childrenCount se sincroniza solo por el pre('findOneAndUpdate') del modelo cuando seteas children
   }
 }
+
 
 // parentEmail (minors only)
 if (isMinorNext) {
@@ -690,36 +733,50 @@ if (isMinorNext) {
   }
 
   const parentDoc = await Patient.findOne({ email: parentEmailEffective })
-    .select("_id age children")
-    .lean();
+  .select("_id age children approvedAt approvedSnapshot")
+  .lean();
 
-  if (!parentDoc) {
-        return res.status(403).json({ 
-          errorCode: "PARENT_NOT_FOUND",
-          error: "Access denied: parent email not found in the system." 
-        });
-      }
-
-      if (!(Number(parentDoc.age) >= 18)) {
-        return res.status(403).json({ 
-          errorCode: "PARENT_NOT_ADULT",
-          error: "Access denied: parent record must be an adult." 
-        });
-      }
-
-  const childKey = normNameKey(nextFullname);
-  const parentChildren = Array.isArray(parentDoc.children) ? parentDoc.children : [];
-  const isListed = parentChildren.some((c) => {
-    const cName = typeof c === "string" ? c : c?.name;
-    return normNameKey(cName) === childKey;
+if (!parentDoc) {
+  return res.status(403).json({
+    errorCode: "PARENT_NOT_FOUND",
+    error: "Access denied: parent email not found in the system."
   });
+}
 
-  if (!isListed) {
-        return res.status(403).json({
-          errorCode: "MINOR_NOT_LISTED",
-          error: "Access denied: minor name is not listed in the parent's children list.",
-        });
-      }
+if (!(Number(parentDoc.age) >= 18)) {
+  return res.status(403).json({
+    errorCode: "PARENT_NOT_ADULT",
+    error: "Access denied: parent record must be an adult."
+  });
+}
+
+// ✅ NEW: Parent must have approved at least their first version
+if (!parentDoc.approvedAt) {
+  return res.status(403).json({
+    errorCode: "PARENT_NOT_APPROVED",
+    error: "Access denied: the parent/tutor must approve their profile before registering minors.",
+  });
+}
+
+const childKey = normNameKey(nextFullname);
+const snap = parentDoc.approvedSnapshot;
+const parentChildren =
+  Array.isArray(snap?.set?.children) ? snap.set.children :
+  Array.isArray(snap?.children) ? snap.children :
+  (Array.isArray(parentDoc.children) ? parentDoc.children : []);
+
+const isListed = parentChildren.some((c) => {
+  const cName = typeof c === "string" ? c : c?.name;
+  return normNameKey(cName) === childKey;
+});
+
+if (!isListed) {
+  return res.status(403).json({
+    errorCode: "MINOR_NOT_LISTED",
+    error: "Access denied: minor name is not listed in the parent's children list.",
+  });
+}
+
 
       // Ensure minorKey exists (migration / first time parentEmail is set)
 if (!current.minorKey) {
