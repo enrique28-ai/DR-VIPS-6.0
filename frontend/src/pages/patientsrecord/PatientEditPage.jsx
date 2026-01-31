@@ -42,21 +42,33 @@ const isParentEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmailNo
 const [hasChildren, setHasChildren] = useState("no"); // "yes" | "no"
 const [childrenCount, setChildrenCount] = useState(0);
 const [childrenNames, setChildrenNames] = useState([]);
+const [initialChildrenCount, setInitialChildrenCount] = useState(0);
+const [initialChildrenNames, setInitialChildrenNames] = useState([]);
+
+const normNameKey = (v) =>
+  String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
+
 
 const clampChildrenCount = (n) => Math.max(0, Math.min(20, Number.isFinite(n) ? n : 0));
-const setChildrenCountAndResize = (nextCount, seedNames = []) => {
-  const n = clampChildrenCount(Number(nextCount));
+const setChildrenCountAndResize = (nextCount, seedNames = [], minOverride) => {
+  const base = clampChildrenCount(Number(nextCount));
+  const min = Number.isFinite(minOverride) ? minOverride : initialChildrenCount;
+  const n = Math.max(min, base);
+
   setChildrenCount(n);
-  setChildrenNames(() => {
-    const base = Array.isArray(seedNames) ? seedNames : [];
-    const arr = base.slice(0, n).map((x) => String(x ?? ""));
-    while (arr.length < n) arr.push("");
-    return arr;
+
+  setChildrenNames((prev) => {
+    const src = seedNames.length ? seedNames : prev;
+    const next = [...src];
+    while (next.length < n) next.push("");
+    return next.slice(0, n);
   });
 };
 
+
 const onChildNameChange = (idx, value) => {
   setChildrenNames((prev) => {
+    if (idx < initialChildrenCount) return prev; // 🔒 no tocar existentes
     const next = prev.slice();
     next[idx] = value;
     return next;
@@ -291,14 +303,21 @@ const handleSystem = (next) => {
   // Children / ParentEmail
 setParentEmail(patient?.parentEmail || "");
 
-const namesSeed = Array.isArray(patient?.children)
-  ? patient.children.map((c) => (typeof c === "string" ? c : c?.name)).filter(Boolean)
-  : [];
+const namesSeed = (patient?.children || []).map((c) =>
+  typeof c === "string" ? c : c?.name || ""
+);
+const lockedCount = namesSeed.length;
 
-const countSeedRaw = patient?.childrenCount ?? namesSeed.length;
-const countSeed = clampChildrenCount(Number(countSeedRaw));
+setInitialChildrenCount(lockedCount);
+setInitialChildrenNames(namesSeed.slice(0, lockedCount));
+
+const countSeedRaw = patient?.childrenCount ?? lockedCount;
+const countSeed = clampChildrenCount(
+  Math.max(Number(countSeedRaw) || 0, lockedCount)
+);
+
 setHasChildren(countSeed > 0 ? "yes" : "no");
-setChildrenCountAndResize(countSeed, namesSeed);
+setChildrenCountAndResize(countSeed, namesSeed, lockedCount);
 
 
   // Resolver country ISO2 desde el nombre
@@ -387,26 +406,59 @@ setForm((f) => ({ ...f, phone: restPhone }));
     }
 
     // === Children / Parent email validation ===
-const needsChildren = !isMinor && hasChildren === "yes";
-const finalChildrenCount = needsChildren ? clampChildrenCount(Number(childrenCount)) : 0;
+const minChildren = !isMinor ? initialChildrenCount : 0;
+const needsChildren = !isMinor && (hasChildren === "yes" || minChildren > 0);
+const minIfYes = Math.max(1, minChildren);
+
+const desiredCount = needsChildren ? clampChildrenCount(Number(childrenCount)) : 0;
+const finalChildrenCount = needsChildren ? Math.max(minIfYes, desiredCount) : 0;
 
 let finalChildren = [];
 if (needsChildren) {
-  if (!(finalChildrenCount > 0)) {
-    toast.error(t("patients.create.childrenCountRequired"));
-    return;
-  }
   const names = (childrenNames || [])
     .slice(0, finalChildrenCount)
     .map((n) => String(n || "").trim());
 
-  const allFilled = names.length === finalChildrenCount && names.every(Boolean);
-  if (!allFilled) {
-    toast.error(t("patients.create.childrenNamesRequired"));
-    return;
+  while (names.length < finalChildrenCount) names.push("");
+
+  // 🔒 existentes no cambian
+  for (let i = 0; i < minChildren; i++) {
+    if (normNameKey(names[i]) !== normNameKey(initialChildrenNames[i] || "")) {
+      toast.error(
+        t("patients.edit.childrenNamesImmutable", {
+          defaultValue: "Existing children names cannot be edited.",
+        })
+      );
+      return;
+    }
   }
+
+  // ✅ nuevos obligatorios
+  for (let i = minChildren; i < finalChildrenCount; i++) {
+    if (!names[i]) {
+      toast.error(t("patients.create.childrenNamesRequired"));
+      return;
+    }
+  }
+
+  // ✅ no duplicados
+  const seen = new Set();
+  for (const nm of names) {
+    const k = normNameKey(nm);
+    if (k && seen.has(k)) {
+      toast.error(
+        t("patients.edit.childrenNamesDuplicate", {
+          defaultValue: "Children names must be unique.",
+        })
+      );
+      return;
+    }
+    if (k) seen.add(k);
+  }
+
   finalChildren = names.map((name) => ({ name }));
 }
+
 
 if (isMinor) {
   if (!isParentEmailFormatValid) {
@@ -525,6 +577,7 @@ if (isMinor) {
     );
   }
   const hasExistingEmail = Boolean(patient?.email);
+  const noDisabled = updatePatient.isPending || initialChildrenCount > 0;
   return (
     <main className="mx-auto max-w-2xl p-4">
       <div className="mb-4">
@@ -642,33 +695,40 @@ if (isMinor) {
     <label className="block text-sm font-medium text-gray-700">{t("patients.create.hasChildren")}</label>
 
     <div className="mt-2 flex gap-4">
-      <label className="inline-flex items-center gap-2">
-        <input
-          type="radio"
-          name="hasChildren"
-          value="no"
-          checked={hasChildren === "no"}
-          onChange={() => {
-            setHasChildren("no");
-            setChildrenCountAndResize(0);
-          }}
-          disabled={updatePatient.isPending}
-        />
-        <span className="text-sm">{t("patients.create.no")}</span>
-      </label>
+  <label className={`inline-flex items-center gap-2 ${noDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+  <input
+    type="radio"
+    name="hasChildren"
+    value="no"
+    checked={hasChildren === "no"}
+    onChange={() => {
+      if (noDisabled) return;
+      setHasChildren("no");
+      setChildrenCountAndResize(0);
+    }}
+    disabled={noDisabled}
+    className={noDisabled ? "cursor-not-allowed" : ""}
+  />
+  <span className={noDisabled ? "cursor-not-allowed" : ""}>
+    {t("patients.create.no")}
+  </span>
+</label>
+
 
       <label className="inline-flex items-center gap-2">
         <input
-          type="radio"
-          name="hasChildren"
-          value="yes"
-          checked={hasChildren === "yes"}
-          onChange={() => {
-            setHasChildren("yes");
-            if (childrenCount === 0) setChildrenCountAndResize(1);
-          }}
-          disabled={updatePatient.isPending}
-        />
+  type="radio"
+  name="hasChildren"
+  value="yes"
+  checked={hasChildren === "yes"}
+  onChange={() => {
+    setHasChildren("yes");
+    const min = Math.max(1, initialChildrenCount);
+    if (childrenCount < min) setChildrenCountAndResize(min, childrenNames, min);
+  }}
+  disabled={updatePatient.isPending}
+/>
+
         <span className="text-sm">{t("patients.create.yes")}</span>
       </label>
     </div>
@@ -676,28 +736,42 @@ if (isMinor) {
     {hasChildren === "yes" && (
       <div className="mt-3 space-y-3">
         <Input
-          label={t("patients.create.childrenCount")}
-          type="number"
-          min={1}
-          max={20}
-          value={childrenCount}
-          onChange={(e) => setChildrenCountAndResize(e.target.value)}
-          required
-          disabled={updatePatient.isPending}
-        />
+  label={t("patients.create.childrenCount")}
+  type="number"
+  min={Math.max(1, initialChildrenCount)}
+  max={20}
+  value={childrenCount}
+  onChange={(e) =>
+    setChildrenCountAndResize(e.target.value, childrenNames, Math.max(1, initialChildrenCount))
+  }
+  required
+  disabled={updatePatient.isPending}
+/>
+
 
         <div className="space-y-2">
-          {Array.from({ length: childrenCount }).map((_, idx) => (
-            <Input
-              key={idx}
-              label={`${t("patients.create.childName")} #${idx + 1}`}
-              value={childrenNames[idx] || ""}
-              onChange={(e) => onChildNameChange(idx, e.target.value)}
-              placeholder={t("patients.create.childNamePlaceholder")}
-              required
-              disabled={updatePatient.isPending}
-            />
-          ))}
+  {Array.from({ length: childrenCount }).map((_, idx) => {
+  const isLocked = idx < initialChildrenCount;
+
+  return (
+    <Input
+      key={idx}
+      label={`${t("patients.create.childName")} #${idx + 1}`}
+      value={childrenNames[idx] || ""}
+      onChange={(e) => onChildNameChange(idx, e.target.value)}
+      placeholder={t("patients.create.childNamePlaceholder")}
+      required
+      disabled={updatePatient.isPending || isLocked}
+      className={
+        isLocked
+          ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+          : ""
+      }
+    />
+  );
+})}
+
+
         </div>
       </div>
     )}
