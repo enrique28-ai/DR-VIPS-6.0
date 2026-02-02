@@ -766,8 +766,8 @@ const childKey = normNameKey(nextFullname);
 const snap = parentDoc.approvedSnapshot;
 const parentChildren =
   Array.isArray(snap?.set?.children) ? snap.set.children :
-  Array.isArray(snap?.children) ? snap.children :
-  (Array.isArray(parentDoc.children) ? parentDoc.children : []);
+  Array.isArray(snap?.children) ? snap.children : [];
+  
 
 const isListed = parentChildren.some((c) => {
   const cName = typeof c === "string" ? c : c?.name;
