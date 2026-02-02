@@ -623,11 +623,15 @@ if (isMinorNext) {
     }
   }
 
-  if ("parentEmail" in req.body && current.parentEmail) {
-    const incomingPE = normLower(parentEmail);
-    const currentPE = normLower(current.parentEmail);
-    if (incomingPE && currentPE && incomingPE !== currentPE) {
-      return res.status(400).json({ errorCode: "MINOR_PARENT_EMAIL_IMMUTABLE" });
+   if ("parentEmail" in req.body && current.parentEmail) {
+    const incomingPE = normLower(parentEmail);        // can be "" if they try to delete
+    const currentPE  = normLower(current.parentEmail);
+
+    if (!incomingPE || incomingPE !== currentPE) {
+      return res.status(400).json({
+        errorCode: "PARENT_EMAIL_IMMUTABLE",
+        error: "You cannot modify or remove the parent email once it is registered.",
+      });
     }
   }
 }

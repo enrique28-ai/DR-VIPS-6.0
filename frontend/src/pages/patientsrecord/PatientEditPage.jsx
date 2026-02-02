@@ -577,6 +577,7 @@ if (isMinor) {
     );
   }
   const hasExistingEmail = Boolean(patient?.email);
+  const hasExistingParentEmail = Boolean(patient?.parentEmail);
   const noDisabled = updatePatient.isPending || initialChildrenCount > 0;
   return (
     <main className="mx-auto max-w-2xl p-4">
@@ -679,16 +680,22 @@ if (isMinor) {
     <label className="block text-sm font-medium text-gray-700">
       {t("patients.create.parentEmail")}<span className="text-red-500">*</span>
     </label>
-    <Input
-      name="parentEmail"
-      type="email"
-      value={parentEmail}
-      onChange={(e) => setParentEmail(e.target.value)}
-      onBlur={() => setParentEmail(parentEmailNorm)}
-      placeholder={t("patients.create.parentEmailPlaceholder")}
-      required
-      disabled={updatePatient.isPending}
-    />
+  <Input
+  name="parentEmail"
+  type="email"
+  value={parentEmail}
+  onChange={(e) => setParentEmail(e.target.value)}
+  onBlur={() => setParentEmail(parentEmailNorm)}
+  placeholder={t("patients.create.parentEmailPlaceholder")}
+  required
+  disabled={updatePatient.isPending || hasExistingParentEmail}
+  className={
+    hasExistingParentEmail
+      ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+      : ""
+  }
+/>
+
   </div>
 ) : (
   <div className="sm:col-span-2">
