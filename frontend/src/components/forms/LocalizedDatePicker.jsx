@@ -59,6 +59,13 @@ export default function LocalizedDatePicker({
       }}
       locale={locale}
 
+       // Permite saltar rápido entre meses y años
+      showMonthDropdown
+      showYearDropdown
+      dropdownMode="select"
+      scrollableYearDropdown
+      yearDropdownItemNumber={120}
+
       // 🔥 CORRECCIÓN 1: Z-INDEX MÁXIMO
       // Esto asegura que la lista de horas no se corte ni quede debajo de nada
       popperClassName="!z-[9999]"
