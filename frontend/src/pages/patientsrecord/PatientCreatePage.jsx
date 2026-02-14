@@ -13,9 +13,27 @@ import {
    getCountryNameByIso,
    getDialCodeByCountryIso,
  } from "../../utilsfront/geoLabels.js";
+ import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx";
 import { useTranslation } from "react-i18next";
 
+function calcAgeFromYmd(birthYmd, refYmd) {
+  if (!birthYmd) return NaN;
 
+  const [by, bm, bd] = String(birthYmd).split("-").map(Number);
+  if (!by || !bm || !bd) return NaN;
+
+  const birth = new Date(Date.UTC(by, bm - 1, bd, 12, 0, 0));
+
+  const ref = refYmd
+    ? new Date(Date.UTC(...refYmd.split("-").map((n, i) => i === 1 ? Number(n) - 1 : Number(n)), 12, 0, 0))
+    : new Date();
+
+  let age = ref.getUTCFullYear() - birth.getUTCFullYear();
+  const m = ref.getUTCMonth() - birth.getUTCMonth();
+  if (m < 0 || (m === 0 && ref.getUTCDate() < birth.getUTCDate())) age--;
+
+  return Math.max(0, age);
+}
 
 export default function PatientCreatePage() {
   const { t, i18n } = useTranslation();
@@ -23,13 +41,17 @@ export default function PatientCreatePage() {
   const createPatient = useCreatePatient();
 
   const [form, setForm] = useState({
-    fullname: "", email: "", phone: "", age: "", diseases: "",  allergies: "", medications: "", bloodtype: "O+",
+    fullname: "", email: "", phone: "", birthDate: "", diseases: "",  allergies: "", medications: "", bloodtype: "O+",
   });
+
+  
+
 
   const AGE_MIN = 0;
   const AGE_MAX = 120;
-  const ageNum = Number(form.age);
+  const ageNum = useMemo(() => calcAgeFromYmd(form.birthDate), [form.birthDate]);
   const isMinor = Number.isFinite(ageNum) && ageNum < 18;
+
 
   // === Children + Parent email ===
 const [parentEmail, setParentEmail] = useState("");
@@ -316,13 +338,20 @@ if (isMinor) {
   if (!countryIso) { toast.error(t("patients.create.countryRequired")); return; }
  if (!hasState)   { toast.error(t("patients.create.stateRequired")); return; }
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
+
+ // ✅ Validación BirthDate
+    if (!form.birthDate) {
+      toast.error(t("patients.errors.birthDateRequired"));
+      return;
+    }
     
     createPatient.mutate(
       {
         fullname: form.fullname.trim(),
         ...( !isMinor || normalizedEmail ? { email: normalizedEmail } : {} ),
         ...( !isMinor || totalDigits > 0 ? { phone: rest } : {} ),
-        age: Number(form.age),
+        birthDate: form.birthDate,
+        age: ageNum,
         diseases: diseasesArr,
         allergies: allergiesArr,
         medications: medicationsArr,
@@ -415,17 +444,24 @@ if (isMinor) {
   )}
 
   <div className={!isMinor ? "" : "sm:col-span-2"}>
-    <Input
-      label={t("patients.create.age")}
-      type="number"
-      min={AGE_MIN}
-      max={AGE_MAX}
-      name="age"
-      value={form.age}
-      onChange={onChange}
-      required
-      placeholder="45"
-    />
+    <div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    {t("patients.create.birthDate")} <span className="text-red-500">*</span>
+  </label>
+
+  <LocalizedDatePicker
+    value={form.birthDate}
+    onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))}
+    placeholder={t("patients.create.birthDatePlaceholder")}
+    maxDate={new Date()}
+    required
+  />
+
+  <p className="text-xs text-gray-500 mt-1">
+    {t("patients.create.computedAge")}: {Number.isFinite(ageNum) ? ageNum : "--"}
+  </p>
+</div>
+
   </div>
 </div>
 

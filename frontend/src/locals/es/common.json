@@ -346,7 +346,11 @@
       "parentEmailPlaceholder": "padre@dominio.com",
       "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
       "childrenCountRequired": "Indica la cantidad de hijos.",
-      "childrenNamesRequired": "Escribe el nombre de cada hijo."
+      "childrenNamesRequired": "Escribe el nombre de cada hijo.",
+      "birthDate": "Fecha de nacimiento",
+      "birthDatePlaceholder": "YYYY-MM-DD",
+      "computedAge": "Edad calculada"
+
 
     },
     "edit": {
@@ -368,7 +372,10 @@
       "heightWeightTooHigh": "Por favor, mantenga la altura ≤ {{maxH}} {{hUnit}} y el peso ≤ {{maxW}} {{wUnit}}.",
       "causeRequired": "Por favor, introduzca una causa de muerte.",
       "countryRequired": "Seleccione un país.",
-      "emailImmutable": "El correo electrónico no puede ser modificado una vez registrado."
+      "emailImmutable": "El correo electrónico no puede ser modificado una vez registrado.",
+      "dateOfDeath": "Fecha de defunción",
+      "dateOfDeathPlaceholder": "YYYY-MM-DD"
+
     },
     "detail": {
       "back": "Volver a Pacientes",
@@ -461,7 +468,16 @@
       "parentEmailNotAllowed": "El correo de padre/madre solo se permite para menores.",
       "childrenCountRequired": "Indica la cantidad de hijos.",
       "childrenCountInvalid": "La cantidad de hijos debe ser un número válido.",
-      "childrenCountMismatch": "La cantidad de nombres no coincide con la cantidad de hijos."
+      "childrenCountMismatch": "La cantidad de nombres no coincide con la cantidad de hijos.",
+      "birthDateRequired": "La fecha de nacimiento es obligatoria.",
+      "invalidBirthDate": "La fecha de nacimiento no es válida.",
+      "birthDateInFuture": "La fecha de nacimiento no puede estar en el futuro.",
+      "dateOfDeathRequired": "La fecha de defunción es obligatoria si el paciente está fallecido.",
+      "invalidDateOfDeath": "La fecha de defunción no es válida.",
+      "dateOfDeathInFuture": "La fecha de defunción no puede estar en el futuro.",
+      "dateOfDeathBeforeBirthDate": "La fecha de defunción no puede ser anterior a la fecha de nacimiento.",
+      "sendIsDeceasedWithDateOfDeath": "Debes enviar isDeceased junto con dateOfDeath."
+
     }
   },
 

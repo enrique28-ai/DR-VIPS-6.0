@@ -359,7 +359,10 @@
       "parentEmailPlaceholder": "parent@domain.com",
       "parentEmailRequired": "Parent email is required for minors.",
       "childrenCountRequired": "Please specify the number of children.",
-      "childrenNamesRequired": "Please enter the name of each child."
+      "childrenNamesRequired": "Please enter the name of each child.",
+      "birthDate": "Date of birth",
+      "birthDatePlaceholder": "YYYY-MM-DD",
+      "computedAge": "Calculated age"
   },
 
   "edit": {
@@ -381,7 +384,9 @@
     "heightWeightTooHigh": "Please keep height ≤ {{maxH}} {{hUnit}} and weight ≤ {{maxW}} {{wUnit}}.",
     "causeRequired": "Please enter a cause of death.",
     "countryRequired": "Please select a country.",
-    "emailImmutable": "The email cannot be modified once registered."
+    "emailImmutable": "The email cannot be modified once registered.",
+    "dateOfDeath": "Date of death",
+    "dateOfDeathPlaceholder": "YYYY-MM-DD"
   },
 
   "detail": {
@@ -476,7 +481,15 @@
       "parentEmailNotAllowed": "Parent email is only allowed for minors.",
       "childrenCountRequired": "Please specify the number of children.",
       "childrenCountInvalid": "Children count must be a valid number.",
-      "childrenCountMismatch": "The number of names provided does not match the children count."
+      "childrenCountMismatch": "The number of names provided does not match the children count.",
+      "birthDateRequired": "Birth date is required.",
+      "invalidBirthDate": "Invalid birth date.",
+      "birthDateInFuture": "Birth date cannot be in the future.",
+      "dateOfDeathRequired": "Date of death is required if the patient is deceased.",
+      "invalidDateOfDeath": "Invalid date of death.",
+      "dateOfDeathInFuture": "Date of death cannot be in the future.",
+      "dateOfDeathBeforeBirthDate": "Date of death cannot be before the birth date.",
+      "sendIsDeceasedWithDateOfDeath": "You must send isDeceased along with dateOfDeath."
     }
 },
 "diagnoses": {

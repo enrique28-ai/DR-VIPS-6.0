@@ -2,6 +2,7 @@ import * as dns from "node:dns/promises";
 import { Country } from "country-state-city";
 import Patient from "../../models/Patient.js";
 import User from "../../models/User.js";
+import { AGE_BANDS } from "../../models/Patient.js";
 
 
 const ALL_COUNTRIES = Country.getAllCountries();
@@ -81,6 +82,94 @@ export const FT_TO_M  = 0.3048;
 export const LB_TO_KG = 0.45359237;
 
 
+
+export function calculateAge(birthDate, referenceDate = new Date()) {
+  if (!birthDate) return undefined;
+  const b = new Date(birthDate);
+  const r = new Date(referenceDate);
+  if (Number.isNaN(b.getTime()) || Number.isNaN(r.getTime())) return undefined;
+  let age = r.getFullYear() - b.getFullYear();
+  const m = r.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && r.getDate() < b.getDate())) age--;
+  return Math.max(0, age);
+}
+
+export function mapAgeToBand(age) {
+  if (!Number.isFinite(age)) return undefined;
+  const band = AGE_BANDS.find((b) => age >= b.min && age <= b.max);
+  return band?.key;
+}
+
+// ✅ edad viva (cumpleaños) + freeze si deceased
+export function computeDynamicAge(p) {
+  if (p?.birthDate) {
+    const ref = (p?.isDeceased && p?.dateOfDeath) ? new Date(p.dateOfDeath) : new Date();
+    const a = calculateAge(p.birthDate, ref);
+    if (Number.isFinite(a)) return a;
+  }
+  const legacy = Number(p?.age);
+  return Number.isFinite(legacy) ? legacy : undefined;
+}
+
+export function applyDynamicAgeToPatient(p) {
+  if (!p || typeof p !== "object") return p;
+  const a = computeDynamicAge(p);
+  if (Number.isFinite(a)) {
+    p.age = a;
+    p.ageCategory = mapAgeToBand(a);
+  }
+  return p;
+}
+
+export function applyDynamicAgeToSnapshotSet(setObj) {
+  if (!setObj || typeof setObj !== "object") return setObj;
+  const tmp = { ...setObj };
+  applyDynamicAgeToPatient(tmp);
+  return tmp;
+}
+
+// ✅ filtro category -> rango birthDate (para vivos)
+export function ageCategoryToBirthDateQuery(categoryKey, refDate = new Date()) {
+  const band = AGE_BANDS.find((b) => b.key === categoryKey);
+  if (!band) return null;
+
+  const today = new Date(refDate);
+  today.setHours(23, 59, 59, 999);
+
+  if (band.max === Infinity) {
+    const cutoff = new Date(today);
+    cutoff.setFullYear(today.getFullYear() - band.min);
+    return { $lte: cutoff };
+  }
+
+  const upper = new Date(today);
+  upper.setFullYear(today.getFullYear() - band.min);
+
+  const lower = new Date(today);
+  lower.setFullYear(today.getFullYear() - (band.max + 1));
+
+  return { $gt: lower, $lte: upper };
+}
+
+
+export function minorQueryByBirthDateOrLegacy(refDate = new Date()) {
+  const cutoff18 = new Date(refDate);
+  cutoff18.setFullYear(cutoff18.getFullYear() - 18);
+
+  return {
+    isDeceased: { $ne: true }, // si está fallecido, ya no cuenta como minor
+    $or: [
+      // ✅ nuevos: con birthDate -> minor si nació después del cutoff
+      { birthDate: { $gt: cutoff18 } },
+
+      // ✅ legacy: sin birthDate -> usamos age guardada
+      { birthDate: { $exists: false }, age: { $lt: 18 } },
+      { birthDate: null, age: { $lt: 18 } },
+    ],
+  };
+}
+
+
 export const normBmiCat = (v) => {
   if (!v) return undefined;
   const s = String(v).trim().toLowerCase();
@@ -100,6 +189,9 @@ export function buildHealthSnapshotFromPatients(pats, email) {
   if (!pats.length) {
     return { hasRecords: false, snapshot: null };
   }
+
+  pats = pats.map((p) => applyDynamicAgeToPatient(p));
+
 
   // pats ya viene ordenado por updatedAt DESC
   const latest = pats[0];
@@ -468,7 +560,7 @@ export async function hasPendingGuardianDecisionForMinorKey(minorKey, parentEmai
   const latest = await Patient.findOne({
     parentEmail: pe,
     minorKey: mk,
-    age: { $lt: 18 },
+    ...minorQueryByBirthDateOrLegacy(),
   })
     .sort({ updatedAt: -1 })
     .select("updatedAt approvedAt")
@@ -487,7 +579,7 @@ export async function computeHealthSnapshotByMinorKey(minorKey, parentEmail) {
   const pats = await Patient.find({
     parentEmail: pe,
     minorKey: mk,
-    age: { $lt: 18 },
+    ...minorQueryByBirthDateOrLegacy(),
   })
     .sort({ updatedAt: -1 })
     .populate("createdBy", "name email role")
@@ -499,3 +591,17 @@ export async function computeHealthSnapshotByMinorKey(minorKey, parentEmail) {
   const base = buildHealthSnapshotFromPatients(pats, null);
   return { ...base, patients: pats };
 }
+export const t = (d) => (d ? new Date(d).getTime() : null);
+
+
+// ✅ YYYY-MM-DD helpers (date-only sin desfase)
+export const isYmd = (s) =>
+  typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+export const ymdUTC = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
+// Guardamos date-only como UTC noon para evitar que al verlo en local “se vaya al día anterior”
+export const parseYmdToUtcNoon = (ymd) => {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12, 0, 0));
+};

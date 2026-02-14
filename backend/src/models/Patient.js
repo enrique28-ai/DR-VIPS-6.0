@@ -37,18 +37,47 @@ function computeBmi(weightKg, heightM) {
   return { bmi, bmiCategory };
 }
 
+function calculateAge(birthDate, referenceDate = new Date()) {
+  if (!birthDate) return undefined;
+  const b = new Date(birthDate);
+  const r = new Date(referenceDate);
+  if (Number.isNaN(b.getTime()) || Number.isNaN(r.getTime())) return undefined;
+
+  let age = r.getFullYear() - b.getFullYear();
+  const m = r.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && r.getDate() < b.getDate())) age--;
+  return Math.max(0, age);
+}
+
+function effectiveAgeForDoc(doc) {
+  if (doc?.birthDate) {
+    const ref = (doc?.isDeceased && doc?.dateOfDeath) ? doc.dateOfDeath : new Date();
+    const a = calculateAge(doc.birthDate, ref);
+    if (Number.isFinite(a)) return a;
+  }
+  const legacy = Number(doc?.age);
+  return Number.isFinite(legacy) ? legacy : undefined;
+}
+
+
 const patientSchema = new mongoose.Schema({
   fullname: { type: String, required: true, trim: true },
   diseases: { type: [String], default: []},
   allergies: { type: [String], default: []},
   medications: { type: [String], default: []},
-  email: { type: String, required() { return this.age >= 18; }, lowercase: true, trim: true },
-  phone: { type: String, required() { return this.age >= 18; }, trim: true },
+  email: { type: String, required() { return (effectiveAgeForDoc(this) ?? 0) >= 18; }, lowercase: true, trim: true },
+  phone: { type: String, required() { return (effectiveAgeForDoc(this) ?? 0) >= 18; }, trim: true },
   //phoneDigits: { type: String, trim: true, index: true },
   phoneDigits: { type: String, trim: true },
-  age: { type: Number, required: true, min: 0, max: 120 },
+  age: { type: Number, min: 0, max: 120 },
   ageCategory: { type: String, enum: AGE_BANDS.map(b => b.key) },
   bloodtype: { type: String, required: true, enum: BLOOD_TYPES, uppercase: true, trim: true },
+
+  // ✅ NEW: Date of birth (preferred). Used to compute age automatically on reads.
+birthDate: { type: Date, required: true, index: true },
+// ✅ NEW: If deceased, age freezes at this date
+dateOfDeath: { type: Date, default: null },
+
     // === FAMILY / DEPENDENTS ===
   // Adult patients can declare their children (names) to enable minor validation.
   children: {
@@ -127,6 +156,17 @@ patientSchema.virtual("isPendingApproval").get(function () {
 
 
 patientSchema.pre("save", function(next){
+  if (this.birthDate) {
+  if (this.isDeceased && !this.dateOfDeath) {
+    this.dateOfDeath = new Date(); // congela si no dieron fecha
+  }
+  const ref = (this.isDeceased && this.dateOfDeath) ? this.dateOfDeath : new Date();
+  const computed = calculateAge(this.birthDate, ref);
+  if (Number.isFinite(computed)) {
+    this.age = computed; // solo sync cuando se guarda
+  }
+}
+
   this.ageCategory = mapAgeToBand(this.age);
 
   if (this.isNew && this.createdBy) {
@@ -272,6 +312,8 @@ patientSchema.index({ owners: 1, organDonor: 1 });
 patientSchema.index({ owners: 1, bloodtype: 1 });
 patientSchema.index({ owners: 1, bloodDonor: 1 });
 patientSchema.index({ owners: 1, bmiCategory: 1 });
+patientSchema.index({ owners: 1, isDeceased: 1, birthDate: 1 });
+
 
 patientSchema.index({ createdBy: 1 }); // auditoría
 // ✅ ÚNICO GLOBAL por email (cuando exista)
@@ -287,6 +329,8 @@ patientSchema.index(
 
 //patientSchema.index({ country: 1 });
 //patientSchema.index({ phoneDigits: 1 });
+
+
 
 
 const Patient = mongoose.model("Patient", patientSchema);

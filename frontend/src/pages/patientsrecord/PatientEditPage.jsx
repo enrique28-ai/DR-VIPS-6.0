@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { usePatient, useUpdatePatient } from "../../features/patients/phooks.js";
 import Input from "../../components/forms/Input.jsx";
 import Button from "../../components/forms/Button.jsx";
 import { toast } from "react-hot-toast";
- import { useMemo } from "react";
 import {
   getLocalizedCountries,
   getLocalizedStates,
@@ -13,7 +12,31 @@ import {
   getDialCodeByCountryIso,
 } from "../../utilsfront/geoLabels.js";
 
+import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx";
+
+
  import { useTranslation } from "react-i18next";
+function calcAgeFromYmd(birthYmd, refYmd) {
+  if (!birthYmd) return NaN;
+
+  const [by, bm, bd] = String(birthYmd).split("-").map(Number);
+  if (!by || !bm || !bd) return NaN;
+
+  const birth = new Date(Date.UTC(by, bm - 1, bd, 12, 0, 0));
+
+  const ref = refYmd
+    ? (() => {
+        const [ry, rm, rd] = String(refYmd).split("-").map(Number);
+        return new Date(Date.UTC(ry, (rm || 1) - 1, rd || 1, 12, 0, 0));
+      })()
+    : new Date();
+
+  let age = ref.getUTCFullYear() - birth.getUTCFullYear();
+  const m = ref.getUTCMonth() - birth.getUTCMonth();
+  if (m < 0 || (m === 0 && ref.getUTCDate() < birth.getUTCDate())) age--;
+
+  return age;
+}
 
 
 export default function PatientEditPage() {
@@ -26,13 +49,20 @@ export default function PatientEditPage() {
   const updatePatient = useUpdatePatient(id);
 
   const [form, setForm] = useState({
-    fullname: "", email: "", phone: "", age: "", diseases: "", allergies: "",  medications: "", bloodtype: "O+",
+    fullname: "", email: "", phone: "", birthDate: "",
+dateOfDeath: "", diseases: "", allergies: "",  medications: "", bloodtype: "O+",
   });
+
+  const [life, setLife] = useState("alive");
 
   const AGE_MIN = 0;
   const AGE_MAX = 120;
-  const ageNum = Number(form.age);
-  const isMinor = Number.isFinite(ageNum) && ageNum < 18;
+const ageNum = useMemo(() => {
+  const ref = life === "deceased" ? form.dateOfDeath : null;
+  return calcAgeFromYmd(form.birthDate, ref);
+}, [form.birthDate, form.dateOfDeath, life]);
+
+const isMinor = Number.isFinite(ageNum) && ageNum < 18;
 
   // === Children + Parent email ===
 const [parentEmail, setParentEmail] = useState("");
@@ -95,7 +125,6 @@ useEffect(() => {
   const [system, setSystem] = useState("metric");    // "metric" | "imperial"
   const [height, setHeight] = useState("");          // m o ft según system
   const [weight, setWeight] = useState("");          // kg o lb según system
-  const [life, setLife] = useState("alive");         // "alive" | "deceased"
   const [cause, setCause] = useState("");            // cause of death
   const [hasDiseases, setHasDiseases] = useState("no"); // "yes" | "no"
   const [hasAllergies, setHasAllergies] = useState("no"); // "yes" | "no"
@@ -262,7 +291,8 @@ const handleSystem = (next) => {
       fullname: patient.fullname || "",
       email: patient.email || "",
       phone: patient.phone || "",
-      age: patient.age ?? "",
+      birthDate: patient.birthDate ? new Date(patient.birthDate).toISOString().slice(0,10) : "",
+      dateOfDeath: patient.dateOfDeath ? new Date(patient.dateOfDeath).toISOString().slice(0,10) : "",
       diseases: Array.isArray(patient.diseases) ? patient.diseases.join(", ") : "",
       allergies: Array.isArray(patient.allergies) ? patient.allergies.join(", ") : "",
       medications: Array.isArray(patient.medications) ? patient.medications.join(", ") : "",
@@ -381,6 +411,27 @@ setForm((f) => ({ ...f, phone: restPhone }));
 
   const onSubmit = (e) => {
     e.preventDefault();
+    const today = new Date().toISOString().slice(0,10);
+
+if (!form.birthDate) {
+  toast.error(t("patients.errors.birthDateRequired"));
+  return;
+}
+
+if (life === "deceased") {
+  if (!form.dateOfDeath) {
+    toast.error(t("patients.errors.dateOfDeathRequired"));
+    return;
+  }
+  if (form.dateOfDeath > today) {
+    toast.error(t("patients.errors.dateOfDeathInFuture"));
+    return;
+  }
+  if (form.dateOfDeath < form.birthDate) {
+    toast.error(t("patients.errors.dateOfDeathBeforeBirthDate"));
+    return;
+  }
+}
 
     // Validación de edad (UI amigable)
     if (!Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX) {
@@ -526,7 +577,8 @@ if (isMinor) {
    const payload = {
       fullname: form.fullname.trim(),
       // email y phone se agregan solo si no es menor
-      age: Number(form.age),
+      birthDate: form.birthDate,
+      age: ageNum,
       diseases: diseasesArr,
       allergies: allergiesArr,
       medications: medicationsArr,
@@ -538,6 +590,7 @@ if (isMinor) {
       organDonor: organDonor === "yes",
       bloodDonor: bloodDonor === "yes",
       isDeceased: life === "deceased",
+      dateOfDeath: life === "deceased" ? form.dateOfDeath : "",
       ...(life === "deceased" ? { causeOfDeath: cause.trim() } : {}),
       ...(isMinor ? { parentEmail: parentEmailNorm } : {}),
       ...(!isMinor ? { childrenCount: finalChildrenCount, children: finalChildren } : {}),
@@ -659,17 +712,23 @@ if (isMinor) {
   )}
 
   <div className={!isMinor ? "" : "sm:col-span-2"}>
-    <Input
-      label={t("patients.create.age")}
-      type="number"
-      min={AGE_MIN}
-      max={AGE_MAX}
-      name="age"
-      value={form.age}
-      onChange={onChange}
-      required
-      placeholder="45"
-    />
+    <div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    {t("patients.create.birthDate")} <span className="text-red-500">*</span>
+  </label>
+
+  <LocalizedDatePicker
+    value={form.birthDate}
+    onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))}
+    maxDate={new Date()}
+    required
+  />
+
+  <p className="text-xs text-gray-500 mt-1">
+    {t("patients.create.computedAge")}: {Number.isFinite(ageNum) ? ageNum : "--"}
+  </p>
+</div>
+
   </div>
 </div>
 
@@ -1013,12 +1072,28 @@ if (isMinor) {
        </div>
 
      {life === "deceased" && (
+
+      <>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {t("patients.edit.dateOfDeath")} <span className="text-red-500">*</span>
+      </label>
+
+      <LocalizedDatePicker
+        value={form.dateOfDeath}
+        onChange={(v) => setForm((p) => ({ ...p, dateOfDeath: v }))}
+        maxDate={new Date()}
+        required
+      />
+    </div>
        <Input
          label={t("patients.edit.causeOfDeath")}
          value={cause}
          onChange={(e) => setCause(e.target.value)}
          required
        />
+
+       </>
      )}
 
            {/* Measurement system + Height/Weight */}

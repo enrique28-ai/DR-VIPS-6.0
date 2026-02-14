@@ -28,6 +28,16 @@ import {
    minorKeyOf,
   hasPendingGuardianDecisionForMinorKey,
   computeHealthSnapshotByMinorKey,
+  computeDynamicAge,
+  ageCategoryToBirthDateQuery,
+  mapAgeToBand,
+  applyDynamicAgeToPatient,
+  applyDynamicAgeToSnapshotSet,
+  minorQueryByBirthDateOrLegacy,
+  t,
+  isYmd,
+  ymdUTC,
+  parseYmdToUtcNoon,
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
 import { translatePatientDoc,
@@ -41,7 +51,7 @@ import { translatePatientDoc,
 export const createPatient = async (req, res) => {
   try {
     const { fullname, diseases, allergies, medications, email, phone, age, bloodtype, gender, organDonor: organIn, bloodDonor: bloodIn, 
-      measurementSystem, height, weight, country, state, city, children, childrenCount, parentEmail
+      measurementSystem, height, weight, country, state, city, children, childrenCount, parentEmail, birthDate
     } = req.body;
 
     const gRaw = normGender(gender);
@@ -49,13 +59,38 @@ export const createPatient = async (req, res) => {
     const hasOrgan = typeof organIn  !== "undefined";
     const hasBlood = typeof bloodIn  !== "undefined";
 
-    const ageNum = Number(age);
-    const isMinor = Number.isFinite(ageNum) && ageNum < 18;
+
+    // ✅ birthDate obligatorio para nuevos pacientes
+if (birthDate === undefined || birthDate === null || birthDate === "") {
+  return res.status(400).json({ errorCode: "BIRTHDATE_REQUIRED" });
+}
+
+let parsedBirthDate = null;
+
+if (birthDate !== undefined && birthDate !== null && birthDate !== "") {
+  parsedBirthDate = isYmd(birthDate) ? parseYmdToUtcNoon(birthDate) : new Date(birthDate);
+
+  if (Number.isNaN(parsedBirthDate.getTime())) {
+    return res.status(400).json({ errorCode: "INVALID_BIRTHDATE" });
+  }
+
+  // ✅ compara por “día”, no por hora
+  if (ymdUTC(parsedBirthDate) > ymdUTC(new Date())) {
+    return res.status(400).json({ errorCode: "BIRTHDATE_IN_FUTURE" });
+  }
+}
+
+
+const ageNum = computeDynamicAge({ birthDate: parsedBirthDate, age: Number(age) });
+if (!Number.isFinite(ageNum) || ageNum < 0 || ageNum > 120) {
+  return res.status(400).json({ errorCode: "INVALID_AGE" });
+}
+const isMinor = ageNum < 18;
 
     if (
       !fullname ||
       (!isMinor && (!email || !phone)) ||
-      age == null || !bloodtype || !isValidGender
+       !bloodtype || !isValidGender
       || !hasOrgan || !hasBlood || !measurementSystem || !height || !weight || !country ||!state||!city
     ) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -259,7 +294,7 @@ if (isMinor) {
 
 
     const doc = await Patient.create({
-      fullname, diseases: normalize(diseases), allergies: normalize(allergies), medications: normalize(medications), ...(normalizedEmail ? { email: normalizedEmail } : {}), age, bloodtype,  gender: gRaw, 
+      fullname, diseases: normalize(diseases), allergies: normalize(allergies), medications: normalize(medications), ...(normalizedEmail ? { email: normalizedEmail } : {}), bloodtype,  gender: gRaw, 
       organDonor, bloodDonor, isDeceased: false, ...(ph.phone ? { phone: ph.phone, phoneDigits: ph.digits } : {}), 
       causeOfDeath: undefined, measurementSystem: sys, heightM, weightKg, country: String(country).trim(), state: String(state).trim(), city: String(city).trim(),
        createdBy: req.user._id,owners: [req.user._id],
@@ -270,10 +305,13 @@ if (isMinor) {
       childrenCount: finalChildrenCount,
       parentEmail: finalParentEmail,
       ...(isMinor ? { minorKey: mk } : {}),
+      birthDate: parsedBirthDate,
+      age: ageNum,
+      ageCategory: mapAgeToBand(ageNum),
 
     });
 
-    return res.status(201).json(doc);
+    return res.status(201).json(applyDynamicAgeToPatient(doc.toObject({ virtuals: true })));
   } catch (err) {
     // índices únicos compuestos (createdBy+email/phone/fullname) -> E11000
    if (err?.code === 11000) {
@@ -335,7 +373,29 @@ export const getMyPatients = async (req, res) => {
     }
 
     // filtro por categoría de edad
-    if (category && category !== "All") query.ageCategory = category;
+   if (category && category !== "All") {
+  const bdQuery = ageCategoryToBirthDateQuery(category);
+
+  // si filtran deceased explícito, usamos lo congelado (stored)
+  if (query.isDeceased === true) {
+    query.ageCategory = category;
+  } else if (bdQuery) {
+    query.$and ||= [];
+    query.$and.push({
+      $or: [
+        // vivos con birthDate
+        { isDeceased: { $ne: true }, birthDate: bdQuery },
+        // legacy sin birthDate
+        { isDeceased: { $ne: true }, birthDate: { $exists: false }, ageCategory: category },
+        // deceased usa stored ageCategory congelado
+        { isDeceased: true, ageCategory: category },
+      ],
+    });
+  } else {
+    query.ageCategory = category;
+  }
+}
+
 
     // filtro por tipo(s) de sangre
     if (bloodtypeFilter) query.bloodtype = bloodtypeFilter;
@@ -417,7 +477,9 @@ export const getMyPatients = async (req, res) => {
       if (qDigits) searchOr.push({ phoneDigits: new RegExp(qDigits) });
 
       // ✅ NO sobreescribe query.$or (ownership). Agrega condición adicional.
-      query.$and = [{ $or: searchOr }];
+      query.$and ||= [];
+  query.$and.push({ $or: searchOr });
+
     }
 
 
@@ -426,7 +488,9 @@ export const getMyPatients = async (req, res) => {
       Patient.countDocuments(query),
     ]);
 
-    return res.json({ items, total, page, pages: Math.ceil(total / limit) });
+    const out = items.map((p) => applyDynamicAgeToPatient(p));
+
+    return res.json({ items: out, total, page, pages: Math.ceil(total / limit) });
   } catch (err) {
     console.error("getMyPatients error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -461,7 +525,8 @@ export const searchGlobalPatients = async (req, res) => {
       .limit(10)
       .lean({ virtuals: true });
 
-    return res.json(patients);
+    const out = patients.map((p) => applyDynamicAgeToPatient(p));
+    return res.json(out);
   } catch (err) {
     console.error("searchGlobalPatients error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -476,6 +541,8 @@ export const getGlobalPatientPreview = async (req, res) => {
   try {
     const doc = await Patient.findById(req.params.id).lean({ virtuals: true });
     if (!doc) return res.status(404).json({ error: "Patient not found" });
+
+    applyDynamicAgeToPatient(doc);
 
     const amIOwner =
       (Array.isArray(doc.owners) && doc.owners.map(String).includes(String(req.user._id))) ||
@@ -527,7 +594,10 @@ export const importPatient = async (req, res) => {
       { new: true, timestamps: false }
     ).lean({ virtuals: true });
 
-    return res.json({ message: "Patient imported successfully", patient: updated });
+    return res.json({
+      message: "Patient imported successfully",
+      patient: applyDynamicAgeToPatient(updated),
+    });
   } catch (err) {
     console.error("importPatient error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -547,6 +617,10 @@ export const getPatientById = async (req, res) => {
     }).lean({ virtuals: true });
 
     if (!doc) return res.status(404).json({ error: "Paciente no encontrado" });
+
+     applyDynamicAgeToPatient(doc);
+
+     
         const lang = (req.query.lang || "").trim();
     if (lang) {
       const translated = await translatePatientDoc(doc, lang);
@@ -566,7 +640,7 @@ export const getPatientById = async (req, res) => {
 export const updatePatient = async (req, res) => {
   try {
     const { fullname, diseases, allergies, medications, email, phone, age, bloodtype,  gender, organDonor: organIn, bloodDonor: bloodIn,
-       measurementSystem, height, weight, heightM, weightKg,  country,state, city, children, childrenCount, parentEmail,
+       measurementSystem, height, weight, heightM, weightKg,  country,state, city, children, childrenCount, parentEmail,  birthDate, dateOfDeath,
 
      } = req.body;
 
@@ -600,13 +674,94 @@ if (!current) return res.status(404).json({ error: "Patient not found" });
     //const update = {};
     const update = { lastEditedBy: req.user._id };
     const unset = {};
-    const nextAge = typeof age !== "undefined" ? Number(age) : current.age;
-    const isMinorNext = Number.isFinite(nextAge) && nextAge < 18;
+
+    if ("dateOfDeath" in req.body && !("isDeceased" in req.body)) {
+  return res.status(400).json({ errorCode: "SEND_ISDECEASED_WITH_DATEOFDEATH" });
+}
+
+
+const nextIsDeceased = ("isDeceased" in req.body)
+  ? toBool(req.body.isDeceased)
+  : !!current.isDeceased;
+
+let nextBirthDate = current.birthDate;
+if ("birthDate" in req.body) {
+  // (si NO quieres permitir borrar birthDate, deja esto como error si viene "")
+  const raw = req.body.birthDate;
+
+  const bd = isYmd(raw) ? parseYmdToUtcNoon(raw) : new Date(raw);
+  if (Number.isNaN(bd.getTime())) return res.status(400).json({ errorCode: "INVALID_BIRTHDATE" });
+  if (ymdUTC(bd) > ymdUTC(new Date())) return res.status(400).json({ errorCode: "BIRTHDATE_IN_FUTURE" });
+
+  nextBirthDate = bd;
+  update.birthDate = bd;
+}
+
+let nextDoD = current.dateOfDeath;
+
+// ✅ soporta clear del datepicker ("" o null)
+if ("dateOfDeath" in req.body) {
+  const raw = req.body.dateOfDeath;
+
+  if (raw === "" || raw === null) {
+    nextDoD = null;
+    unset.dateOfDeath = 1;
+    delete update.dateOfDeath;
+  } else {
+    const dd = isYmd(raw) ? parseYmdToUtcNoon(raw) : new Date(raw);
+    if (Number.isNaN(dd.getTime())) {
+      return res.status(400).json({ errorCode: "INVALID_DATE_OF_DEATH" });
+    }
+    nextDoD = dd;
+    update.dateOfDeath = dd;
+    delete unset.dateOfDeath;
+  }
+}
+
+if (nextIsDeceased) {
+  // ✅ si lo marcan fallecido y no hay dateOfDeath, congélalo “hoy”
+  if (!nextDoD) {
+    nextDoD = new Date();        // fecha/hora real del sistema
+    update.dateOfDeath = nextDoD;
+    delete unset.dateOfDeath;
+  }
+
+  // ✅ NO future (por día)
+  if (ymdUTC(nextDoD) > ymdUTC(new Date())) {
+    return res.status(400).json({ errorCode: "DATE_OF_DEATH_IN_FUTURE" });
+  }
+
+  // ✅ death >= birth
+  if (nextBirthDate && ymdUTC(nextDoD) < ymdUTC(nextBirthDate)) {
+    return res.status(400).json({ errorCode: "DATE_OF_DEATH_BEFORE_BIRTHDATE" });
+  }
+} else {
+  // ✅ si vuelve a vivo, limpia dateOfDeath (recomendado)
+  if (current.dateOfDeath && !("dateOfDeath" in req.body)) {
+    unset.dateOfDeath = 1;
+  }
+}
+
+
+const nextAge = computeDynamicAge({
+  birthDate: nextBirthDate,
+  isDeceased: nextIsDeceased,
+  dateOfDeath: nextDoD,
+  age: current.age
+});
+
+const isMinorNext = Number.isFinite(nextAge) && nextAge < 18;
+
+// si doctor corrige birthDate o death -> sincroniza stored age/ageCategory
+if ("birthDate" in req.body || "dateOfDeath" in req.body || "isDeceased" in req.body) {
+  update.age = nextAge;
+  update.ageCategory = mapAgeToBand(nextAge);
+}
+
     if (typeof fullname !== "undefined" && !isMinorNext) update.fullname = fullname;
     if (typeof diseases  !== "undefined") update.diseases  = normalize(diseases);
     if (typeof allergies  !== "undefined") update.allergies  = normalize(allergies);
     if (typeof medications  !== "undefined") update.medications  = normalize(medications);
-    if (typeof age       !== "undefined") update.age       = age;
     if (typeof bloodtype !== "undefined") update.bloodtype = bloodtype;
 
     // === FAMILY BUSINESS RULES ===
@@ -638,7 +793,9 @@ if (isMinorNext) {
 
 const nextFullname = "fullname" in update ? update.fullname : current.fullname;
 
-const isCurrentMinor = Number(current.age) < 18 && current.parentEmail;
+const currentAgeDyn = computeDynamicAge(current);
+const isCurrentMinor = Number.isFinite(currentAgeDyn) && currentAgeDyn < 18 && current.parentEmail;
+
 if (isCurrentMinor) {
   const mk = current.minorKey || minorKeyOf(current.parentEmail, current.fullname);
   const lockedMinor = await hasPendingGuardianDecisionForMinorKey(mk, current.parentEmail);
@@ -981,6 +1138,16 @@ if (!changesFound) {
 if (!changesFound && "childrenCount" in update && Number(update.childrenCount) !== Number(current.childrenCount)) changesFound = true;
 if (!changesFound && "parentEmail" in update && normLower(update.parentEmail) !== normLower(current.parentEmail)) changesFound = true;
 
+// Helpers para comparar fechas (ms)
+
+// Dentro de tu bloque "Sets (comparación campo por campo)" agrega:
+if (!changesFound && "birthDate" in update && t(update.birthDate) !== t(current.birthDate)) changesFound = true;
+if (!changesFound && "dateOfDeath" in update && t(update.dateOfDeath) !== t(current.dateOfDeath)) changesFound = true;
+
+// También faltaba ageCategory (porque tú la recalculas)
+if (!changesFound && "ageCategory" in update && normStr(update.ageCategory) !== normStr(current.ageCategory)) changesFound = true;
+
+
   // Antropometría: si mandaron measurementSystem + height + weight
   const touchedAnthro = ("measurementSystem" in update) || ("height" in update) || ("weight" in update);
   if (!changesFound && touchedAnthro) {
@@ -1023,10 +1190,10 @@ update.lastEditedBy = req.user._id;
   { _id: req.params.id, $or: [{ owners: req.user._id }, { createdBy: req.user._id }] },
   Object.keys(updateDoc).length ? updateDoc : { $set: {} },
   { new: true, runValidators: true, context: "query" }
-);
+).lean({ virtuals: true });
 
     if (!updated) return res.status(404).json({ error: "Paciente no encontrado" });
-    return res.json(updated);
+    return res.json(applyDynamicAgeToPatient(updated));
   } catch (err) {
     if (err?.code === 11000) {
       return res.status(400).json({ error: "Duplicate key: patient already exists for this user" });
@@ -1278,7 +1445,9 @@ const SYNC_FIELDS_SCALAR = [
   "city",
   "phone",
   "phoneDigits",
-  "childrenCount"
+  "childrenCount",
+  "birthDate",
+"dateOfDeath"
 ];
 
 const SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications", "children"];
@@ -1486,6 +1655,9 @@ if (target?.approvedAt) {
         delete canonical.causeOfDeath; 
       }
       
+      if (snapshot.birthDate) canonical.birthDate = snapshot.birthDate;
+      if (snapshot.dateOfDeath) canonical.dateOfDeath = snapshot.dateOfDeath;
+
       
     }
     const ageVal = sv(snapshot.age);
@@ -1610,7 +1782,21 @@ export const getMyHistory = async (req, res) => {
       }
     }
 
-    return res.json(history);
+    const out = history.map((h) => {
+  const raw = h?.approvedSnapshot?.set || h?.snapshot || h?.approvedSnapshot || null;
+  if (!raw) return h;
+
+  const withAge = applyDynamicAgeToSnapshotSet(raw);
+
+  if (h?.approvedSnapshot?.set) h.approvedSnapshot = { ...h.approvedSnapshot, set: withAge };
+  else if (h?.approvedSnapshot) h.approvedSnapshot = withAge;
+  else h.snapshot = withAge;
+
+  return h;
+});
+
+return res.json(out);
+
   } catch (err) {
     console.error("getMyHistory error:", err);
     return res.status(500).json({ error: "Server error fetching history" });
@@ -1661,7 +1847,25 @@ export const getPatientHistory = async (req, res) => {
         .lean();
     }
 
-    return res.json(history);
+  const out = history.map((h) => {
+  const raw = h?.approvedSnapshot?.set || h?.snapshot || h?.approvedSnapshot || null;
+  if (!raw) return h;
+
+  const withAge = applyDynamicAgeToSnapshotSet(raw);
+
+  if (h?.approvedSnapshot?.set) {
+    h.approvedSnapshot = { ...h.approvedSnapshot, set: withAge };
+  } else if (h?.approvedSnapshot) {
+    h.approvedSnapshot = withAge;
+  } else {
+    h.snapshot = withAge;
+  }
+
+  return h;
+});
+
+return res.json(out);
+
   } catch (err) {
     console.error("getPatientHistory error:", err);
     return res.status(500).json({ error: "Server error fetching history" });
@@ -1702,15 +1906,18 @@ export const getPatientHistoryOne = async (req, res) => {
 
     const translated = await translatePatientDoc(raw, lang);
 
-    if (ver?.approvedSnapshot?.set) {
-      ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translated };
-    } else if (ver?.approvedSnapshot) {
-      ver.approvedSnapshot = translated;
-    } else {
-      ver.snapshot = translated;
-    }
+// ✅ apply dynamic age AFTER translate
+const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
 
-    return res.json(ver);
+if (ver?.approvedSnapshot?.set) {
+  ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
+} else if (ver?.approvedSnapshot) {
+  ver.approvedSnapshot = translatedWithAge;
+} else {
+  ver.snapshot = translatedWithAge;
+}
+
+return res.json(ver);
   } catch (err) {
     console.error("getPatientHistoryOne error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -1742,15 +1949,18 @@ export const getMyHistoryOne = async (req, res) => {
 
     const translated = await translatePatientDoc(raw, lang);
 
-    if (ver?.approvedSnapshot?.set) {
-      ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translated };
-    } else if (ver?.approvedSnapshot) {
-      ver.approvedSnapshot = translated;
-    } else {
-      ver.snapshot = translated;
-    }
+// ✅ apply dynamic age AFTER translate
+const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
 
-    return res.json(ver);
+if (ver?.approvedSnapshot?.set) {
+  ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
+} else if (ver?.approvedSnapshot) {
+  ver.approvedSnapshot = translatedWithAge;
+} else {
+  ver.snapshot = translatedWithAge;
+}
+
+return res.json(ver);
   } catch (err) {
     console.error("getMyHistoryOne error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -1768,7 +1978,7 @@ export const getMyChildrenHealthInfo = async (req, res) => {
 
     const all = await Patient.find({
       parentEmail,
-      age: { $lt: 18 },
+      ...minorQueryByBirthDateOrLegacy(),
     })
       .sort({ updatedAt: -1 })
       .populate("createdBy", "name email role")
@@ -1821,7 +2031,7 @@ export const approveChildProfile = async (req, res) => {
     const doc = await Patient.findOne({
       _id: profileId,
       parentEmail,
-      age: { $lt: 18 },
+      ...minorQueryByBirthDateOrLegacy(),
     }).lean();
 
     if (!doc) {
@@ -1900,7 +2110,7 @@ export const rejectChildProfile = async (req, res) => {
     const target = await Patient.findOne({
       _id: profileId,
       parentEmail,
-      age: { $lt: 18 },
+      ...minorQueryByBirthDateOrLegacy(),
     }).lean();
 
     if (!target) {
@@ -2069,7 +2279,7 @@ export const getChildHistory = async (req, res) => {
     const child = await Patient.findOne({
       _id: childProfileId,
       parentEmail,
-      age: { $lt: 18 },
+      ...minorQueryByBirthDateOrLegacy(),
     })
       .select("minorKey fullname parentEmail")
       .lean();
