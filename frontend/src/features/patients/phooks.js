@@ -512,16 +512,17 @@ export function useTranslateMyHealthInfo() {
 }
 
 // === PARENT/TUTOR: CHILDREN HEALTH INFO (MINORS) ===
-export function useMyChildrenHealthInfo(options = {}) {
+export function useMyChildrenHealthInfo(lang) {
   return useQuery({
-    queryKey: ["my-children-health-info"],
-    queryFn: async () => (await api.get("/patients/me/children/health-info")).data,
+    queryKey: ["my-children-health-info", lang],
+    queryFn: async () => {
+      const q = lang ? `?lang=${lang}` : "";
+      return (await api.get(`/patients/me/children/health-info${q}`)).data;
+    },
     retry: false,
     refetchOnWindowFocus: false,
-    ...(options || {}),
     onError: (e) => {
       if (e?.response?.status !== 429) toast.error(i18n.t("myChildren.toasts.loadFailed"));
-      options?.onError?.(e);
     },
   });
 }

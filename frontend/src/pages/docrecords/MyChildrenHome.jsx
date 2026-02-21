@@ -4,8 +4,9 @@ import { Loader2, AlertTriangle, Baby, HeartPulse } from "lucide-react";
 import { useMyChildrenHealthInfo } from "../../features/patients/phooks.js";
 
 export default function MyChildrenHome() {
-  const { t } = useTranslation();
-  const { data, isLoading } = useMyChildrenHealthInfo();
+  const { t, i18n } = useTranslation();
+  const { data, isLoading } = useMyChildrenHealthInfo(i18n.language);
+
 
   if (isLoading) {
     return (

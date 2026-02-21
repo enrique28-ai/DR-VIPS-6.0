@@ -19,6 +19,7 @@
   "healthInfo": "Health Info",
   "healthState": "Health State",
   "approve": "Approve",
+  "tutorEmail": "Tutor email",
   "reject": "Reject",
   "back": "Back",
   "childNotFound": "Child not found or no longer accessible.",

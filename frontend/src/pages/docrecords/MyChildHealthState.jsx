@@ -17,9 +17,10 @@ function Card({ item, to }) {
 
 export default function MyChildHealthState() {
   const { childId } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
-  const { data: childrenData } = useMyChildrenHealthInfo();
+
+  const { data: childrenData } = useMyChildrenHealthInfo(i18n.language);
   const childName = useMemo(() => {
     const arr = Array.isArray(childrenData) ? childrenData : [];
     const g = arr.find((x) => (x?.snapshot?.sources || []).some((s) => s?.id === childId));
