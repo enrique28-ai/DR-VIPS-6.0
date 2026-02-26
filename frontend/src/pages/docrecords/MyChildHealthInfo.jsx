@@ -256,6 +256,29 @@ export default function MyChildHealthInfo() {
     .filter(Boolean)
     .join(", ");
 
+    const getAlts = (w) =>
+    w && typeof w === "object" && Array.isArray(w.alternatives) ? w.alternatives : [];
+
+  const countryAlts = getAlts(snapshot?.country);
+  const stateAlts = getAlts(snapshot?.state);
+  const cityAlts = getAlts(snapshot?.city);
+
+  const maxLoc = Math.max(countryAlts.length, stateAlts.length, cityAlts.length);
+  const prevLocations =
+    maxLoc > 1
+      ? Array.from({ length: maxLoc - 1 }, (_, k) => {
+          const i = k + 1;
+          return {
+            country: countryAlts[i] ?? countryAlts[0] ?? countryRaw,
+            state: stateAlts[i] ?? stateAlts[0] ?? stateRaw,
+            city: cityAlts[i] ?? cityAlts[0] ?? cityRaw,
+          };
+        }).filter((loc) => {
+          const isCurrent =
+            loc.country === countryRaw && loc.state === stateRaw && loc.city === cityRaw;
+          return !isCurrent;
+        })
+      : [];
   const heightDisplay =
     typeof snapshot?.heightM === "number"
       ? useMetric
@@ -369,6 +392,26 @@ export default function MyChildHealthInfo() {
               {t("myHealthInfo.sections.basic.location")}
             </span>
             <span className="font-medium text-slate-800">{locationVal || t("myHealthInfo.common.notSpecified")}</span>
+             {prevLocations.length > 0 && (
+              <div className="mt-1 text-xs text-slate-600">
+                <p>{t("myHealthInfo.common.previouslyRecordedLocations")}</p>
+                <div className="mt-1 space-y-1">
+                  {prevLocations.map((loc, idx) => (
+                    <p key={idx}>
+                      <span className="font-medium">
+                        {[
+                          localizeCountryName(loc.country, i18n.language),
+                          localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
+                          localizeCityName({ countryName: loc.country, stateName: loc.state, cityName: loc.city, t }),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-slate-100 bg-white p-3">
