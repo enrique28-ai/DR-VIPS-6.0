@@ -44,6 +44,17 @@ function formatDateTime(iso, t, locale) {
   }
 }
 
+function formatDateOnly(iso, t, locale) {
+  if (!iso) return t("myHealthInfo.common.notSpecified");
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return t("myHealthInfo.common.notSpecified");
+  try {
+    return locale ? d.toLocaleDateString(locale) : d.toLocaleDateString();
+  } catch {
+    return d.toLocaleDateString();
+  }
+}
+
 function ScalarHistory({
   label,
   wrapper,
@@ -244,6 +255,10 @@ export default function MyChildHealthInfo() {
   };
 
   const bloodtypeVal = scalarValue(snapshot?.bloodtype);
+  const isDeceased = snapshot?.isDeceased === true;
+  const birthDateVal = formatDateOnly(snapshot?.birthDate, t, i18n.language);
+  const deathDateVal = formatDateOnly(snapshot?.dateOfDeath, t, i18n.language);
+  const causeOfDeathVal = snapshot?.causeOfDeath || t("myHealthInfo.common.notSpecified");
   const countryRaw = scalarValue(snapshot?.country);
   const stateRaw = scalarValue(snapshot?.state);
   const cityRaw = scalarValue(snapshot?.city);
@@ -413,6 +428,31 @@ export default function MyChildHealthInfo() {
               </div>
             )}
           </div>
+
+           <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("patients.create.birthDate")}
+            </span>
+            <span className="font-medium text-slate-800">{birthDateVal}</span>
+          </div>
+
+          {isDeceased && (
+            <>
+              <div className="rounded-lg border border-slate-100 bg-white p-3">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {t("patients.edit.dateOfDeath")}
+                </span>
+                <span className="font-medium text-slate-800">{deathDateVal}</span>
+              </div>
+
+              <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {t("myHealthInfo.sections.basic.causeOfDeath")}
+                </span>
+                <span className="font-medium text-slate-800">{causeOfDeathVal}</span>
+              </div>
+            </>
+          )}
 
           <div className="rounded-lg border border-slate-100 bg-white p-3">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">

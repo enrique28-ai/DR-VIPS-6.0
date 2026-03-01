@@ -152,12 +152,12 @@ export function ageCategoryToBirthDateQuery(categoryKey, refDate = new Date()) {
 }
 
 
-export function minorQueryByBirthDateOrLegacy(refDate = new Date()) {
+export function minorQueryByBirthDateOrLegacy(refDate = new Date(), options = {}) {
+  const { includeDeceased = false } = options;
   const cutoff18 = new Date(refDate);
   cutoff18.setFullYear(cutoff18.getFullYear() - 18);
 
-  return {
-    isDeceased: { $ne: true }, // si está fallecido, ya no cuenta como minor
+  const query = {
     $or: [
       // ✅ nuevos: con birthDate -> minor si nació después del cutoff
       { birthDate: { $gt: cutoff18 } },
@@ -167,6 +167,11 @@ export function minorQueryByBirthDateOrLegacy(refDate = new Date()) {
       { birthDate: null, age: { $lt: 18 } },
     ],
   };
+  if (!includeDeceased) {
+    query.isDeceased = { $ne: true }; // si está fallecido, ya no cuenta como minor
+  }
+
+  return query;
 }
 
 
@@ -352,6 +357,8 @@ const hasNumericConflict = (field) => {
     email,
     ageCategory: latest.ageCategory,
     isDeceased: latest.isDeceased,
+    birthDate: latest.birthDate,
+    dateOfDeath: latest.dateOfDeath,
     causeOfDeath: latest.causeOfDeath,
 
     // Scalars con info de conflicto
@@ -560,7 +567,7 @@ export async function hasPendingGuardianDecisionForMinorKey(minorKey, parentEmai
   const latest = await Patient.findOne({
     parentEmail: pe,
     minorKey: mk,
-    ...minorQueryByBirthDateOrLegacy(),
+    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
   })
     .sort({ updatedAt: -1 })
     .select("updatedAt approvedAt")
@@ -579,7 +586,7 @@ export async function computeHealthSnapshotByMinorKey(minorKey, parentEmail) {
   const pats = await Patient.find({
     parentEmail: pe,
     minorKey: mk,
-    ...minorQueryByBirthDateOrLegacy(),
+    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
   })
     .sort({ updatedAt: -1 })
     .populate("createdBy", "name email role")

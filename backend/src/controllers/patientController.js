@@ -1978,7 +1978,7 @@ export const getMyChildrenHealthInfo = async (req, res) => {
 
     const all = await Patient.find({
       parentEmail,
-      ...minorQueryByBirthDateOrLegacy(),
+      ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
     })
       .sort({ updatedAt: -1 })
       .populate("createdBy", "name email role")
@@ -2133,7 +2133,7 @@ export const approveChildProfile = async (req, res) => {
     const doc = await Patient.findOne({
       _id: profileId,
       parentEmail,
-      ...minorQueryByBirthDateOrLegacy(),
+      ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
     }).lean();
 
     if (!doc) {
@@ -2212,7 +2212,7 @@ export const rejectChildProfile = async (req, res) => {
     const target = await Patient.findOne({
       _id: profileId,
       parentEmail,
-      ...minorQueryByBirthDateOrLegacy(),
+      ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
     }).lean();
 
     if (!target) {
@@ -2381,7 +2381,7 @@ export const getChildHistory = async (req, res) => {
     const child = await Patient.findOne({
       _id: childProfileId,
       parentEmail,
-      ...minorQueryByBirthDateOrLegacy(),
+      ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
     })
       .select("minorKey fullname parentEmail")
       .lean();
