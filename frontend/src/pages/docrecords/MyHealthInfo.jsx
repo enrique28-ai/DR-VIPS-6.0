@@ -5,12 +5,12 @@ import {
   Activity,
   Droplets,
   Info,
-  Mail, // <--- Importa esto de lucide-react si quieres el icono
+  Mail, 
   Stethoscope,
   History,
   X,
   Languages,
-   Loader2
+   Loader2,
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 import {
@@ -21,7 +21,7 @@ import {
 } from "../../features/patients/phooks.js";
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
 import { useTranslation } from "react-i18next";
-import { useMemo,  useState, useEffect } from "react";
+import { useState } from "react";
 import {
    localizeCountryName,
    localizeStateName,
@@ -50,6 +50,16 @@ function formatDateTime(iso, t, locale) {
   }
 }
 
+function formatDateOnly(iso, t, locale) {
+  if (!iso) return t("myHealthInfo.common.notSpecified");
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return t("myHealthInfo.common.notSpecified");
+  try {
+    return locale ? d.toLocaleDateString(locale) : d.toLocaleDateString();
+  } catch {
+    return d.toLocaleDateString();
+  }
+}
 
 function ScalarHistory({
   label,
@@ -86,19 +96,16 @@ function ScalarHistory({
   const keyFor = (x) => {
     if (x === null || x === undefined || x === "") return null;
 
-    // ✅ NUMÉRICOS (height/weight) y números reales
     if (isHeight || isWeight || typeof x === "number") {
       const n = toNum(x);
       if (n == null) return null;
-      return (isHeight || isWeight) ? toDisplay(n).toFixed(decimals) : String(n);
+      return isHeight || isWeight ? toDisplay(n).toFixed(decimals) : String(n);
     }
 
-    // ✅ BOOLEANOS
     if (typeof x === "boolean") {
       return x ? "true" : "false";
     }
 
-    // ✅ STRINGS (fullname, gender, bloodtype, etc.)
     return String(x).trim().toLowerCase();
   };
 
@@ -111,7 +118,7 @@ function ScalarHistory({
     const k = keyFor(v);
     if (k == null) continue;
 
-    if (curKey != null && k === curKey) continue; // si es el mismo visualmente
+    if (curKey != null && k === curKey) continue; 
     if (seen.has(k)) continue;
 
     seen.add(k);
@@ -143,20 +150,24 @@ function ScalarHistory({
 
 
 
-function ChipList({ items, t }) {
+function ChipList({ items, t, tone = "default" }) {
   if (!items || items.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
-        {t("myHealthInfo.common.noneRecorded")}
-      </p>
+       <p className="text-sm text-slate-500">{t("myHealthInfo.common.noneRecorded")}</p>
     );
   }
+  const chipTone = {
+    default: "border-slate-200 bg-slate-100 text-slate-700",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    danger: "border-rose-200 bg-rose-50 text-rose-700",
+  };
+
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((it) => (
         <span
           key={it}
-          className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-800"
+          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${chipTone[tone]}`}
         >
           {it}
         </span>
@@ -169,127 +180,67 @@ function ChipList({ items, t }) {
 export default function MyHealthInfo() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+
   const [showHistory, setShowHistory] = useState(false);
+  const [translatedData, setTranslatedData] = useState(null);
+  const [translatedLang, setTranslatedLang] = useState("");
+
 
 
   const { data: serverData, isLoading, isError } = useMyHealthInfo();
-  const { mutate: translateHealthInfo, isPending: isTranslating } =
-  useTranslateMyHealthInfo();
-
-const [translatedData, setTranslatedData] = useState(null);
-const [translatedLang, setTranslatedLang] = useState("");
-const displayData =
-  translatedData && translatedLang === i18n.language ? translatedData : serverData;
-
-
-useEffect(() => {
-  // si cambia el idioma, NO auto-traduzcas; solo resetea
-  setTranslatedData(null);
-  setTranslatedLang("");
-}, [serverData, i18n.language]);
-const onTranslate = () => {
-  if (!serverData) return;
-
-  // evita gastar si ya está traducido a este idioma
-  if (translatedData && translatedLang === i18n.language) return;
-
-  translateHealthInfo(
-    { lang: i18n.language },
-    {
-      onSuccess: (data) => {
-        setTranslatedData(data);
-        setTranslatedLang(i18n.language);
-      },
-    }
-  );
-};
+  
 
 
   const approveMutation = useApprovePatientProfile();
   const rejectMutation = useRejectPatientProfile();
 
+  const { mutate: translateHealthInfo, isPending: isTranslating } = useTranslateMyHealthInfo();
+
+  const displayData =
+    translatedData && translatedLang === i18n.language ? translatedData : serverData;
+
     
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
-        <p className="text-center text-slate-600">
-          {t("myHealthInfo.loading")}
-        </p>
-      </main>
+       <div className="flex justify-center p-10 text-center">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      </div>
     );
   }
 
-  if (isError) {
+   if (isError || !displayData) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          <p className="font-medium">{t("myHealthInfo.error.title")}</p>
-          <p className="mt-1">{t("myHealthInfo.error.description")}</p>
-          <div className="mt-4 flex gap-3">
-            <Button variant="secondary" onClick={() => navigate(-1)}>
-              {t("myHealthInfo.error.back")}
-            </Button>
-          </div>
-        </div>
+      <main className="mx-auto max-w-5xl p-6 text-center">
+        <h1 className="text-xl font-semibold text-slate-900">{t("myHealthInfo.empty.title")}</h1>
+        <p className="mt-2 text-slate-600">{t("myHealthInfo.empty.description")}</p>
+        <Button className="mt-4" onClick={() => navigate("/docrecords/myhealthstate")}>
+          {t("myHealthInfo.empty.backToState")}
+        </Button>
       </main>
     );
   }
 
-  if (!displayData || !displayData.hasRecords || !displayData.snapshot) {
+  if (!displayData.hasRecords) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          {t("navbar.myHealthInfo")}
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          {t("myHealthInfo.empty.description")}
-        </p>
-        <div className="mt-6">
-          <Button onClick={() => navigate("/docrecords/myhealthstate")}>
-            {t("myHealthInfo.empty.backToState")}
-          </Button>
-        </div>
+      <main className="mx-auto max-w-5xl p-6 text-center">
+        <h1 className="text-xl font-semibold text-slate-900">{t("myHealthInfo.empty.title")}</h1>
+        <p className="mt-2 text-slate-600">{t("myHealthInfo.empty.description")}</p>
+        <Button className="mt-4" onClick={() => navigate("/docrecords/myhealthstate")}>
+          {t("myHealthInfo.empty.backToState")}
+        </Button>
       </main>
     );
   }
 
-  const { snapshot, pendingDecision } = displayData;
-  
-  const diseasesChanged = snapshot.diseasesChanged === true;
-  const allergiesChanged = snapshot.allergiesChanged === true;
-  const medicationsChanged = snapshot.medicationsChanged === true;
+  const { snapshot, pendingDecision, profileId } = displayData;
+  const latestSource = snapshot?.sources?.[0];
+  const lastUpdated = formatDateTime(latestSource?.updatedAt, t, i18n.language);
+  const doctorName = latestSource?.doctorName || t("myHealthInfo.history.systemUnknown");
 
-  const heightWrapper = snapshot.heightWrapper;
-  const weightWrapper = snapshot.weightWrapper;
-  const bmiWrapper = snapshot.bmiWrapper;
-  const latestSource = snapshot.sources?.[0] ?? null;
+  const ageVal = scalarValue(snapshot?.age);
+  const genderRaw = scalarValue(snapshot?.gender);
+  const genderLower = typeof genderRaw === "string" ? genderRaw.toLowerCase() : genderRaw;
 
- 
-const latestDiseases = Array.isArray(snapshot.diseases) ? snapshot.diseases : [];
-const latestAllergies = Array.isArray(snapshot.allergies) ? snapshot.allergies : [];
-const latestMedications = Array.isArray(snapshot.medications) ? snapshot.medications : [];
-
-// Baseline = versión aprobada (tu backend ya lo rellena como common* cuando hay pendingDecision)
-const approvedDiseases = Array.isArray(snapshot.commonDiseases) ? snapshot.commonDiseases : [];
-const approvedAllergies = Array.isArray(snapshot.commonAllergies) ? snapshot.commonAllergies : [];
-const approvedMedications = Array.isArray(snapshot.commonMedications) ? snapshot.commonMedications : [];
-
-// Diff vs aprobada
-const addedDiseases = latestDiseases.filter((d) => !approvedDiseases.includes(d));
-const removedDiseases = approvedDiseases.filter((d) => !latestDiseases.includes(d));
-
-const addedAllergies = latestAllergies.filter((a) => !approvedAllergies.includes(a));
-const removedAllergies = approvedAllergies.filter((a) => !latestAllergies.includes(a));
-
-const addedMedications = latestMedications.filter((m) => !approvedMedications.includes(m));
-const removedMedications = approvedMedications.filter((m) => !latestMedications.includes(m));
-
-
-  
-  const ageVal = scalarValue(snapshot.age);
-  const genderRaw = scalarValue(snapshot.gender);
-  const genderLower =
-    typeof genderRaw === "string" ? genderRaw.toLowerCase() : genderRaw;
   const genderVal =
     genderLower === "male"
       ? t("patients.card.genderMale")
@@ -298,687 +249,459 @@ const removedMedications = approvedMedications.filter((m) => !latestMedications.
       : genderRaw || null;
 
   const formatGender = (v) => {
-  const raw = scalarValue(v);
-  if (raw == null || raw === "") return t("myHealthInfo.common.notSpecified");
+    const raw = scalarValue(v);
+    if (raw == null || raw === "") return t("myHealthInfo.common.notSpecified");
 
-  const s = typeof raw === "string" ? raw.toLowerCase() : raw;
+    const s = typeof raw === "string" ? raw.toLowerCase() : raw;
+    if (s === "male") return t("patients.card.genderMale");
+    if (s === "female") return t("patients.card.genderFemale");
 
-  if (s === "male") return t("patients.card.genderMale");
-  if (s === "female") return t("patients.card.genderFemale");
+    return String(raw);
 
-  return String(raw);
 };
 
-  const bloodtypeVal = scalarValue(snapshot.bloodtype);
-  const countryRaw = scalarValue(snapshot.country);
-  const stateRaw = scalarValue(snapshot.state);
-  const cityRaw = scalarValue(snapshot.city);
-  const countryVal = localizeCountryName(countryRaw, i18n.language);
-const stateVal = localizeStateName({
-  countryName: countryRaw,
-  stateName: stateRaw,
-  t,
-});
-const cityVal = localizeCityName({
-  countryName: countryRaw,
-  stateName: stateRaw,
-  cityName: cityRaw,
-  t,
-});
+   const bloodtypeVal = scalarValue(snapshot?.bloodtype);
+  const phoneVal = scalarValue(snapshot?.phone);
 
+  const countryRaw = scalarValue(snapshot?.country);
+  const stateRaw = scalarValue(snapshot?.state);
+  const cityRaw = scalarValue(snapshot?.city);
 
-  // --- location prev values from alternatives (country/state/city) ---
-const getAlts = (w) =>
-  w && typeof w === "object" && Array.isArray(w.alternatives) ? w.alternatives : [];
+  const locationVal = [
+    localizeCountryName(countryRaw, i18n.language) || countryRaw,
+    localizeStateName({ countryName: countryRaw, stateName: stateRaw, t }) || stateRaw,
+    localizeCityName({ countryName: countryRaw, stateName: stateRaw, cityName: cityRaw, t }) || cityRaw,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
-const countryAlts = getAlts(snapshot.country);
-const stateAlts   = getAlts(snapshot.state);
-const cityAlts    = getAlts(snapshot.city);
+  const getAlts = (w) =>
+    w && typeof w === "object" && Array.isArray(w.alternatives) ? w.alternatives : [];
 
-const maxLoc = Math.max(countryAlts.length, stateAlts.length, cityAlts.length);
+  const countryAlts = getAlts(snapshot?.country);
+  const stateAlts = getAlts(snapshot?.state);
+  const cityAlts = getAlts(snapshot?.city);
 
-const prevLocations =
-  maxLoc > 1
-    ? Array.from({ length: maxLoc - 1 }, (_, k) => {
-        const i = k + 1;
-        return {
-          country: countryAlts[i] ?? countryAlts[0] ?? countryRaw,
-          state:   stateAlts[i]   ?? stateAlts[0]   ?? stateRaw,
-          city:    cityAlts[i]    ?? cityAlts[0]    ?? cityRaw,
-        };
-      })
-    : [];
+  const maxLoc = Math.max(countryAlts.length, stateAlts.length, cityAlts.length);
+  const prevLocations =
+    maxLoc > 1
+      ? Array.from({ length: maxLoc - 1 }, (_, k) => {
+          const i = k + 1;
+          return {
+            country: countryAlts[i] ?? countryAlts[0] ?? countryRaw,
+            state: stateAlts[i] ?? stateAlts[0] ?? stateRaw,
+            city: cityAlts[i] ?? cityAlts[0] ?? cityRaw,
+          };
+        }).filter((loc) => {
+          const isCurrent =
+            loc.country === countryRaw && loc.state === stateRaw && loc.city === cityRaw;
+          return !isCurrent;
+        })
+      : [];
 
-  const phoneVal = scalarValue(snapshot.phone); 
-  const fullnameWrapper = snapshot.fullnameWrapper;
-  const statusWrapper = snapshot.status;
-  
+  const birthDateVal = formatDateOnly(snapshot?.birthDate, t, i18n.language);
+  const isDeceased = snapshot?.isDeceased === true;
+  const deathDateVal = formatDateOnly(snapshot?.dateOfDeath, t, i18n.language);
+  const causeOfDeathVal = snapshot?.causeOfDeath || t("myHealthInfo.common.notSpecified");
 
-  const organDonorLabel = yesNoFromScalar(snapshot.organDonor, t);
-  const bloodDonorLabel = yesNoFromScalar(snapshot.bloodDonor, t);
+  const organDonorLabel = yesNoFromScalar(snapshot?.organDonor, t);
+  const bloodDonorLabel = yesNoFromScalar(snapshot?.bloodDonor, t);
 
-  const isDeceased = snapshot.isDeceased === true;
-  const causeOfDeath = snapshot.causeOfDeath?.trim?.() || null;
-
-  const useMetric = snapshot.measurementSystem === "metric";
-
-  //
-// ... después de const useMetric = ...
-
-  // --- Lógica para detectar cambio de unidades ---
-  const measurementSystemWrapper = snapshot.measurementSystemWrapper;
-  // Reutilizamos tu función getAlts existente
-  const msAlts = getAlts(measurementSystemWrapper); 
-
-  const curSystem = scalarValue(measurementSystemWrapper) ?? snapshot.measurementSystem ?? null;
-  // Si hay más de 1 alternativa, la segunda (índice 1) es la anterior
-  const prevSystem = msAlts.length > 1 ? msAlts[1] : null;
-
-  const systemLabel = (sys) => {
-    const k = String(sys || "").toLowerCase();
-    // Puedes ajustar estos textos o usar t("key") si las agregas a tu JSON
-    if (k === "metric") return t("myHealthInfo.common.metric") || "Métrico (m, kg)";
-    if (k === "imperial") return t("myHealthInfo.common.imperial") || "Imperial (ft, lb)";
-    return sys ? String(sys) : t("myHealthInfo.common.notSpecified");
-  };
-
-  const unitsChanged =
-    prevSystem != null &&
-    curSystem != null &&
-    String(prevSystem) !== String(curSystem);
-
-  const unitsChangeText = (() => {
-  if (!unitsChanged) return null;
-
-  const from = systemLabel(prevSystem);
-  const to = systemLabel(curSystem);
-
-  const translated = t("myHealthInfo.changes.unitsChanged", { from, to });
-  return translated !== "myHealthInfo.changes.unitsChanged"
-    ? translated
-    : `Units Changed: ${from} → ${to}`;
-})();
-
-
-  const UnitChangeMessage = () => {
-  if (!pendingDecision || !unitsChangeText) return null;
-  return (
-    <p className="mt-1 flex items-center gap-1 text-xs text-blue-600">
-      <Info className="h-3 w-3" />
-      {unitsChangeText}
-    </p>
-  );
-};
-
-  const bmiCategoryLabel = () => {
-    const cat = snapshot.bmiCategory;
-    if (!cat) return "";
-    const key = String(cat).toLowerCase();
-    switch (key) {
-      case "underweight":
-        return t("patients.detail.bmiCategories.underweight");
-      case "normal":
-        return t("patients.detail.bmiCategories.normal");
-      case "overweight":
-        return t("patients.detail.bmiCategories.overweight");
-      default:
-        return cat;
-    }
-  };
+  const useMetric = snapshot?.measurementSystem === "metric";
 
   const heightDisplay =
-    typeof snapshot.heightM === "number"
+    typeof snapshot?.heightM === "number"
       ? useMetric
         ? `${snapshot.heightM.toFixed(2)} m`
         : `${(snapshot.heightM / 0.3048).toFixed(2)} ft`
       : t("myHealthInfo.common.notSpecified");
 
   const weightDisplay =
-    typeof snapshot.weightKg === "number"
+    typeof snapshot?.weightKg === "number"
       ? useMetric
         ? `${snapshot.weightKg.toFixed(2)} kg`
         : `${(snapshot.weightKg / 0.45359237).toFixed(2)} lb`
       : t("myHealthInfo.common.notSpecified");
 
   const bmiDisplay =
-    typeof snapshot.bmi === "number"
-      ? `${snapshot.bmi.toFixed(2)}${
-          snapshot.bmiCategory ? ` (${bmiCategoryLabel()})` : ""
-        }`
+    typeof snapshot?.bmi === "number"
+      ? snapshot.bmi.toFixed(2)
       : t("myHealthInfo.common.notCalculated");
 
-  const approving = approveMutation.isPending;
-  const rejecting = rejectMutation.isPending;
+   const latestDiseases = Array.isArray(snapshot?.diseases) ? snapshot.diseases : [];
+  const latestAllergies = Array.isArray(snapshot?.allergies) ? snapshot.allergies : [];
+  const latestMedications = Array.isArray(snapshot?.medications) ? snapshot.medications : [];
 
-  const handleApprove = () => {
-    if (!latestSource) return;
-    approveMutation.mutate(latestSource.id);
+  const approvedDiseases = Array.isArray(snapshot?.commonDiseases) ? snapshot.commonDiseases : [];
+  const approvedAllergies = Array.isArray(snapshot?.commonAllergies) ? snapshot.commonAllergies : [];
+  const approvedMedications = Array.isArray(snapshot?.commonMedications) ? snapshot.commonMedications : [];
+
+  const addedDiseases = latestDiseases.filter((d) => !approvedDiseases.includes(d));
+  const removedDiseases = approvedDiseases.filter((d) => !latestDiseases.includes(d));
+
+  const addedAllergies = latestAllergies.filter((a) => !approvedAllergies.includes(a));
+  const removedAllergies = approvedAllergies.filter((a) => !latestAllergies.includes(a));
+
+  const addedMedications = latestMedications.filter((m) => !approvedMedications.includes(m));
+  const removedMedications = approvedMedications.filter((m) => !latestMedications.includes(m));
+
+  const diseasesChanged = snapshot?.diseasesChanged === true;
+  const allergiesChanged = snapshot?.allergiesChanged === true;
+  const medicationsChanged = snapshot?.medicationsChanged === true;
+
+  const handleTranslate = () => {
+    translateHealthInfo(
+      { lang: i18n.language },
+      {
+        onSuccess: (data) => {
+          setTranslatedData(data);
+          setTranslatedLang(i18n.language);
+        },
+      },
+    );
   };
 
-  const handleReject = () => {
-    if (!latestSource) return;
-    rejectMutation.mutate(latestSource.id);
+ const clearTranslatedData = () => {
+    setTranslatedData(null);
+    setTranslatedLang("");
   };
+  const handleApprove = () => approveMutation.mutate(profileId || latestSource?.id);
+  const handleReject = () => rejectMutation.mutate(profileId || latestSource?.id);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
+    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            {t("navbar.myHealthInfo")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {t("myHealthInfo.header.description")}
+          <h1 className="text-2xl font-bold text-slate-900">{t("navbar.myHealthInfo")}</h1>
+          <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+            <User2 className="h-4 w-4" /> {t("myHealthInfo.header.description")}
           </p>
-          {pendingDecision === false && latestSource && (
-            <p className="mt-1 text-xs text-emerald-700">
-              {t("myHealthInfo.header.allUpToDate")}
-            </p>
-          )}
-          {latestSource && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-              <Info className="h-3 w-3" />
-              {t("myHealthInfo.header.lastUpdate")}{" "}
-              <span className="font-medium">
-                {formatDateTime(
-                  latestSource.updatedAt,
-                  t,
-                  i18n.language || undefined
-                )}
-              </span>
-            </p>
-            
-          )}
-          {pendingDecision && (
-                <>
-                  {/* Separador visual */}
-                  <div className="hidden h-3 w-px bg-slate-300 sm:block"></div>
-
-                  {latestSource.doctorName && (
-                    <div className="flex items-center gap-1.5">
-                      <User2 className="h-3.5 w-3.5 text-slate-400" />
-                      <span>
-                         {t("myHealthInfo.header.doctor")}:{" "}
-                        <span className="font-medium text-slate-900">
-                          {latestSource.doctorName}
-                        </span>
-                      </span>
-                    </div>
-                  )}
-
-                  {latestSource.doctorEmail && (
-                    <div className="flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-slate-400" />
-                      <span>
-                        {t("myHealthInfo.header.email")}:{" "}
-                        <span className="font-medium text-slate-900">
-                          {latestSource.doctorEmail}
-                        </span>
-                      </span>
-                    </div>
-                  )}
-                 </>
-          )}
         </div>
-        <div className="flex gap-3">
-           <Button variant="secondary" onClick={() => setShowHistory(true)}>
-          <span className="inline-flex items-center gap-2">
-          <History className="h-4 w-4" />
+         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Button variant="secondary" onClick={() => setShowHistory(true)} className="w-full sm:w-auto">
+            <History className="mr-2 h-4 w-4" />
             {t("myHealthInfo.history.button")}
-          </span>
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => navigate("/docrecords/myhealthstate")}
-          >
-            {t("myHealthInfo.header.backToState")}
+          <Button variant="secondary" onClick={handleTranslate} disabled={isTranslating} className="w-full sm:w-auto">
+            <Languages className="mr-2 h-4 w-4" />
+            {isTranslating ? t("common.loading") : t("common.translate")}
           </Button>
+          {translatedData && translatedLang === i18n.language && (
+            <Button variant="secondary" onClick={clearTranslatedData} className="w-full sm:w-auto">
+              <X className="mr-2 h-4 w-4" />
+              {t("myHealthInfo.actions.clearTranslation")}
+            </Button>
+          )}
         </div>
       </div>
 
 
-      <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        {/* Basic info */}
-        <div className="flex flex-col gap-6 md:flex-row md:items-start">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <User2 className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-semibold text-slate-900">
-                {t("myHealthInfo.sections.basic.title")}
-              </h2>
-              <Button
-  full={false}
-  variant="secondary"
-  onClick={onTranslate}
-  disabled={isTranslating}
-  className="inline-flex items-center gap-2"
->
-  {isTranslating ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
-  ) : (
-    <Languages className="h-4 w-4" />
-  )}
-  {t("Translate")}
-</Button>
-
-            </div>
-            <p className="text-sm text-slate-600">
-              {t("myHealthInfo.sections.basic.description")}
-            </p>
-          </div>
-          <div className="flex-[2] space-y-4 text-sm text-slate-800">
-            {/* Full name */}
-            <div>
-              <p className="font-medium">
-                {t("myHealthInfo.sections.basic.fullname")}
+    {pendingDecision ? (
+        <div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4 shadow-sm">
+          <div className="flex items-start">
+            <Info className="mt-0.5 h-5 w-5 text-amber-500" />
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-bold text-amber-800">{t("myHealthInfo.header.pendingReview")}</h3>
+              <p className="mt-1 text-sm text-amber-700">
+                {doctorName} · {lastUpdated}
               </p>
-              <p>{snapshot.fullname || t("myHealthInfo.common.notSpecified")}</p>
-              <ScalarHistory
-                label={t("myHealthInfo.sections.basic.fullname")}
-                wrapper={fullnameWrapper}
-                t={t}
-              />
             </div>
+             </div>
+        </div>
+      ) : (
+        <div className="flex items-center rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm">
+          <Info className="h-5 w-5 text-emerald-500" />
+          <p className="ml-3 text-sm font-medium text-emerald-800">{t("myHealthInfo.header.allUpToDate")}</p>
+        </div>
+      )}
 
-            {/* Age / Gender / Blood type */}
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.age")}
-                </p>
-                <p>
-                  {ageVal != null
-                    ? t("myHealthInfo.sections.basic.ageWithYears", {
-                        age: ageVal,
-                      })
-                    : t("myHealthInfo.common.notSpecified")}
-                </p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.age")}
-                  wrapper={snapshot.age}
-                  t={t}
-                />
-              </div>
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.gender")}
-                </p>
-                <p>{genderVal || t("myHealthInfo.common.notSpecified")}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.gender")}
-                  wrapper={snapshot.gender}
-                  t={t}
-                  formatter={formatGender}
-                />
-              </div>
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.bloodType")}
-                </p>
-                <p>{bloodtypeVal || t("myHealthInfo.common.notSpecified")}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.bloodType")}
-                  wrapper={snapshot.bloodtype}
-                  t={t}
-                />
-              </div>
-            </div>
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
+          <div className="rounded-lg bg-white p-2 text-indigo-500 shadow-sm">
+            <User2 className="h-4 w-4" />
+          </div>
+          <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.basic.title")}</h3>
+        </div>
 
-            {/* Location & phone */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.location")}
-                </p>
-                <p>
-                  {countryVal || t("myHealthInfo.common.notSpecified")},{" "}
-                  {stateVal || t("myHealthInfo.common.notSpecified")},{" "}
-                  {cityVal || t("myHealthInfo.common.notSpecified")}
-                </p>
+            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.age")}
+            </span>
+            <span className="font-medium text-slate-800">
+              {ageVal != null
+                ? t("myHealthInfo.sections.basic.ageWithYears", { age: ageVal })
+                : t("myHealthInfo.common.notSpecified")}
+            </span>
+            <ScalarHistory label={t("myHealthInfo.sections.basic.age")} wrapper={snapshot?.age} t={t} />
+          </div>
 
-              {prevLocations.length > 0 && (
-  <div className="mt-1 text-xs text-slate-600">
-    <p>{t("myHealthInfo.common.previouslyRecordedLocations")}</p>
-    <div className="mt-1 space-y-1">
-      {prevLocations.map((loc, idx) => (
-        <p key={idx}>
-          <span className="font-medium">
-            {[
-              localizeCountryName(loc.country, i18n.language),
-              localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
-              localizeCityName({ countryName: loc.country, stateName: loc.state, cityName: loc.city, t }),
-            ]
-              .filter(Boolean)
-              .join(", ")}
-          </span>
-        </p>
-      ))}
-    </div>
-  </div>
-)}
-              </div>
+             <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.gender")}
+            </span>
+            <span className="font-medium text-slate-800">{genderVal || t("myHealthInfo.common.notSpecified")}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.basic.gender")}
+              wrapper={snapshot?.gender}
+              t={t}
+              formatter={formatGender}
+            />
+          </div>
 
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.phone")}
-                </p>
-                <p>{phoneVal || t("myHealthInfo.common.notSpecified")}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.phone")}
-                  wrapper={snapshot.phone}
-                  t={t}
-                />
-              </div>
-            </div>
+            <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.bloodType")}
+            </span>
+            <span className="font-medium text-slate-800">{bloodtypeVal || t("myHealthInfo.common.notSpecified")}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.basic.bloodType")}
+              wrapper={snapshot?.bloodtype}
+              t={t}
+            />
+          </div>
 
-            {/* Organ / Blood donor */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.organDonor")}
-                </p>
-                <p>{organDonorLabel}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.organDonor")}
-                  wrapper={snapshot.organDonor}
-                  t={t}
-                  formatter={(v) =>
-                    v === true
-                      ? t("myHealthInfo.common.yes")
-                      : v === false
-                      ? t("myHealthInfo.common.no")
-                      : t("myHealthInfo.common.notSpecified")
-                  }
-                />
-              </div>
-
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.bloodDonor")}
-                </p>
-                <p>{bloodDonorLabel}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.bloodDonor")}
-                  wrapper={snapshot.bloodDonor}
-                  t={t}
-                  formatter={(v) =>
-                    v === true
-                      ? t("myHealthInfo.common.yes")
-                      : v === false
-                      ? t("myHealthInfo.common.no")
-                      : t("myHealthInfo.common.notSpecified")
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Status & cause of death */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.basic.status")}
-                </p>
-                <p>
-                  {isDeceased
-                    ? t("myHealthInfo.common.deceased")
-                    : t("myHealthInfo.common.alive")}
-                </p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.basic.status")}
-                  wrapper={statusWrapper}
-                  t={t}
-                  formatter={(v) =>
-                    v
-                      ? t("myHealthInfo.common.deceased")
-                      : t("myHealthInfo.common.alive")
-                  }
-                />
-              </div>
-
-              {isDeceased && (
-                <div>
-                  <p className="font-medium">
-                    {t("myHealthInfo.sections.basic.causeOfDeath")}
-                  </p>
-                  <p>
-                    {causeOfDeath || t("myHealthInfo.common.notSpecified")}
-                  </p>
+               <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.location")}
+            </span>
+            <span className="font-medium text-slate-800">{locationVal || t("myHealthInfo.common.notSpecified")}</span>
+            {prevLocations.length > 0 && (
+              <div className="mt-1 text-xs text-slate-600">
+                <p>{t("myHealthInfo.common.previouslyRecordedLocations")}</p>
+                <div className="mt-1 space-y-1">
+                  {prevLocations.map((loc, idx) => (
+                    <p key={idx}>
+                      <span className="font-medium">
+                        {[
+                          localizeCountryName(loc.country, i18n.language),
+                          localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
+                          localizeCityName({ countryName: loc.country, stateName: loc.state, cityName: loc.city, t }),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    </p>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+             )}
           </div>
+
+            <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.phone")}
+            </span>
+            <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+              <Mail className="h-4 w-4 text-slate-500" />
+              {phoneVal || t("myHealthInfo.common.notSpecified")}
+            </span>
+            <ScalarHistory label={t("myHealthInfo.sections.basic.phone")} wrapper={snapshot?.phone} t={t} />
+          </div>
+
+              <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("patients.create.birthDate")}
+            </span>
+            <span className="font-medium text-slate-800">{birthDateVal}</span>
+          </div>
+
+         <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.organDonor")}
+            </span>
+            <span className="font-medium text-slate-800">{organDonorLabel}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.basic.organDonor")}
+              wrapper={snapshot?.organDonor}
+              t={t}
+              formatter={(v) =>
+                v === true
+                  ? t("myHealthInfo.common.yes")
+                  : v === false
+                    ? t("myHealthInfo.common.no")
+                    : t("myHealthInfo.common.notSpecified")
+              }
+            />
+          </div>
+            <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.bloodDonor")}
+            </span>
+            <span className="font-medium text-slate-800">{bloodDonorLabel}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.basic.bloodDonor")}
+              wrapper={snapshot?.bloodDonor}
+              t={t}
+              formatter={(v) =>
+                v === true
+                  ? t("myHealthInfo.common.yes")
+                  : v === false
+                    ? t("myHealthInfo.common.no")
+                    : t("myHealthInfo.common.notSpecified")
+              }
+            />
+          </div>
+
+
+             {isDeceased && (
+            <>
+              <div className="rounded-lg border border-slate-100 bg-white p-3">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {t("patients.edit.dateOfDeath")}
+                </span>
+                <span className="font-medium text-slate-800">{deathDateVal}</span>
+              </div>
+
+                <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {t("myHealthInfo.sections.basic.causeOfDeath")}
+                </span>
+                <span className="font-medium text-slate-800">{causeOfDeathVal}</span>
+              </div>
+             </>
+          )}
+        </div>
+        </section>
+
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
+          <div className="rounded-lg bg-white p-2 text-rose-500 shadow-sm">
+            <Activity className="h-4 w-4" />
+          </div>
+        <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.anthropometrics.title")}</h3>
         </div>
 
-        {/* Anthropometrics */}
-        <div className="flex flex-col gap-6 border-t border-slate-100 pt-6 md:flex-row md:items-start">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-green-600" />
-              <h2 className="text-lg font-semibold text-slate-900">
-                {t("myHealthInfo.sections.anthropometrics.title")}
-              </h2>
-            </div>
-            <p className="text-sm text-slate-600">
-              {t("myHealthInfo.sections.anthropometrics.description")}
-            </p>
-          </div>
-          <div className="flex-[2] space-y-4 text-sm text-slate-800">
-            <div className="grid gap-4 md:grid-cols-3">
-              {/* Height */}
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.anthropometrics.height")}
-                </p>
-                <p>{heightDisplay}</p>
-                <ScalarHistory
-                label={t("myHealthInfo.sections.anthropometrics.height")}
-                wrapper={heightWrapper}
-                t={t}
-                useMetric={useMetric}
-                isHeight={true} // <--- Añadir esto
-                formatter={(v) => {
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.anthropometrics.height")}
+            </span>
+            <span className="font-medium text-slate-800">{heightDisplay}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.anthropometrics.height")}
+              wrapper={snapshot?.heightWrapper}
+              t={t}
+              useMetric={useMetric}
+              isHeight
+              formatter={(v) => {
                 if (typeof v !== "number") return t("myHealthInfo.common.notSpecified");
-                return useMetric
-              ? `${v.toFixed(2)} m`
-              : `${(v / 0.3048).toFixed(2)} ft`;
-               }}
-              />
-
-              <UnitChangeMessage />
-              </div>
-
-              {/* Weight */}
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.anthropometrics.weight")}
-                </p>
-                <p>{weightDisplay}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.anthropometrics.weight")}
-                  wrapper={weightWrapper}
-                  t={t}
-                  useMetric={useMetric}
-                  isWeight={true} // <--- Añadir esto
-                  formatter={(v) => {
-                  if (typeof v !== "number") return t("myHealthInfo.common.notSpecified");
-                return useMetric
-                ? `${v.toFixed(2)} kg`
-                : `${(v / 0.45359237).toFixed(2)} lb`;
+                return useMetric ? `${v.toFixed(2)} m` : `${(v / 0.3048).toFixed(2)} ft`;
               }}
-          />
-            <UnitChangeMessage />
-              </div>
-
-              {/* BMI */}
-              <div>
-                <p className="font-medium">
-                  {t("myHealthInfo.sections.anthropometrics.bmi")}
-                </p>
-                <p>{bmiDisplay}</p>
-                <ScalarHistory
-                  label={t("myHealthInfo.sections.anthropometrics.bmi")}
-                  wrapper={bmiWrapper}
-                  t={t}
-                  formatter={(v) => {
-                    if (typeof v !== "number")
-                      return t("myHealthInfo.common.notCalculated");
-                    return v.toFixed(2);
-                  }}
-                />
-              </div>
-            </div>
+            />
           </div>
+
+        <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.anthropometrics.weight")}
+            </span>
+            <span className="font-medium text-slate-800">{weightDisplay}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.anthropometrics.weight")}
+              wrapper={snapshot?.weightWrapper}
+              t={t}
+              useMetric={useMetric}
+              isWeight
+              formatter={(v) => {
+                if (typeof v !== "number") return t("myHealthInfo.common.notSpecified");
+                return useMetric ? `${v.toFixed(2)} kg` : `${(v / 0.45359237).toFixed(2)} lb`;
+              }}
+            />
+          </div>
+       
+
+   <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.anthropometrics.bmi")}
+            </span>
+            <span className="font-medium text-slate-800">{bmiDisplay}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.anthropometrics.bmi")}
+              wrapper={snapshot?.bmiWrapper}
+              t={t}
+              formatter={(v) => {
+                if (typeof v !== "number") return t("myHealthInfo.common.notCalculated");
+                return v.toFixed(2);
+              }}
+            />
+          </div>
+        
+
         </div>
-
-        {/* Diseases / allergies */}
-        <div className="flex flex-col gap-6 border-t border-slate-100 pt-6 md:flex-row md:items-start">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <Droplets className="h-5 w-5 text-red-500" />
-              <h2 className="text-lg font-semibold text-slate-900">
-                {t("myHealthInfo.sections.conditions.title")}
-              </h2>
-            </div>
-            <p className="text-sm text-slate-600">
-              {t("myHealthInfo.sections.conditions.description")}
-            </p>
-          </div>
-         <div className="flex-[2] space-y-6 text-sm text-slate-800">
-  {/* Diseases */}
-  <div>
-    <p className="mb-1 font-medium">
-      {t("myHealthInfo.sections.conditions.diseases")}
-    </p>
-    <ChipList items={latestDiseases} t={t} />
-
-    {diseasesChanged && (
-      <>
-        <div className="mt-2">
-          <p className="text-xs text-slate-600">
-            {t("myHealthInfo.changes.previouslyApproved")}
-          </p>
-          <ChipList items={approvedDiseases} t={t} />
-        </div>
-
-        {addedDiseases.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-slate-600">
-              {t("myHealthInfo.changes.addedComparedToApproved")}
-            </p>
-            <ChipList items={addedDiseases} t={t} />
-          </div>
-        )}
-
-        {removedDiseases.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-slate-600">
-              {t("myHealthInfo.changes.removedComparedToApproved")}
-            </p>
-            <ChipList items={removedDiseases} t={t} />
-          </div>
-        )}
-      </>
-    )}
-  </div>
-
-  {/* Allergies */}
-  <div>
-    <p className="mb-1 font-medium">
-      {t("myHealthInfo.sections.conditions.allergies")}
-    </p>
-    <ChipList items={latestAllergies} t={t} />
-
-    {allergiesChanged && (
-      <>
-        <div className="mt-2">
-          <p className="text-xs text-slate-600">
-            {t("myHealthInfo.changes.previouslyApproved")}
-          </p>
-          <ChipList items={approvedAllergies} t={t} />
-        </div>
-
-        {addedAllergies.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-slate-600">
-              {t("myHealthInfo.changes.addedComparedToApproved")}
-            </p>
-            <ChipList items={addedAllergies} t={t} />
-          </div>
-        )}
-
-        {removedAllergies.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-slate-600">
-              {t("myHealthInfo.changes.removedComparedToApproved")}
-            </p>
-            <ChipList items={removedAllergies} t={t} />
-          </div>
-        )}
-      </>
-    )}
-  </div>
-
-  {/* Medications */}
-  <div>
-    <p className="mb-1 font-medium">
-      {t("myHealthInfo.sections.conditions.medications")}
-    </p>
-    <ChipList items={latestMedications} t={t} />
-
-    {medicationsChanged && (
-      <>
-        <div className="mt-2">
-          <p className="text-xs text-slate-600">
-            {t("myHealthInfo.changes.previouslyApproved")}
-          </p>
-          <ChipList items={approvedMedications} t={t} />
-        </div>
-
-        {addedMedications.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-slate-600">
-              {t("myHealthInfo.changes.addedComparedToApproved")}
-            </p>
-            <ChipList items={addedMedications} t={t} />
-          </div>
-        )}
-
-        {removedMedications.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs text-slate-600">
-              {t("myHealthInfo.changes.removedComparedToApproved")}
-            </p>
-            <ChipList items={removedMedications} t={t} />
-          </div>
-        )}
-      </>
-    )}
-  </div>
-  </div>
-</div>
       </section>
 
-      {/* Approve / reject actions */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
+          <div className="rounded-lg bg-white p-2 text-emerald-500 shadow-sm">
+            <Stethoscope className="h-4 w-4" />
+          </div>
+        
+
+  <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.conditions.title")}</h3>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
+          <div className="space-y-3">
+            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <Activity className="h-4 w-4 text-rose-400" /> {t("myHealthInfo.sections.conditions.diseases")}
+            </h4>
+            <ChipList items={latestDiseases} t={t} />
+            {diseasesChanged && (
+              <>
+                <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
+                <ChipList items={approvedDiseases} t={t} />
+                {addedDiseases.length > 0 && <ChipList items={addedDiseases} t={t} tone="success" />}
+                {removedDiseases.length > 0 && <ChipList items={removedDiseases} t={t} tone="danger" />}
+              </>
+            )}
+          </div>
+       <div className="space-y-3">
+            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <Droplets className="h-4 w-4 text-amber-400" /> {t("myHealthInfo.sections.conditions.allergies")}
+            </h4>
+            <ChipList items={latestAllergies} t={t} />
+            {allergiesChanged && (
+              <>
+                <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
+                <ChipList items={approvedAllergies} t={t} />
+                {addedAllergies.length > 0 && <ChipList items={addedAllergies} t={t} tone="success" />}
+                {removedAllergies.length > 0 && <ChipList items={removedAllergies} t={t} tone="danger" />}
+              </>
+            )}
+          </div>
+      <div className="space-y-3">
+            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <Pill className="h-4 w-4 text-blue-400" /> {t("myHealthInfo.sections.conditions.medications")}
+            </h4>
+            <ChipList items={latestMedications} t={t} />
+            {medicationsChanged && (
+              <>
+                <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
+                <ChipList items={approvedMedications} t={t} />
+                {addedMedications.length > 0 && <ChipList items={addedMedications} t={t} tone="success" />}
+                {removedMedications.length > 0 && <ChipList items={removedMedications} t={t} tone="danger" />}
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
       {latestSource && pendingDecision && (
         <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-700">
-            {t("myHealthInfo.actions.approveIntro")}
-          </p>
+            <p className="text-sm text-slate-700">{t("myHealthInfo.actions.approveIntro")}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button
-              onClick={handleApprove}
-              disabled={approving || rejecting}
-            >
-              {approving
+            <Button onClick={handleApprove} disabled={approveMutation.isPending || rejectMutation.isPending}>
+              {approveMutation.isPending
                 ? t("myHealthInfo.actions.approving")
                 : t("myHealthInfo.actions.approve")}
             </Button>
             <Button
               variant="secondary"
               onClick={handleReject}
-              disabled={approving || rejecting}
+               disabled={approveMutation.isPending || rejectMutation.isPending}
             >
-              {rejecting
+              {rejectMutation.isPending
                 ? t("myHealthInfo.actions.rejecting")
                 : t("myHealthInfo.actions.reject")}
             </Button>
@@ -986,14 +709,7 @@ const prevLocations =
         </section>
       )}
 
-      {showHistory && (
-  <PatientHistoryModal
-    variant="patient"
-    onClose={() => setShowHistory(false)}
-  />
-)}
-
-
-    </main>
+     {showHistory && <PatientHistoryModal onClose={() => setShowHistory(false)} />}
+    </div>
   );
 }
