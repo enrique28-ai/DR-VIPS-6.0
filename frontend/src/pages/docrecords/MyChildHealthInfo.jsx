@@ -142,19 +142,23 @@ function ScalarHistory({
   );
 }
 
-function ChipList({ items, t }) {
+function ChipList({ items, t, tone = "default" }) {
   if (!items || items.length === 0) {
     return (
       <p className="text-sm text-slate-500">{t("myHealthInfo.common.noneRecorded")}</p>
     );
   }
-
+ const chipTone = {
+    default: "border-slate-200 bg-slate-100 text-slate-700",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    danger: "border-rose-200 bg-rose-50 text-rose-700",
+  };
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((it) => (
         <span
           key={it}
-          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${chipTone[tone]}`}
         >
           {it}
         </span>
@@ -550,8 +554,8 @@ export default function MyChildHealthInfo() {
               <>
                 <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
                 <ChipList items={approvedDiseases} t={t} />
-                {addedDiseases.length > 0 && <ChipList items={addedDiseases} t={t} />}
-                {removedDiseases.length > 0 && <ChipList items={removedDiseases} t={t} />}
+                {addedDiseases.length > 0 && <ChipList items={addedDiseases} t={t} tone="success" />}
+                {removedDiseases.length > 0 && <ChipList items={removedDiseases} t={t} tone="danger" />}
               </>
             )}
           </div>
@@ -565,8 +569,8 @@ export default function MyChildHealthInfo() {
               <>
                 <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
                 <ChipList items={approvedAllergies} t={t} />
-                {addedAllergies.length > 0 && <ChipList items={addedAllergies} t={t} />}
-                {removedAllergies.length > 0 && <ChipList items={removedAllergies} t={t} />}
+                {addedAllergies.length > 0 && <ChipList items={addedAllergies} t={t} tone="success" />}
+                {removedAllergies.length > 0 && <ChipList items={removedAllergies} t={t} tone="danger" />}
               </>
             )}
           </div>
@@ -580,8 +584,8 @@ export default function MyChildHealthInfo() {
               <>
                 <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
                 <ChipList items={approvedMedications} t={t} />
-                {addedMedications.length > 0 && <ChipList items={addedMedications} t={t} />}
-                {removedMedications.length > 0 && <ChipList items={removedMedications} t={t} />}
+               {addedMedications.length > 0 && <ChipList items={addedMedications} t={t} tone="success" />}
+                {removedMedications.length > 0 && <ChipList items={removedMedications} t={t} tone="danger" />}
               </>
             )}
           </div>
