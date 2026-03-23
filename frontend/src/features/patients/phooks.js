@@ -510,6 +510,14 @@ export function useTranslateMyHealthInfo() {
     onError: () => toast.error("Translation failed"),
   });
 }
+export function useTranslateMyChildrenHealthInfo() {
+  return useMutation({
+    mutationFn: async ({ lang }) =>
+      (await api.get("/patients/me/children/health-info", { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
 
 // === PARENT/TUTOR: CHILDREN HEALTH INFO (MINORS) ===
 export function useMyChildrenHealthInfo(lang) {

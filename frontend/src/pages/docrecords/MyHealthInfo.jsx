@@ -327,6 +327,10 @@ export default function MyHealthInfo() {
     typeof snapshot?.bmi === "number"
       ? snapshot.bmi.toFixed(2)
       : t("myHealthInfo.common.notCalculated");
+ const fullName =
+    scalarValue(snapshot?.fullnameWrapper) ||
+    scalarValue(snapshot?.fullname) ||
+    t("myHealthInfo.sections.basic.fullname");
 
    const latestDiseases = Array.isArray(snapshot?.diseases) ? snapshot.diseases : [];
   const latestAllergies = Array.isArray(snapshot?.allergies) ? snapshot.allergies : [];
@@ -372,9 +376,9 @@ export default function MyHealthInfo() {
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t("navbar.myHealthInfo")}</h1>
+           <h1 className="text-2xl font-bold text-slate-900">{fullName}</h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-            <User2 className="h-4 w-4" /> {t("myHealthInfo.header.description")}
+            <User2 className="h-4 w-4" /> {t("navbar.myHealthInfo")}
           </p>
         </div>
          <div className="flex w-full flex-wrap gap-2 sm:w-auto">

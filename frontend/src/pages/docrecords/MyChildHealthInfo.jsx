@@ -8,6 +8,8 @@ import {
   Mail,
   Stethoscope,
   History,
+  Languages,
+  X,
   Loader2,
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
@@ -16,6 +18,7 @@ import {
   useMyChildrenHealthInfo,
   useApproveChildProfile,
   useRejectChildProfile,
+  useTranslateMyChildrenHealthInfo,
 } from "../../features/patients/phooks.js";
 
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
@@ -166,25 +169,32 @@ function ChipList({ items, t, tone = "default" }) {
     </div>
   );
 }
+function findChildRecord(records, childId) {
+  const arr = Array.isArray(records) ? records : [];
+  return arr.find(
+    (c) => c.profileId === childId || (c?.snapshot?.sources || []).some((s) => s?.id === childId),
+  );
+}
+
 
 export default function MyChildHealthInfo() {
   const { childId } = useParams();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
 
-  const { data: childrenData, isLoading } = useMyChildrenHealthInfo(i18n.language);
+  const { data: childrenData, isLoading } = useMyChildrenHealthInfo();
   const approve = useApproveChildProfile();
   const reject = useRejectChildProfile();
+  const { mutate: translateChildHealthInfo, isPending: isTranslating } = useTranslateMyChildrenHealthInfo();
 
   const [openHistory, setOpenHistory] = useState(false);
+  const [translatedData, setTranslatedData] = useState(null);
+  const [translatedLang, setTranslatedLang] = useState("");
 
   // Encontrar la información del niño seleccionado
-  const childInfo = useMemo(() => {
-    const arr = Array.isArray(childrenData) ? childrenData : [];
-    return arr.find(
-      (c) => c.profileId === childId || (c?.snapshot?.sources || []).some((s) => s?.id === childId),
-    );
-  }, [childrenData, childId]);
+  const childInfo = useMemo(() => findChildRecord(childrenData, childId), [childrenData, childId]);
+  const displayData =
+    translatedData && translatedLang === i18n.language ? translatedData : childInfo;
 
   if (isLoading) {
     return (
@@ -194,7 +204,7 @@ export default function MyChildHealthInfo() {
     );
   }
 
-  if (!childInfo || !childInfo.hasRecords) {
+  if (!displayData || !displayData.hasRecords) {
     return (
       <div className="mx-auto max-w-4xl p-6 text-center">
         <h2 className="text-xl font-bold text-slate-800">{t("myChildren.childNotFound")}</h2>
@@ -206,7 +216,7 @@ export default function MyChildHealthInfo() {
   }
 
   // Desestructuración y variables derivadas
-  const { snapshot, pendingDecision, profileId, parentEmail } = childInfo;
+  const { snapshot, pendingDecision, profileId, parentEmail } = displayData;
   const latestSource = snapshot?.sources?.[0];
   const lastUpdated = formatDateTime(latestSource?.updatedAt, t, i18n.language);
   const doctorName = latestSource?.doctorName || t("myHealthInfo.history.systemUnknown");
@@ -317,6 +327,28 @@ export default function MyChildHealthInfo() {
       ? snapshot.bmi.toFixed(2)
       : t("myHealthInfo.common.notCalculated");
 
+   const fullName =
+    scalarValue(snapshot?.fullnameWrapper) ||
+    scalarValue(snapshot?.fullname) ||
+    t("myChildren.unknownChild");
+
+  const handleTranslate = () => {
+    translateChildHealthInfo(
+      { lang: i18n.language },
+      {
+        onSuccess: (data) => {
+          setTranslatedData(findChildRecord(data, childId) || null);
+          setTranslatedLang(i18n.language);
+        },
+      },
+    );
+  };
+
+  const clearTranslatedData = () => {
+    setTranslatedData(null);
+    setTranslatedLang("");
+  };
+
   const handleApprove = () => approve.mutate(profileId);
   const handleReject = () => reject.mutate(profileId);
 
@@ -325,18 +357,33 @@ export default function MyChildHealthInfo() {
       {/* --- CABECERA --- */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            {scalarValue(snapshot?.fullnameWrapper) || t("myChildren.unknownChild")}
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">{fullName}</h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
             <User2 className="h-4 w-4" /> {t("myChildren.healthInfo")}
           </p>
         </div>
 
-        <Button variant="secondary" onClick={() => setOpenHistory(true)} className="w-full sm:w-auto">
-          <History className="mr-2 h-4 w-4" />
-          {t("myHealthInfo.history.button")}
-        </Button>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Button variant="secondary" onClick={() => setOpenHistory(true)} className="w-full sm:w-auto">
+            <History className="mr-2 h-4 w-4" />
+            {t("myHealthInfo.history.button")}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleTranslate}
+            disabled={isTranslating}
+            className="w-full sm:w-auto"
+          >
+            <Languages className="mr-2 h-4 w-4" />
+            {isTranslating ? t("common.loading") : t("common.translate")}
+          </Button>
+          {translatedData && translatedLang === i18n.language && (
+            <Button variant="secondary" onClick={clearTranslatedData} className="w-full sm:w-auto">
+              <X className="mr-2 h-4 w-4" />
+              {t("myHealthInfo.actions.clearTranslation")}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* --- BANNER DE ESTADO --- */}
