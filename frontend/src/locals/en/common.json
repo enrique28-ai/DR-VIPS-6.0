@@ -634,6 +634,8 @@
       "previouslyApproved": "Previously approved",
       "addedComparedToApproved": "Added compared to approved version",
       "removedComparedToApproved": "Removed compared to approved version",
+      "thisWasAdded": "This was added",
+      "thisWasRemoved": "This was removed",
       "unitsChanged": "Units changed: {{from}} → {{to}}"
     },
   "error": {

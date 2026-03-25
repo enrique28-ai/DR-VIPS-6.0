@@ -622,6 +622,8 @@
       "previouslyApproved": "Aprobado previamente",
       "removedComparedToApproved": "Eliminado en comparación con la versión aprobada",
       "addedComparedToApproved": "Agregado comparado con la versión aprobada",
+      "thisWasAdded": "Esto se agregó",
+      "thisWasRemoved": "Esto se eliminó",
       "unitsChanged": "Unidades cambiadas: {{from}} → {{to}}"
     },
   "error": {
