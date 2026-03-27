@@ -1,5 +1,4 @@
 import axios from "axios";
-import { toast } from "react-hot-toast";
 const api = axios.create({
   baseURL: import.meta.env.MODE === "development" ? "http://localhost:5001/api" : "/api",
   withCredentials: true,
@@ -16,21 +15,5 @@ api.interceptors.request.use((config) => {
   config.headers["x-lang"] = lang;
   return config;
 });
-
-
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    const status = err?.response?.status;
-    if (status === 429) {
-      const h = err.response.headers || {};
-      const secs = parseInt(h["ratelimit-reset"] || h["retry-after"] || "", 10) || 0;
-      toast.error(
-        secs ? `Too many requests. Try again in ${secs}s.` : "Too many requests. Try again later."
-      );
-    }
-    return Promise.reject(err);
-  }
-);
 
 export default api;

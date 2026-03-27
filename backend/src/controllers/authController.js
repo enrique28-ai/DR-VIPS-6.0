@@ -16,7 +16,10 @@ import path from "path";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-const PENDING_SECRET = process.env.PENDING_SECRET || "pending_dev_secret";
+const PENDING_SECRET = process.env.PENDING_SECRET;
+if (!PENDING_SECRET) {
+  throw new Error("Missing required env var: PENDING_SECRET");
+}
 const COOKIE_PENDING = "g_pending"; // cookie httpOnly para el paso de elegir rol (10 min)
 import { v2 as cloudinary } from "cloudinary";
 

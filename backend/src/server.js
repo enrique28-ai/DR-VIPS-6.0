@@ -17,6 +17,13 @@ import { startReminderJob } from "./services/reminderService.js";
 
 
 dotenv.config();
+const requiredEnv = ["MONGO_URI", "JWT_SECRET", "PENDING_SECRET"];
+
+for (const key of requiredEnv) {
+  if (!process.env[key]) {
+    throw new Error(`Missing required env var: ${key}`);
+  }
+}
 const app = express();
 const PORT = process.env.PORT || 5001;
 const __dirname = path.resolve();
