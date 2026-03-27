@@ -43,7 +43,7 @@ import PatientHistory from "../models/PatientHistory.js";
 import { translatePatientDoc,
   translateHealthSnapshot } from "../utils/deeplTranslate.js";
 
-
+import { getMyHistoryService } from "../services/patients/patientHistoryService.js";
 
 /**
  * Crear paciente
@@ -1744,62 +1744,14 @@ if (target?.approvedAt) {
  */
 export const getMyHistory = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const email = (req.user.email || "").toLowerCase().trim();
-    if (!email) {
-      return res.status(400).json({ error: "User has no email on file" });
-    }
-
-    // Historial agrupado por email (tu identidad en portal)
-    let history = await PatientHistory.find({ patientEmail: email })
-      .sort({ approvedAt: -1 })
-      .populate("editedBy", "name email")
-      .lean();
-
-    // ✅ Bootstrap opcional: si ya existe approvedSnapshot en Patient pero todavía no hay history
-    if (!history.length) {
-      const p = await Patient.findOne({ email })
-        .select("email phoneDigits approvedSnapshot approvedAt lastEditedBy createdBy")
-        .lean();
-
-      if (p?.approvedSnapshot && p?.approvedAt) {
-        await PatientHistory.create({
-          patientEmail: email,
-          patientPhoneDigits: p.phoneDigits || undefined,
-          approvedFromProfile: p._id,
-          editedBy: p.lastEditedBy || p.createdBy || null,
-          approvedSnapshot: p.approvedSnapshot,
-          approvedAt: p.approvedAt,
-        });
-
-        history = await PatientHistory.find({ patientEmail: email })
-          .sort({ approvedAt: -1 })
-          .populate("editedBy", "name email")
-          .lean();
-      }
-    }
-
-    const out = history.map((h) => {
-  const raw = h?.approvedSnapshot?.set || h?.snapshot || h?.approvedSnapshot || null;
-  if (!raw) return h;
-
-  const withAge = applyDynamicAgeToSnapshotSet(raw);
-
-  if (h?.approvedSnapshot?.set) h.approvedSnapshot = { ...h.approvedSnapshot, set: withAge };
-  else if (h?.approvedSnapshot) h.approvedSnapshot = withAge;
-  else h.snapshot = withAge;
-
-  return h;
-});
-
-return res.json(out);
+    const data = await getMyHistoryService({ user: req.user });
+    return res.json(data);
 
   } catch (err) {
     console.error("getMyHistory error:", err);
-    return res.status(500).json({ error: "Server error fetching history" });
+     return res.status(err.status || 500).json({
+      error: err.message || "Server error fetching history",
+    });
   }
 };
 
