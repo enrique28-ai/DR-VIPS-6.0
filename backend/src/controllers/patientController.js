@@ -43,7 +43,10 @@ import PatientHistory from "../models/PatientHistory.js";
 import { translatePatientDoc,
   translateHealthSnapshot } from "../utils/deeplTranslate.js";
 
-import { getMyHistoryService } from "../services/patients/patientHistoryService.js";
+import {
+  getMyHistoryService,
+  getPatientHistoryService,
+} from "../services/patients/patientHistoryService.js";
 
 /**
  * Crear paciente
@@ -1760,67 +1763,17 @@ export const getMyHistory = async (req, res) => {
  */
 export const getPatientHistory = async (req, res) => {
   try {
-    const patientId = req.params.id;
-
-    // Verifica acceso: creador u owner (tu schema ya tiene owners)
-    const p = await Patient.findOne({
-      _id: patientId,
-      $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-    })
-      .select("email phoneDigits approvedSnapshot approvedAt lastEditedBy createdBy")
-      .lean();
-
-    if (!p) {
-      return res.status(403).json({ error: "You do not have access to this patient." });
-    }
-
-    const ident = identityQueryFromPatient(p);
-    if (!ident) return res.json([]);
-
-    let history = await PatientHistory.find(ident)
-      .sort({ approvedAt: -1 })
-      .populate("editedBy", "name email")
-      .lean();
-
-    // ✅ Bootstrap opcional (igual que paciente)
-    if (!history.length && p?.approvedSnapshot && p?.approvedAt) {
-      await PatientHistory.create({
-        patientEmail: p.email ? String(p.email).toLowerCase().trim() : undefined,
-        patientPhoneDigits: p.phoneDigits || undefined,
-        approvedFromProfile: p._id,
-        editedBy: p.lastEditedBy || p.createdBy || null,
-        approvedSnapshot: p.approvedSnapshot,
-        approvedAt: p.approvedAt,
-      });
-
-      history = await PatientHistory.find(ident)
-        .sort({ approvedAt: -1 })
-        .populate("editedBy", "name email")
-        .lean();
-    }
-
-  const out = history.map((h) => {
-  const raw = h?.approvedSnapshot?.set || h?.snapshot || h?.approvedSnapshot || null;
-  if (!raw) return h;
-
-  const withAge = applyDynamicAgeToSnapshotSet(raw);
-
-  if (h?.approvedSnapshot?.set) {
-    h.approvedSnapshot = { ...h.approvedSnapshot, set: withAge };
-  } else if (h?.approvedSnapshot) {
-    h.approvedSnapshot = withAge;
-  } else {
-    h.snapshot = withAge;
-  }
-
-  return h;
-});
-
-return res.json(out);
+    const data = await getPatientHistoryService({
+      user: req.user,
+      patientId: req.params.id,
+    });
+    return res.json(data);
 
   } catch (err) {
     console.error("getPatientHistory error:", err);
-    return res.status(500).json({ error: "Server error fetching history" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Server error fetching history",
+    });
   }
 };
 
