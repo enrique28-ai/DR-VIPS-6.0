@@ -10,8 +10,6 @@ import {
 } from "../controllers/authController.js";
 import { protect } from "../middleware/auth.js";
 import { verifyRecaptcha } from "../middleware/recaptcha.js";
-import path from "path";
-import fs from "fs";
 import multer from "multer";
 import { authLimiter, forgotLimiter } from "../middleware/rateLimit.js";
 

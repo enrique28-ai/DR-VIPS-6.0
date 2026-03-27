@@ -11,7 +11,7 @@ const api = axios.create({
 
 // ✅ ADD: send selected language
 api.interceptors.request.use((config) => {
-  const lang = localStorage.getItem("lang") || "en"; // i18n lo guarda ahí :contentReference[oaicite:6]{index=6}
+  const lang = localStorage.getItem("lang") || "en"; 
   config.headers = config.headers || {};
   config.headers["x-lang"] = lang;
   return config;

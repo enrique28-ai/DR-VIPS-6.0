@@ -8,18 +8,7 @@ import i18n from "../i18n";
 
 
 const API = import.meta.env.MODE === "development" ? "http://localhost:5001/api/auth" : "/auth";
-api.defaults.withCredentials = true;
 
-if (!api.__drvipsLangInterceptor) {
-  api.__drvipsLangInterceptor = true;
-
-  api.interceptors.request.use((config) => {
-    const lang = localStorage.getItem("lang") || "en";
-    config.headers = config.headers || {};
-    config.headers["x-lang"] = lang;
-    return config;
-  });
-}
 
 const msgFromCode = (code, fallback, backendMsg) => {
   const map = {
@@ -238,19 +227,6 @@ export const useAuthStore = create(persist((set) => ({
       throw err;
     }
   },
-  // Nueva: valida captcha -> deja cookie -> redirige a Google
- /* googleStart: async (recaptchaToken) => {
-    try{
-    await api.post(`${API}/google/recaptcha`, { recaptchaToken });
-    window.location.href = `${API}/google/init`;
-    } catch (err) {
-      if (err?.response?.status === 429) {  rateToast(err);  throw err; }
-      toast.error(extract(err, i18n.t("auth.toasts.googleFailed")));
-      throw err;
-    }
-  },*/
-
-  // src/stores/authStore.js
 
  googleStart: async (recaptchaToken) => {
     try {
