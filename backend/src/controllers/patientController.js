@@ -40,8 +40,7 @@ import {
   parseYmdToUtcNoon,
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
-import { translatePatientDoc,
-  translateHealthSnapshot } from "../utils/deeplTranslate.js";
+import { translateHealthSnapshot } from "../utils/deeplTranslate.js";
 
 import {
   getMyHistoryService,
@@ -51,6 +50,7 @@ import {
   getChildHistoryService,
   getChildHistoryOneService,
 } from "../services/patients/patientHistoryService.js";
+import { getPatientByIdService } from "../services/patients/patientReadService.js";
 
 /**
  * Crear paciente
@@ -618,26 +618,17 @@ export const importPatient = async (req, res) => {
  */
 export const getPatientById = async (req, res) => {
   try {
-    const doc = await Patient.findOne({
-      _id: req.params.id,
-      $or: [{ owners: req.user._id }, { createdBy: req.user._id }],
-    }).lean({ virtuals: true });
-
-    if (!doc) return res.status(404).json({ error: "Paciente no encontrado" });
-
-     applyDynamicAgeToPatient(doc);
-
-     
-        const lang = (req.query.lang || "").trim();
-    if (lang) {
-      const translated = await translatePatientDoc(doc, lang);
-      return res.json(translated);
-    }
-
-    return res.json(doc);
+    const data = await getPatientByIdService({
+      user: req.user,
+      patientId: req.params.id,
+      lang: (req.query.lang || "").trim(),
+    });
+    return res.json(data);
   } catch (err) {
     console.error("getPatientById error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 
