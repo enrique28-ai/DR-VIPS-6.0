@@ -181,3 +181,51 @@ export const getPatientHistoryOneService = async ({ user, patientId, historyId, 
 
   return ver;
 };
+
+export const getMyHistoryOneService = async ({ user, historyId, req }) => {
+  if (user.role !== "patient") {
+    const err = new Error("Insufficient role");
+    err.status = 403;
+    throw err;
+  }
+
+  const lang = getLang(req);
+  if (!lang) {
+    const err = new Error("lang is required");
+    err.status = 400;
+    throw err;
+  }
+
+  const email = (user.email || "").toLowerCase().trim();
+  if (!email) {
+    const err = new Error("User has no email on file");
+    err.status = 400;
+    throw err;
+  }
+
+  const ver = await PatientHistory.findOne({ _id: historyId, patientEmail: email })
+    .populate("editedBy", "name email")
+    .lean();
+
+  if (!ver) {
+    const err = new Error("History not found");
+    err.status = 404;
+    throw err;
+  }
+
+  const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
+  if (!raw) return ver;
+
+  const translated = await translatePatientDoc(raw, lang);
+  const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
+
+  if (ver?.approvedSnapshot?.set) {
+    ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
+  } else if (ver?.approvedSnapshot) {
+    ver.approvedSnapshot = translatedWithAge;
+  } else {
+    ver.snapshot = translatedWithAge;
+  }
+
+  return ver;
+};

@@ -47,6 +47,7 @@ import {
   getMyHistoryService,
   getPatientHistoryService,
   getPatientHistoryOneService,
+  getMyHistoryOneService,
 } from "../services/patients/patientHistoryService.js";
 
 /**
@@ -1799,43 +1800,17 @@ export const getPatientHistoryOne = async (req, res) => {
 // GET /api/patients/me/history/:historyId?lang=xx  (patient)
 export const getMyHistoryOne = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const historyId = req.params.historyId;
-    const lang = getLang(req);
-    if (!lang) return res.status(400).json({ error: "lang is required" });
-
-    const email = (req.user.email || "").toLowerCase().trim();
-    if (!email) return res.status(400).json({ error: "User has no email on file" });
-
-    const ver = await PatientHistory.findOne({ _id: historyId, patientEmail: email })
-      .populate("editedBy", "name email")
-      .lean();
-
-    if (!ver) return res.status(404).json({ error: "History not found" });
-
-    const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
-    if (!raw) return res.json(ver);
-
-    const translated = await translatePatientDoc(raw, lang);
-
-// ✅ apply dynamic age AFTER translate
-const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
-
-if (ver?.approvedSnapshot?.set) {
-  ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
-} else if (ver?.approvedSnapshot) {
-  ver.approvedSnapshot = translatedWithAge;
-} else {
-  ver.snapshot = translatedWithAge;
-}
-
-return res.json(ver);
+    const data = await getMyHistoryOneService({
+      user: req.user,
+      historyId: req.params.historyId,
+      req,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("getMyHistoryOne error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 
