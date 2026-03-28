@@ -277,3 +277,61 @@ export const getChildHistoryService = async ({ user, childId }) => {
 
   return history;
 };
+
+export const getChildHistoryOneService = async ({ user, childId, historyId, req }) => {
+  if (user.role !== "patient") {
+    const err = new Error("Insufficient role");
+    err.status = 403;
+    throw err;
+  }
+
+  const lang = getLang(req);
+  if (!lang) {
+    const err = new Error("lang is required");
+    err.status = 400;
+    throw err;
+  }
+
+  const parentEmail = normLower(user.email);
+  const child = await Patient.findOne({
+    _id: childId,
+    parentEmail,
+    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
+  })
+    .select("minorKey fullname parentEmail")
+    .lean();
+
+  if (!child) {
+    const err = new Error("CHILD_PROFILE_NOT_FOUND");
+    err.status = 404;
+    throw err;
+  }
+
+  const key = child.minorKey || minorKeyOf(parentEmail, child.fullname);
+
+  const ver = await PatientHistory.findOne({ _id: historyId, patientKey: key })
+    .populate("editedBy", "name email role")
+    .lean();
+
+  if (!ver) {
+    const err = new Error("History not found");
+    err.status = 404;
+    throw err;
+  }
+
+  const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
+  if (!raw) return ver;
+
+  const translated = await translatePatientDoc(raw, lang);
+  const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
+
+  if (ver?.approvedSnapshot?.set) {
+    ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
+  } else if (ver?.approvedSnapshot) {
+    ver.approvedSnapshot = translatedWithAge;
+  } else {
+    ver.snapshot = translatedWithAge;
+  }
+
+  return ver;
+};

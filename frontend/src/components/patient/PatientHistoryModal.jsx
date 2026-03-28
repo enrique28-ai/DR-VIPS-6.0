@@ -228,20 +228,18 @@ const handleTranslateSnap = (historyId) => {
       t={t}
       i18n={i18n}
       right={
-  variant === "child" ? null : (
-    <button
-      onClick={() => handleTranslateSnap(ver._id)}
-      disabled={translatingId === ver._id}
-      className="ml-3 rounded-full p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
-      title={trOr(t, "common.translate", "Translate")}
-    >
-      {translatingId === ver._id ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Languages className="h-4 w-4" />
-      )}
-    </button>
-  )
+  <button
+    onClick={() => handleTranslateSnap(ver._id)}
+    disabled={translatingId === ver._id}
+    className="ml-3 rounded-full p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+    title={trOr(t, "common.translate", "Translate")}
+  >
+    {translatingId === ver._id ? (
+      <Loader2 className="h-4 w-4 animate-spin" />
+    ) : (
+      <Languages className="h-4 w-4" />
+    )}
+  </button>
 }
 
     />

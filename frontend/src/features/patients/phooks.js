@@ -496,6 +496,8 @@ export function useTranslatePatientHistorySnapshot() {
       const url =
         variant === "doctor"
           ? `/patients/${patientId}/history/${historyId}`
+          : variant === "child"
+          ? `/patients/me/children/${patientId}/history/${historyId}`
           : `/patients/me/history/${historyId}`;
 
       return (await api.get(url, { params: { lang } })).data;

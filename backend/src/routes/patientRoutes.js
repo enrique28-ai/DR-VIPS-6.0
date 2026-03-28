@@ -20,7 +20,8 @@ getPatientHistoryOne,
 getMyChildrenHealthInfo,
 approveChildProfile,
 rejectChildProfile,
-getChildHistory
+getChildHistory,
+getChildHistoryOne
 } from "../controllers/patientController.js";
 import { writeLimiter, readLimiter } from "../middleware/rateLimit.js";
 
@@ -46,6 +47,7 @@ router.get("/me/children/health-info", protect, requireVerified, requireRole("pa
 router.post("/me/children/health-info/approve/:id", protect, requireVerified, requireRole("patient"), writeLimiter, approveChildProfile);
 router.post("/me/children/health-info/reject/:id", protect, requireVerified, requireRole("patient"), writeLimiter, rejectChildProfile);
 router.get("/me/children/:childId/history", protect, requireVerified, requireRole("patient"), readLimiter, getChildHistory);
+router.get("/me/children/:childId/history/:historyId", protect, requireVerified, requireRole("patient"), readLimiter, getChildHistoryOne);
 
 
 router.get("/:id",protect, requireVerified, requireRole("doctor"), readLimiter, getPatientById);

@@ -49,6 +49,7 @@ import {
   getPatientHistoryOneService,
   getMyHistoryOneService,
   getChildHistoryService,
+  getChildHistoryOneService,
 } from "../services/patients/patientHistoryService.js";
 
 /**
@@ -2232,3 +2233,19 @@ export const getChildHistory = async (req, res) => {
   }
 };
 
+export const getChildHistoryOne = async (req, res) => {
+  try {
+    const data = await getChildHistoryOneService({
+      user: req.user,
+      childId: req.params.childId,
+      historyId: req.params.historyId,
+      req,
+    });
+    return res.json(data);
+  } catch (err) {
+    console.error("getChildHistoryOne error:", err);
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+    });
+  }
+};
