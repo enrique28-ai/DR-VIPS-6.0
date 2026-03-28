@@ -46,6 +46,7 @@ import { translatePatientDoc,
 import {
   getMyHistoryService,
   getPatientHistoryService,
+  getPatientHistoryOneService,
 } from "../services/patients/patientHistoryService.js";
 
 /**
@@ -1780,52 +1781,18 @@ export const getPatientHistory = async (req, res) => {
 // GET /api/patients/:id/history/:historyId?lang=xx  (doctor)
 export const getPatientHistoryOne = async (req, res) => {
   try {
-    const patientId = req.params.id;
-    const historyId = req.params.historyId;
-
-    const lang = getLang(req);
-    if (!lang) return res.status(400).json({ error: "lang is required" });
-
-    // Acceso doctor: creador u owner
-    const p = await Patient.findOne({
-      _id: patientId,
-      $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-    })
-      .select("email phoneDigits")
-      .lean();
-
-    if (!p) return res.status(403).json({ error: "Not authorized" });
-
-    const ident = identityQueryFromPatient(p);
-    if (!ident) return res.status(404).json({ error: "History not found" });
-
-    const ver = await PatientHistory.findOne({ _id: historyId, ...ident })
-      .populate("editedBy", "name email")
-      .lean();
-
-    if (!ver) return res.status(404).json({ error: "History not found" });
-
-    // Tu frontend usa: ver.approvedSnapshot?.set || ver.snapshot
-    const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
-    if (!raw) return res.json(ver);
-
-    const translated = await translatePatientDoc(raw, lang);
-
-// ✅ apply dynamic age AFTER translate
-const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
-
-if (ver?.approvedSnapshot?.set) {
-  ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
-} else if (ver?.approvedSnapshot) {
-  ver.approvedSnapshot = translatedWithAge;
-} else {
-  ver.snapshot = translatedWithAge;
-}
-
-return res.json(ver);
+    const data = await getPatientHistoryOneService({
+      user: req.user,
+      patientId: req.params.id,
+      historyId: req.params.historyId,
+      req,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("getPatientHistoryOne error:", err);
-    return res.status(500).json({ error: "Server error" });
+     return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 

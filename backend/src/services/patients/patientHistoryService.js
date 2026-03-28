@@ -3,7 +3,10 @@ import PatientHistory from "../../models/PatientHistory.js";
 import {
   identityQueryFromPatient,
   applyDynamicAgeToSnapshotSet,
+   getLang,
 } from "../../controllers/helpers/patienthelpers.js";
+import { translatePatientDoc } from "../../utils/deeplTranslate.js";
+
 
 export const getMyHistoryService = async ({ user }) => {
   if (user.role !== "patient") {
@@ -122,4 +125,59 @@ export const getPatientHistoryService = async ({ user, patientId }) => {
   });
 
   return out;
+};
+
+export const getPatientHistoryOneService = async ({ user, patientId, historyId, req }) => {
+  const lang = getLang(req);
+  if (!lang) {
+    const err = new Error("lang is required");
+    err.status = 400;
+    throw err;
+  }
+
+  const p = await Patient.findOne({
+    _id: patientId,
+    $or: [{ createdBy: user._id }, { owners: user._id }],
+  })
+    .select("email phoneDigits")
+    .lean();
+
+  if (!p) {
+    const err = new Error("Not authorized");
+    err.status = 403;
+    throw err;
+  }
+
+  const ident = identityQueryFromPatient(p);
+  if (!ident) {
+    const err = new Error("History not found");
+    err.status = 404;
+    throw err;
+  }
+
+  const ver = await PatientHistory.findOne({ _id: historyId, ...ident })
+    .populate("editedBy", "name email")
+    .lean();
+
+  if (!ver) {
+    const err = new Error("History not found");
+    err.status = 404;
+    throw err;
+  }
+
+  const raw = ver?.approvedSnapshot?.set || ver?.snapshot || ver?.approvedSnapshot || null;
+  if (!raw) return ver;
+
+  const translated = await translatePatientDoc(raw, lang);
+  const translatedWithAge = applyDynamicAgeToSnapshotSet(translated);
+
+  if (ver?.approvedSnapshot?.set) {
+    ver.approvedSnapshot = { ...ver.approvedSnapshot, set: translatedWithAge };
+  } else if (ver?.approvedSnapshot) {
+    ver.approvedSnapshot = translatedWithAge;
+  } else {
+    ver.snapshot = translatedWithAge;
+  }
+
+  return ver;
 };
