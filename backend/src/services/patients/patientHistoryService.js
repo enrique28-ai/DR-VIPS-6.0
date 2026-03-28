@@ -3,7 +3,10 @@ import PatientHistory from "../../models/PatientHistory.js";
 import {
   identityQueryFromPatient,
   applyDynamicAgeToSnapshotSet,
-   getLang,
+  getLang,
+  normLower,
+  minorKeyOf,
+  minorQueryByBirthDateOrLegacy,
 } from "../../controllers/helpers/patienthelpers.js";
 import { translatePatientDoc } from "../../utils/deeplTranslate.js";
 
@@ -228,4 +231,38 @@ export const getMyHistoryOneService = async ({ user, historyId, req }) => {
   }
 
   return ver;
+};
+
+export const getChildHistoryService = async ({ user, childId }) => {
+  if (user.role !== "patient") {
+    const err = new Error("Insufficient role");
+    err.status = 403;
+    throw err;
+  }
+
+  const parentEmail = normLower(user.email);
+  const childProfileId = childId;
+
+  const child = await Patient.findOne({
+    _id: childProfileId,
+    parentEmail,
+    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
+  })
+    .select("minorKey fullname parentEmail")
+    .lean();
+
+  if (!child) {
+    const err = new Error("CHILD_PROFILE_NOT_FOUND");
+    err.status = 404;
+    throw err;
+  }
+
+  const key = child.minorKey || minorKeyOf(parentEmail, child.fullname);
+
+  const history = await PatientHistory.find({ patientKey: key })
+    .sort({ approvedAt: -1 })
+    .populate("editedBy", "name email role")
+    .lean();
+
+  return history;
 };

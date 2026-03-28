@@ -48,6 +48,7 @@ import {
   getPatientHistoryService,
   getPatientHistoryOneService,
   getMyHistoryOneService,
+  getChildHistoryService,
 } from "../services/patients/patientHistoryService.js";
 
 /**
@@ -2218,36 +2219,16 @@ export const rejectChildProfile = async (req, res) => {
 
 export const getChildHistory = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const parentEmail = normLower(req.user.email);
-    const childProfileId = req.params.childId;
-
-    const child = await Patient.findOne({
-      _id: childProfileId,
-      parentEmail,
-      ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
-    })
-      .select("minorKey fullname parentEmail")
-      .lean();
-
-    if (!child) {
-      return res.status(404).json({ errorCode: "CHILD_PROFILE_NOT_FOUND" });
-    }
-
-    const key = child.minorKey || minorKeyOf(parentEmail, child.fullname);
-
-    const history = await PatientHistory.find({ patientKey: key })
-      .sort({ approvedAt: -1 })
-      .populate("editedBy", "name email role")
-      .lean();
-
-    return res.json(history);
+    const data = await getChildHistoryService({
+      user: req.user,
+      childId: req.params.childId,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("getChildHistory error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+    });
   }
 };
 
