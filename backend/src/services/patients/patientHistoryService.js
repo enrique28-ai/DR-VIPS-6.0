@@ -77,7 +77,7 @@ export const getPatientHistoryService = async ({ user, patientId }) => {
     _id: patientId,
     $or: [{ createdBy: user._id }, { owners: user._id }],
   })
-    .select("email phoneDigits approvedSnapshot approvedAt lastEditedBy createdBy")
+    .select("email phoneDigits minorKey parentEmail fullname approvedSnapshot approvedAt lastEditedBy createdBy")
     .lean();
 
   if (!p) {
@@ -86,7 +86,12 @@ export const getPatientHistoryService = async ({ user, patientId }) => {
     throw err;
   }
 
-  const ident = identityQueryFromPatient(p);
+  const childKey =
+    p?.minorKey || (p?.parentEmail ? minorKeyOf(p.parentEmail, p.fullname) : "");
+
+  const ident = childKey
+    ? { patientKey: childKey }
+    : identityQueryFromPatient(p);
   if (!ident) return [];
 
   let history = await PatientHistory.find(ident)
@@ -98,6 +103,7 @@ export const getPatientHistoryService = async ({ user, patientId }) => {
     await PatientHistory.create({
       patientEmail: p.email ? String(p.email).toLowerCase().trim() : undefined,
       patientPhoneDigits: p.phoneDigits || undefined,
+      patientKey: childKey || undefined,
       approvedFromProfile: p._id,
       editedBy: p.lastEditedBy || p.createdBy || null,
       approvedSnapshot: p.approvedSnapshot,
@@ -142,7 +148,7 @@ export const getPatientHistoryOneService = async ({ user, patientId, historyId, 
     _id: patientId,
     $or: [{ createdBy: user._id }, { owners: user._id }],
   })
-    .select("email phoneDigits")
+    .select("email phoneDigits minorKey parentEmail fullname")
     .lean();
 
   if (!p) {
@@ -151,7 +157,12 @@ export const getPatientHistoryOneService = async ({ user, patientId, historyId, 
     throw err;
   }
 
-  const ident = identityQueryFromPatient(p);
+  const childKey =
+    p?.minorKey || (p?.parentEmail ? minorKeyOf(p.parentEmail, p.fullname) : "");
+
+  const ident = childKey
+    ? { patientKey: childKey }
+    : identityQueryFromPatient(p);
   if (!ident) {
     const err = new Error("History not found");
     err.status = 404;
