@@ -53,6 +53,7 @@ import {
 import {
   getPatientByIdService,
   getGlobalPatientPreviewService,
+  searchGlobalPatientsService,
 } from "../services/patients/patientReadService.js";
 
 /**
@@ -513,33 +514,16 @@ export const getMyPatients = async (req, res) => {
  */
 export const searchGlobalPatients = async (req, res) => {
   try {
-    const term = String(req.query.q || "").trim();
-    if (!term || term.length < 3) {
-      return res.status(400).json({ error: "Search term must be at least 3 characters" });
-    }
-
-    const mineExpr = { $or: [{ owners: req.user._id }, { createdBy: req.user._id }] };
-    const rx = { $regex: term, $options: "i" };
-
-    const or = [{ fullname: rx }, { email: rx }, { phone: rx }];
-
-    const qDigits = term.replace(/\D/g, "");
-    if (qDigits && qDigits.length >= 3) {
-      or.push({ phoneDigits: new RegExp(qDigits) });
-    }
-
-    const query = { $and: [{ $nor: [mineExpr] }, { $or: or }] };
-
-    const patients = await Patient.find(query)
-      .select("fullname email phone age gender country city state approvedAt updatedAt")
-      .limit(10)
-      .lean({ virtuals: true });
-
-    const out = patients.map((p) => applyDynamicAgeToPatient(p));
-    return res.json(out);
+    const data = await searchGlobalPatientsService({
+      user: req.user,
+      term: req.query.q,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("searchGlobalPatients error:", err);
-    return res.status(500).json({ error: "Server error" });
+     return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 

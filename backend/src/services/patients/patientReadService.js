@@ -40,3 +40,32 @@ export const getGlobalPatientPreviewService = async ({ user, patientId }) => {
 
   return { ...doc, amIOwner };
 };
+
+export const searchGlobalPatientsService = async ({ user, term }) => {
+  const q = String(term || "").trim();
+
+  if (!q || q.length < 3) {
+    const err = new Error("Search term must be at least 3 characters");
+    err.status = 400;
+    throw err;
+  }
+
+  const mineExpr = { $or: [{ owners: user._id }, { createdBy: user._id }] };
+  const rx = { $regex: q, $options: "i" };
+
+  const or = [{ fullname: rx }, { email: rx }, { phone: rx }];
+
+  const qDigits = q.replace(/\D/g, "");
+  if (qDigits && qDigits.length >= 3) {
+    or.push({ phoneDigits: new RegExp(qDigits) });
+  }
+
+  const query = { $and: [{ $nor: [mineExpr] }, { $or: or }] };
+
+  const patients = await Patient.find(query)
+    .select("fullname email phone age gender country city state approvedAt updatedAt")
+    .limit(10)
+    .lean({ virtuals: true });
+
+  return patients.map((p) => applyDynamicAgeToPatient(p));
+};
