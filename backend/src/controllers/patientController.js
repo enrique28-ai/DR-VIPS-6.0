@@ -50,7 +50,10 @@ import {
   getChildHistoryService,
   getChildHistoryOneService,
 } from "../services/patients/patientHistoryService.js";
-import { getPatientByIdService } from "../services/patients/patientReadService.js";
+import {
+  getPatientByIdService,
+  getGlobalPatientPreviewService,
+} from "../services/patients/patientReadService.js";
 
 /**
  * Crear paciente
@@ -546,19 +549,16 @@ export const searchGlobalPatients = async (req, res) => {
  */
 export const getGlobalPatientPreview = async (req, res) => {
   try {
-    const doc = await Patient.findById(req.params.id).lean({ virtuals: true });
-    if (!doc) return res.status(404).json({ error: "Patient not found" });
-
-    applyDynamicAgeToPatient(doc);
-
-    const amIOwner =
-      (Array.isArray(doc.owners) && doc.owners.map(String).includes(String(req.user._id))) ||
-      String(doc.createdBy) === String(req.user._id);
-
-    return res.json({ ...doc, amIOwner });
+    const data = await getGlobalPatientPreviewService({
+      user: req.user,
+      patientId: req.params.id,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("getGlobalPatientPreview error:", err);
-    return res.status(500).json({ error: "Server error" });
+     return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 

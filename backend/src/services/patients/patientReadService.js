@@ -22,3 +22,21 @@ export const getPatientByIdService = async ({ user, patientId, lang }) => {
 
   return doc;
 };
+
+export const getGlobalPatientPreviewService = async ({ user, patientId }) => {
+  const doc = await Patient.findById(patientId).lean({ virtuals: true });
+
+  if (!doc) {
+    const err = new Error("Patient not found");
+    err.status = 404;
+    throw err;
+  }
+
+  applyDynamicAgeToPatient(doc);
+
+  const amIOwner =
+    (Array.isArray(doc.owners) && doc.owners.map(String).includes(String(user._id))) ||
+    String(doc.createdBy) === String(user._id);
+
+  return { ...doc, amIOwner };
+};
