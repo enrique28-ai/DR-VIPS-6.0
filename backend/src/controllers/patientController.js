@@ -55,7 +55,7 @@ import {
   getGlobalPatientPreviewService,
   searchGlobalPatientsService,
 } from "../services/patients/patientReadService.js";
-
+import { importPatientService } from "../services/patients/patientImportService.js";
 /**
  * Crear paciente
  */
@@ -572,26 +572,16 @@ export const getGlobalPatientPreview = async (req, res) => {
 
 export const importPatient = async (req, res) => {
   try {
-    const patientId = req.params.id;
-
-    // (Opcional pero recomendado) asegurar que createdBy siempre quede dentro de owners
-    const base = await Patient.findById(patientId).select("_id createdBy").lean();
-    if (!base) return res.status(404).json({ error: "Patient not found" });
-
-    const updated = await Patient.findByIdAndUpdate(
-      patientId,
-      { $addToSet: { owners: { $each: [req.user._id, base.createdBy] } } },
-      // 🔥 CLAVE: esto evita que se actualice updatedAt/createdAt por un "import"
-      { new: true, timestamps: false }
-    ).lean({ virtuals: true });
-
-    return res.json({
-      message: "Patient imported successfully",
-      patient: applyDynamicAgeToPatient(updated),
+    const data = await importPatientService({
+      user: req.user,
+      patientId: req.params.id,
     });
+    return res.json(data);
   } catch (err) {
     console.error("importPatient error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 
