@@ -1,7 +1,7 @@
 import Patient from "../../models/Patient.js";
 import { applyDynamicAgeToPatient } from "../../controllers/helpers/patienthelpers.js";
 import { translatePatientDoc } from "../../utils/deeplTranslate.js";
-
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const getPatientByIdService = async ({ user, patientId, lang }) => {
   const doc = await Patient.findOne({
     _id: patientId,
@@ -51,7 +51,8 @@ export const searchGlobalPatientsService = async ({ user, term }) => {
   }
 
   const mineExpr = { $or: [{ owners: user._id }, { createdBy: user._id }] };
-  const rx = { $regex: q, $options: "i" };
+  const safeQ = escapeRegex(q);
+  const rx = { $regex: safeQ, $options: "i" };
 
   const or = [{ fullname: rx }, { email: rx }, { phone: rx }];
 
