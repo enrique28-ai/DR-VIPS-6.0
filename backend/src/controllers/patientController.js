@@ -50,11 +50,13 @@ import {
   getPatientByIdService,
   getGlobalPatientPreviewService,
   searchGlobalPatientsService,
+  importPatientService,
 } from "../services/patients/patientReadService.js";
-import { importPatientService } from "../services/patients/patientImportService.js";
 import { getMyPatientsService } from "../services/patients/patientListService.js";
-import { getMyChildrenHealthInfoService } from "../services/patients/patientChildrenPortalService.js";
-import { getMyHealthInfoService } from "../services/patients/patientPortalService.js";
+import {
+  getMyHealthInfoService,
+  getMyChildrenHealthInfoService,
+} from "../services/patients/patientPortalService.js";
 import { approvePatientProfileService } from "../services/patients/patientApprovalService.js";
 /**
  * Crear paciente
