@@ -55,6 +55,7 @@ import { importPatientService } from "../services/patients/patientImportService.
 import { getMyPatientsService } from "../services/patients/patientListService.js";
 import { getMyChildrenHealthInfoService } from "../services/patients/patientChildrenPortalService.js";
 import { getMyHealthInfoService } from "../services/patients/patientPortalService.js";
+import { approvePatientProfileService } from "../services/patients/patientApprovalService.js";
 /**
  * Crear paciente
  */
@@ -1102,87 +1103,16 @@ const SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications", "children"];
  */
 export const approvePatientProfile = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const email = (req.user.email || "").toLowerCase().trim();
-    if (!email) {
-      return res.status(400).json({ error: "User has no email on file" });
-    }
-
-    const profileId = req.params.id;
-
-    const doc = await Patient.findOne({ _id: profileId, email }).lean();
-    if (!doc) {
-      return res.status(404).json({ error: "Patient profile not found for this user" });
-    }
-
-    // 1) Canonical desde ESTA versión (doctor elegido)
-    const canonical = {};
-
-    for (const field of SYNC_FIELDS_SCALAR) {
-      // Importante: no metas undefined; si no viene, luego lo limpiamos con $unset
-      if (Object.prototype.hasOwnProperty.call(doc, field) && doc[field] !== undefined) {
-        canonical[field] = doc[field];
-      }
-    }
-    for (const field of SYNC_FIELDS_ARRAY) {
-      canonical[field] = Array.isArray(doc[field]) ? doc[field] : [];
-    }
-
-    // 2) SET/UNSET para rollback fino (ej: causeOfDeath)
-    const canonicalSet = { ...canonical };
-    const canonicalUnset = {};
-
-    for (const f of SYNC_FIELDS_SCALAR) {
-      if (!(f in canonicalSet)) canonicalUnset[f] = 1;
-    }
-    for (const f of SYNC_FIELDS_ARRAY) {
-      if (!(f in canonicalSet)) canonicalSet[f] = [];
-    }
-
-    const approvedAt = new Date();
-    const approvedSnapshot = { set: canonicalSet, unset: canonicalUnset };
-
-    const updateDoc = {
-      $set: {
-        ...canonicalSet,
-        approvedSnapshot,
-        approvedAt,
-        updatedAt: approvedAt,
-      },
-    };
-
-    if (Object.keys(canonicalUnset).length > 0) {
-      updateDoc.$unset = canonicalUnset;
-    }
-
-    // 3) Copiar a TODOS los docs del mismo email + guardar snapshot
-    await Patient.updateMany({ email }, updateDoc, { timestamps: false });
-
-    // ✅ Guardar versión aprobada en historial (agrupado por identidad)
-await PatientHistory.create({
-  patientEmail: email,
-  patientPhoneDigits: doc.phoneDigits || undefined,
-  approvedFromProfile: doc._id,
-  editedBy: doc.lastEditedBy || doc.createdBy || null,
-  approvedSnapshot,   // el mismo objeto { set, unset }
-  approvedAt,
-});
-
-
-    await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: { lastHealthDecisionAt: new Date() } },
-      { new: false }
-    );
-
-    const { hasRecords, snapshot } = await computeHealthSnapshotByEmail(email);
-    return res.json({ ok: true, hasRecords, snapshot, pendingDecision: false });
+   const data = await approvePatientProfileService({
+      user: req.user,
+      profileId: req.params.id,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("approvePatientProfile error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+    });
   }
 };
 
