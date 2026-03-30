@@ -8,7 +8,6 @@ import {
   normalize,
   toBool,
   normGender,
-  normBmiCat,
   verifyEmail,
   computeHealthSnapshotByEmail,
   hasPendingHealthDecisionForEmail,
@@ -29,7 +28,6 @@ import {
   hasPendingGuardianDecisionForMinorKey,
   computeHealthSnapshotByMinorKey,
   computeDynamicAge,
-  ageCategoryToBirthDateQuery,
   mapAgeToBand,
   applyDynamicAgeToPatient,
   applyDynamicAgeToSnapshotSet,
@@ -56,6 +54,7 @@ import {
   searchGlobalPatientsService,
 } from "../services/patients/patientReadService.js";
 import { importPatientService } from "../services/patients/patientImportService.js";
+import { getMyPatientsService } from "../services/patients/patientListService.js";
 /**
  * Crear paciente
  */
@@ -346,165 +345,16 @@ if (isMinor) {
  */
 export const getMyPatients = async (req, res) => {
   try {
-    const { category, q, gender, organDonor, bloodDonor , bmiCategory: _bmiCategory,
-      weightCategory: _weightCategory, bmi: _bmi} = req.query;
-
-    
- 
-    const bmiCat = normBmiCat(_bmiCategory ?? _weightCategory ?? _bmi);
-    // soporta bloodtype simple o múltiple
-    const rawBT = req.query.bloodtype; // puede ser string | string[] | undefined
-    let bloodtypeFilter = null;
-    if (rawBT && rawBT !== "All") {
-      const arr = Array.isArray(rawBT) ? rawBT : [rawBT];
-      const ups = arr
-        .map(x => String(x || "").trim().toUpperCase())
-        .filter(Boolean);                     // limpia vacíos
-      if (ups.length > 0) bloodtypeFilter = ups.length === 1 ? ups[0] : { $in: ups };
-    }
-
-    const page = Math.max(1, parseInt(req.query.page ?? "1", 10));
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit ?? "20", 10)));
-    const skip = (page - 1) * limit;
-
-    //const query = { createdBy: req.user._id };
-    const query = { $or: [{ owners: req.user._id }, { createdBy: req.user._id }] };
-
-
-    // filtro por país (string exacto)
-    if (req.query.country) {
-      const c = String(req.query.country).trim();
-      if (c && c !== "All") query.country = c;
-    }
-
-    // NUEVO: filtro por estado de vida
-    if (typeof req.query.deceased !== "undefined") {
-      if (req.query.deceased === "true" || req.query.deceased === true) query.isDeceased = true;
-      if (req.query.deceased === "false" || req.query.deceased === false) query.isDeceased = false;
-    }
-
-    // filtro por categoría de edad
-   if (category && category !== "All") {
-  const bdQuery = ageCategoryToBirthDateQuery(category);
-
-  // si filtran deceased explícito, usamos lo congelado (stored)
-  if (query.isDeceased === true) {
-    query.ageCategory = category;
-  } else if (bdQuery) {
-    query.$and ||= [];
-    query.$and.push({
-      $or: [
-        // vivos con birthDate
-        { isDeceased: { $ne: true }, birthDate: bdQuery },
-        // legacy sin birthDate
-        { isDeceased: { $ne: true }, birthDate: { $exists: false }, ageCategory: category },
-        // deceased usa stored ageCategory congelado
-        { isDeceased: true, ageCategory: category },
-      ],
+    const data = await getMyPatientsService({
+      user: req.user,
+      queryParams: req.query,
     });
-  } else {
-    query.ageCategory = category;
-  }
-}
-
-
-    // filtro por tipo(s) de sangre
-    if (bloodtypeFilter) query.bloodtype = bloodtypeFilter;
-
-    // NUEVO: filtro por categoría de IMC (underweight | healthy | overweight)
-    if (bmiCat) query.bmiCategory = bmiCat;
-
-     // filtro por género
-    if (gender && ["male", "female"].includes(normGender(gender))) {
-      query.gender = normGender(gender);
-    }
-
-    // filtro por donante de órganos
-    if (typeof organDonor !== "undefined") {
-      if (organDonor === "true" || organDonor === true) query.organDonor = true;
-      if (organDonor === "false" || organDonor === false) query.organDonor = false;
-    }
-
-    // filtro por donador de sangre
-    if (typeof bloodDonor !== "undefined") {
-      if (bloodDonor === "true" || bloodDonor === true) query.bloodDonor = true;
-      if (bloodDonor === "false" || bloodDonor === false) query.bloodDonor = false;
-    }
-
-     // NUEVO: filtro por presencia de enfermedades
-    if (typeof req.query.hasDiseases !== "undefined") {
-      if (req.query.hasDiseases === "true" || req.query.hasDiseases === true) {
-       // tiene al menos 1 (truco clásico: existe el índice 0)
-        query["diseases.0"] = { $exists: true };
-      } else if (req.query.hasDiseases === "false" || req.query.hasDiseases === false) {
-        // array vacío
-        query.diseases = { $size: 0 };
-      }
-    }
-
-    // NUEVO: filtro por presencia de alergias
-    if (typeof req.query.hasAllergies !== "undefined") {
-      if (req.query.hasAllergies === "true" || req.query.hasAllergies === true) {
-        query["allergies.0"] = { $exists: true };
-      } else if (req.query.hasAllergies === "false" || req.query.hasAllergies === false) {
-        query.allergies = { $size: 0 };
-      }
-    }
-
-    // NUEVO: filtro por presencia de medicamentos
-    if (typeof req.query.hasMedications !== "undefined") {
-      if (req.query.hasMedications === "true" || req.query.hasMedications === true) {
-        query["medications.0"] = { $exists: true };
-      } else if (req.query.hasMedications === "false" || req.query.hasMedications === false) {
-        query.medications = { $size: 0 };
-      }
-    }
-
-    // búsqueda por nombre/email/teléfono
-    /*const term = q?.trim();
-    if (term) {
-      query.$or = [
-        { fullname: { $regex: term, $options: "i" } },
-        { email:    { $regex: term, $options: "i" } },
-        { phone:    { $regex: term, $options: "i" } },
-      ];
-      const qDigits = term.replace(/\D/g, "");
-      if (qDigits) {
-      // Permite pegar solo números (sin '+') y encontrar por teléfono
-      query.$or.push({ phoneDigits: new RegExp(qDigits) });
-      }
-      
-    }*/
-
-      const term = q?.trim();
-      if (term) {
-      const searchOr = [
-        { fullname: { $regex: term, $options: "i" } },
-        { email:    { $regex: term, $options: "i" } },
-        { phone:    { $regex: term, $options: "i" } },
-      ];
-
-     const qDigits = term.replace(/\D/g, "");
-      if (qDigits) searchOr.push({ phoneDigits: new RegExp(qDigits) });
-
-      // ✅ NO sobreescribe query.$or (ownership). Agrega condición adicional.
-      query.$and ||= [];
-  query.$and.push({ $or: searchOr });
-
-    }
-
-
-    const [items, total] = await Promise.all([
-      Patient.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean({ virtuals: true }),
-      Patient.countDocuments(query),
-    ]);
-
-    const out = items.map((p) => applyDynamicAgeToPatient(p));
-
-    return res.json({ items: out, total, page, pages: Math.ceil(total / limit) });
+     return res.json(data);
   } catch (err) {
     console.error("getMyPatients error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Server error",
+    });
   }
 };
 
