@@ -1,0 +1,174 @@
+import Patient from "../../models/Patient.js";
+import User from "../../models/User.js";
+import {
+  normalize,
+  getLang,
+  computeHealthSnapshotByEmail,
+} from "../../controllers/helpers/patienthelpers.js";
+import { translateHealthSnapshot } from "../../utils/deeplTranslate.js";
+
+export const getMyHealthInfoService = async ({ user, req }) => {
+  if (user.role !== "patient") {
+    const err = new Error("Insufficient role");
+    err.status = 403;
+    throw err;
+  }
+
+  const email = (user.email || "").toLowerCase().trim();
+  if (!email) {
+    const err = new Error("User has no email on file");
+    err.status = 400;
+    throw err;
+  }
+
+  const snapshotData = await computeHealthSnapshotByEmail(email);
+  const { hasRecords, snapshot, pats } = snapshotData;
+
+  if (pats && pats.length > 0) {
+    await Patient.populate(pats, { path: "createdBy", select: "name email" });
+
+    if (snapshot && snapshot.sources && Array.isArray(snapshot.sources)) {
+      snapshot.sources.forEach((source, index) => {
+        const p = pats[index];
+        if (p && p.createdBy) {
+          source.doctorName = p.createdBy.name;
+          source.doctorEmail = p.createdBy.email;
+        }
+      });
+    }
+  }
+
+  if (snapshot && pats && pats.length > 1) {
+    const intersectOthers = (field) => {
+      const others = pats.slice(1);
+      if (!others.length) return [];
+
+      let base = new Set(normalize(others[0][field]));
+      for (let i = 1; i < others.length; i++) {
+        const current = new Set(normalize(others[i][field]));
+        base = new Set([...base].filter((x) => current.has(x)));
+      }
+      return Array.from(base);
+    };
+
+    snapshot.commonDiseases = intersectOthers("diseases");
+    snapshot.commonAllergies = intersectOthers("allergies");
+    snapshot.commonMedications = intersectOthers("medications");
+  }
+
+  const userDoc = await User.findById(user._id)
+    .select("lastHealthDecisionAt")
+    .lean();
+
+  let pendingDecision = false;
+
+  if (hasRecords && snapshot && Array.isArray(pats) && pats.length > 0) {
+    const latestUpdate = pats[0]?.updatedAt
+      ? new Date(pats[0].updatedAt).getTime()
+      : NaN;
+
+    const lastDecision = userDoc?.lastHealthDecisionAt
+      ? new Date(userDoc.lastHealthDecisionAt).getTime()
+      : NaN;
+
+    if (!Number.isFinite(latestUpdate)) {
+      pendingDecision = false;
+    } else if (!Number.isFinite(lastDecision)) {
+      pendingDecision = true;
+    } else {
+      pendingDecision = latestUpdate > lastDecision;
+    }
+  }
+
+  if (
+    pendingDecision &&
+    snapshot &&
+    Array.isArray(pats) &&
+    pats.length === 1 &&
+    pats[0]?.approvedSnapshot
+  ) {
+    const latest = pats[0];
+
+    const rawSnap = latest?.approvedSnapshot;
+    const prev =
+      rawSnap && typeof rawSnap === "object"
+        ? rawSnap.set && typeof rawSnap.set === "object"
+          ? rawSnap.set
+          : rawSnap
+        : null;
+
+    const norm = (v) => (v === undefined ? null : v);
+
+    const attachPrev = (w, prevVal) => {
+      if (!w || typeof w !== "object" || !("value" in w)) return;
+      const cur = norm(w.value);
+      const pv = norm(prevVal);
+      if (cur === pv) return;
+
+      w.alternatives = [cur, pv];
+      w.changed = true;
+      w.conflict = false;
+    };
+
+    const setArrayBaseline = (field, combinedKey, commonKey, changedKey) => {
+      const cur = normalize(snapshot[field]);
+      const prevArr = normalize(prev?.[field]);
+
+      if (!prevArr.length && !cur.length) return;
+
+      const s1 = [...cur].sort().join("||");
+      const s2 = [...prevArr].sort().join("||");
+      if (s1 === s2) return;
+
+      snapshot[commonKey] = prevArr;
+      snapshot[combinedKey] = Array.from(new Set([...cur, ...prevArr]));
+      snapshot[changedKey] = true;
+    };
+
+    setArrayBaseline("diseases", "diseasesCombined", "commonDiseases", "diseasesChanged");
+    setArrayBaseline("allergies", "allergiesCombined", "commonAllergies", "allergiesChanged");
+    setArrayBaseline("medications", "medicationsCombined", "commonMedications", "medicationsChanged");
+
+    if (prev && typeof prev === "object") {
+      if (!snapshot.fullnameWrapper || typeof snapshot.fullnameWrapper !== "object") {
+        snapshot.fullnameWrapper = { value: snapshot.fullname ?? null, conflict: false };
+      }
+      if (!("value" in snapshot.fullnameWrapper)) {
+        snapshot.fullnameWrapper.value = snapshot.fullname ?? null;
+      }
+
+      attachPrev(snapshot.fullnameWrapper, prev.fullname);
+      attachPrev(snapshot.age, prev.age);
+      attachPrev(snapshot.gender, prev.gender);
+      attachPrev(snapshot.bloodtype, prev.bloodtype);
+      attachPrev(snapshot.organDonor, prev.organDonor);
+      attachPrev(snapshot.bloodDonor, prev.bloodDonor);
+      attachPrev(snapshot.country, prev.country);
+      attachPrev(snapshot.state, prev.state);
+      attachPrev(snapshot.city, prev.city);
+      attachPrev(snapshot.phone, prev.phone);
+      attachPrev(snapshot.status, prev.isDeceased);
+
+      if (!snapshot.measurementSystemWrapper || typeof snapshot.measurementSystemWrapper !== "object") {
+        snapshot.measurementSystemWrapper = {
+          value: snapshot.measurementSystem ?? null,
+          conflict: false,
+          alternatives: [snapshot.measurementSystem ?? null],
+        };
+      }
+
+      attachPrev(snapshot.measurementSystemWrapper, prev.measurementSystem);
+      attachPrev(snapshot.heightWrapper, prev.heightM);
+      attachPrev(snapshot.weightWrapper, prev.weightKg);
+      attachPrev(snapshot.bmiWrapper, prev.bmi);
+
+      snapshot.approvedBaselineAt = latest.approvedAt || null;
+    }
+  }
+
+  const lang = getLang(req);
+  const outSnapshot =
+    lang && snapshot ? await translateHealthSnapshot(snapshot, lang) : snapshot;
+
+  return { hasRecords, snapshot: outSnapshot, pendingDecision };
+};

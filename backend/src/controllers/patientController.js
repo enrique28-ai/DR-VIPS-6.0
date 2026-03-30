@@ -20,7 +20,6 @@ import {
   normUpper,
   arrKey,
   near,
-  getLang,
   sanitizeChildren,
   normNameKey,
   parseChildrenCount,
@@ -38,7 +37,6 @@ import {
   parseYmdToUtcNoon,
 } from "./helpers/patienthelpers.js";
 import PatientHistory from "../models/PatientHistory.js";
-import { translateHealthSnapshot } from "../utils/deeplTranslate.js";
 
 import {
   getMyHistoryService,
@@ -56,6 +54,7 @@ import {
 import { importPatientService } from "../services/patients/patientImportService.js";
 import { getMyPatientsService } from "../services/patients/patientListService.js";
 import { getMyChildrenHealthInfoService } from "../services/patients/patientChildrenPortalService.js";
+import { getMyHealthInfoService } from "../services/patients/patientPortalService.js";
 /**
  * Crear paciente
  */
@@ -1055,194 +1054,16 @@ update.lastEditedBy = req.user._id;
 // === GET /api/patients/me/health-info ===
 export const getMyHealthInfo = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const email = (req.user.email || "").toLowerCase().trim();
-    if (!email) {
-      return res.status(400).json({ error: "User has no email on file" });
-    }
-
-    // 1) Snapshot de todos los Patient con ese email
-    const snapshotData = await computeHealthSnapshotByEmail(email);
-    const { hasRecords, snapshot, pats } = snapshotData;
-
-    if (pats && pats.length > 0) {
-      // Poblamos el campo createdBy para obtener name y email del doctor
-      await Patient.populate(pats, { path: "createdBy", select: "name email" });
-
-      // Asumimos que snapshot.sources se corresponde en orden con pats 
-      // (ambos ordenados por fecha descendente en computeHealthSnapshotByEmail)
-      if (snapshot && snapshot.sources && Array.isArray(snapshot.sources)) {
-        snapshot.sources.forEach((source, index) => {
-          const p = pats[index];
-          if (p && p.createdBy) {
-            // Inyectamos datos del doctor en el objeto source
-            source.doctorName = p.createdBy.name; 
-            source.doctorEmail = p.createdBy.email;
-          }
-        });
-      }
-    }
-
-    if (snapshot && pats && pats.length > 1) {
-      const intersectOthers = (field) => {
-        // Tomamos todas las versiones EXCEPTO la más reciente (la tuya)
-        const others = pats.slice(1);
-        if (!others.length) return []; 
-        
-        // Empezamos la intersección con el primer "otro" doctor
-        let base = new Set(normalize(others[0][field]));
-        
-        // Intersectamos con el resto
-        for (let i = 1; i < others.length; i++) {
-          const current = new Set(normalize(others[i][field]));
-          base = new Set([...base].filter(x => current.has(x)));
-        }
-        return Array.from(base);
-      };
-
-      // Sobrescribimos las listas "Comunes" con este nuevo cálculo
-      snapshot.commonDiseases = intersectOthers("diseases");
-      snapshot.commonAllergies = intersectOthers("allergies");
-      snapshot.commonMedications = intersectOthers("medications");
-    }
-
-    // 2) Buscar la última decisión del usuario
-    const user = await User.findById(req.user._id)
-      .select("lastHealthDecisionAt")
-      .lean();
-
-    let pendingDecision = false;
-
-    if (hasRecords && snapshot && Array.isArray(pats) && pats.length > 0) {
-      // Patient más reciente (pats está ordenado por updatedAt DESC)
-      const latestUpdate = pats[0]?.updatedAt
-        ? new Date(pats[0].updatedAt).getTime()
-        : NaN;
-
-      const lastDecision = user?.lastHealthDecisionAt
-        ? new Date(user.lastHealthDecisionAt).getTime()
-        : NaN;
-
-      if (!Number.isFinite(latestUpdate)) {
-        pendingDecision = false;
-      } else if (!Number.isFinite(lastDecision)) {
-        // Nunca ha tomado decisión -> hay algo pendiente
-        pendingDecision = true;
-      } else {
-        // Si hay un Patient más nuevo que la última decisión -> pendiente
-        pendingDecision = latestUpdate > lastDecision;
-      }
-    }
-    // ✅ NEW: si solo hay 1 doctor, mostrar cambios vs última versión aprobada (sin warnings)
-if (
-  pendingDecision &&
-  snapshot &&
-  Array.isArray(pats) &&
-  pats.length === 1 &&
-  pats[0]?.approvedSnapshot
-) {
-
-  const latest = pats[0];
-
-  const rawSnap = latest?.approvedSnapshot;
-  const prev =
-    rawSnap && typeof rawSnap === "object"
-      ? (rawSnap.set && typeof rawSnap.set === "object" ? rawSnap.set : rawSnap)
-      : null;
-
-  const norm = (v) => (v === undefined ? null : v);
-
-  const attachPrev = (w, prevVal) => {
-    if (!w || typeof w !== "object" || !("value" in w)) return;
-    const cur = norm(w.value);
-    const pv = norm(prevVal);
-    if (cur === pv) return;
-
-    w.alternatives = [cur, pv]; // [nuevo, anterior]
-    w.changed = true;           // para render “before → after” en UI
-    w.conflict = false;         // IMPORTANT: NO warnings
-  };
-
-const setArrayBaseline = (field, combinedKey, commonKey, changedKey) => {
-  const cur = normalize(snapshot[field]);
-  const prevArr = normalize(prev?.[field]);
-
-  // Si no hay baseline, no hacemos nada
-  if (!prevArr.length && !cur.length) return;
-
-  // Si son iguales (mismo contenido), no marcamos cambio
-  const s1 = [...cur].sort().join("||");
-  const s2 = [...prevArr].sort().join("||");
-  if (s1 === s2) return;
-
-  snapshot[commonKey] = prevArr; // baseline (aprobado)
-  snapshot[combinedKey] = Array.from(new Set([...cur, ...prevArr])); // unión
-  snapshot[changedKey] = true;
-};
-
-
-// baseline vs aprobado (solo 1 doctor)
-setArrayBaseline("diseases", "diseasesCombined", "commonDiseases", "diseasesChanged");
-setArrayBaseline("allergies", "allergiesCombined", "commonAllergies", "allergiesChanged");
-setArrayBaseline("medications", "medicationsCombined", "commonMedications", "medicationsChanged");
-
-
-  if (prev && typeof prev === "object") {
-    // fullname usa fullnameWrapper en tu UI
-    if (!snapshot.fullnameWrapper || typeof snapshot.fullnameWrapper !== "object") {
-      snapshot.fullnameWrapper = { value: snapshot.fullname ?? null, conflict: false };
-    }
-    if (!("value" in snapshot.fullnameWrapper)) {
-      snapshot.fullnameWrapper.value = snapshot.fullname ?? null;
-    }
-    attachPrev(snapshot.fullnameWrapper, prev.fullname);
-
-    // wrappers escalares
-    attachPrev(snapshot.age, prev.age);
-    attachPrev(snapshot.gender, prev.gender);
-    attachPrev(snapshot.bloodtype, prev.bloodtype);
-    attachPrev(snapshot.organDonor, prev.organDonor);
-    attachPrev(snapshot.bloodDonor, prev.bloodDonor);
-    attachPrev(snapshot.country, prev.country);
-    attachPrev(snapshot.state, prev.state);
-    attachPrev(snapshot.city, prev.city);
-    attachPrev(snapshot.phone, prev.phone);
-
-    // status wrapper en tu UI representa “deceased/alive”
-    attachPrev(snapshot.status, prev.isDeceased);
-
-    if (!snapshot.measurementSystemWrapper || typeof snapshot.measurementSystemWrapper !== "object") {
-  snapshot.measurementSystemWrapper = {
-    value: snapshot.measurementSystem ?? null,
-    conflict: false,
-    alternatives: [snapshot.measurementSystem ?? null],
-  };
-}
-attachPrev(snapshot.measurementSystemWrapper, prev.measurementSystem);
-
-    // antropometría (wrappers separados)
-    attachPrev(snapshot.heightWrapper, prev.heightM);
-    attachPrev(snapshot.weightWrapper, prev.weightKg);
-    attachPrev(snapshot.bmiWrapper, prev.bmi);
-
-    // opcional: fecha del baseline aprobado (por si luego la quieres mostrar)
-    snapshot.approvedBaselineAt = latest.approvedAt || null;
-  }
-}
-// --- AQUÍ INSERTAMOS LA TRADUCCIÓN ---
-    const lang = getLang(req); // SOLO req.query.lang
-const outSnapshot = (lang && snapshot)
-  ? await translateHealthSnapshot(snapshot, lang)
-  : snapshot;
-
-
-    return res.json({ hasRecords, snapshot: outSnapshot, pendingDecision });
+    const data = await getMyHealthInfoService({
+      user: req.user,
+      req,
+    });
+    return res.json(data);
   } catch (err) {
     console.error("getMyHealthInfo error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+    });
   }
 };
 
