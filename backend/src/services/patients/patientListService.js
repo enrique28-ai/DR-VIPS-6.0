@@ -6,6 +6,9 @@ import {
   applyDynamicAgeToPatient,
 } from "../../controllers/helpers/patienthelpers.js";
 
+const escapeRegex = (value = "") =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export const getMyPatientsService = async ({ user, queryParams }) => {
   const {
     category,
@@ -114,10 +117,11 @@ export const getMyPatientsService = async ({ user, queryParams }) => {
 
   const term = q?.trim();
   if (term) {
+    const safeTerm = escapeRegex(term);
     const searchOr = [
-      { fullname: { $regex: term, $options: "i" } },
-      { email: { $regex: term, $options: "i" } },
-      { phone: { $regex: term, $options: "i" } },
+      { fullname: { $regex: safeTerm, $options: "i" } },
+      { email: { $regex: safeTerm, $options: "i" } },
+      { phone: { $regex: safeTerm, $options: "i" } },
     ];
 
     const qDigits = term.replace(/\D/g, "");
