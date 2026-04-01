@@ -57,7 +57,10 @@ import {
   getMyHealthInfoService,
   getMyChildrenHealthInfoService,
 } from "../services/patients/patientPortalService.js";
-import { approvePatientProfileService } from "../services/patients/patientApprovalService.js";
+import {
+  approvePatientProfileService,
+  rejectPatientProfileService,
+} from "../services/patients/patientApprovalService.js";
 /**
  * Crear paciente
  */
@@ -1121,194 +1124,16 @@ export const approvePatientProfile = async (req, res) => {
 
 export const rejectPatientProfile = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const email = (req.user.email || "").toLowerCase().trim();
-    if (!email) {
-      return res.status(400).json({ error: "User has no email on file" });
-    }
-
-    const profileId = req.params.id;
-
-    const allPats = await Patient.find({ email }).sort({ updatedAt: -1 }).lean();
-    if (!allPats.length) {
-      return res.status(404).json({ error: "No patient profiles found for this user" });
-    }
-
-    const targetExists = allPats.some((p) => p._id.toString() === profileId);
-    if (!targetExists) {
-      return res.status(404).json({ error: "Patient profile not found for this user" });
-    }
-
-   // En vez de usar "some", necesitamos el doc para leer approvedSnapshot
-const target = allPats.find((p) => String(p._id) === profileId);
-if (!target) {
-  return res.status(404).json({ error: "Profile not found" });
-}
-
-const withoutTarget = allPats.filter((p) => String(p._id) !== profileId);
-
-if (withoutTarget.length === 0) {
-  // Caso 1: solo existía este doctor
-  // ✅ Si hay snapshot aprobado, hacemos rollback
-  const snap = target.approvedSnapshot;
-
-  const prevSet =
-    snap && typeof snap === "object"
-      ? (snap.set && typeof snap.set === "object" ? snap.set : snap)
-      : null;
-
-  const prevUnset =
-    snap && typeof snap === "object" && snap.unset && typeof snap.unset === "object"
-      ? snap.unset
-      : {};
-
-  if (prevSet && Object.keys(prevSet).length > 0) {
-    const updateDoc = { $set: prevSet };
-    if (Object.keys(prevUnset).length > 0) updateDoc.$unset = prevUnset;
-
-    // ✅ acción del paciente: no dispares "pending" por timestamps
-if (target?.approvedAt) {
-  updateDoc.$set.updatedAt = target.approvedAt;
-}
-
-    await Patient.updateMany({ email }, updateDoc, { timestamps: false });
-
-    await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: { lastHealthDecisionAt: new Date() } },
-      { new: false }
-    );
-
-    const { hasRecords, snapshot } = await computeHealthSnapshotByEmail(email);
-    return res.json({ ok: true, hasRecords, snapshot, pendingDecision: false });
-  }
-
-  // ❌ Si NO hay snapshot (nunca hubo versión anterior aprobada) -> ahora sí borramos todo
-  await Diagnosis.deleteMany({ patient: profileId });
-  await Patient.deleteOne({ _id: profileId, email });
-
-  await User.findByIdAndUpdate(
-    req.user._id,
-    { $set: { lastHealthDecisionAt: new Date() } },
-    { new: false }
-  );
-
-  return res.json({ ok: true, hasRecords: false, snapshot: null, pendingDecision: false });
-}
-
-
-    // Caso 2: quedan otros -> armar snapshot con esos y copiar a todos
-    const prevBase = buildHealthSnapshotFromPatients(withoutTarget, email);
-    const { snapshot } = prevBase;
-
-    const canonical = {};
-    const sv = (wrapper) => {
-      if (!wrapper || typeof wrapper !== "object") return undefined;
-      //if (!wrapper.value && wrapper.value !== 0) return undefined;
-      if (wrapper.value === undefined || wrapper.value === null) return undefined;
-      return wrapper.value;
-    };
-
-    // Aquí usas exactamente la misma lógica que ya tienes
-    // (solo copio la parte final para no repetir todo el bloque largo):
-    if (snapshot.fullname) {
-      canonical.fullname = snapshot.fullname;
-    }
-    if (snapshot.ageCategory) {
-      canonical.ageCategory = snapshot.ageCategory;
-    }
-
-    // Estado de vida: usamos los valores directos del snapshot
-    if (typeof snapshot.isDeceased === "boolean") {
-      canonical.isDeceased = snapshot.isDeceased;
-      if (snapshot.isDeceased && snapshot.causeOfDeath) {
-        canonical.causeOfDeath = snapshot.causeOfDeath;
-      } else if (!snapshot.isDeceased) {
-        //canonical.causeOfDeath = undefined;
-        delete canonical.causeOfDeath; 
-      }
-      
-      if (snapshot.birthDate) canonical.birthDate = snapshot.birthDate;
-      if (snapshot.dateOfDeath) canonical.dateOfDeath = snapshot.dateOfDeath;
-
-      
-    }
-    const ageVal = sv(snapshot.age);
-    if (ageVal !== undefined) canonical.age = ageVal;
-
-    const genderVal = sv(snapshot.gender);
-    if (genderVal !== undefined) canonical.gender = genderVal;
-
-    const btVal = sv(snapshot.bloodtype);
-    if (btVal !== undefined) canonical.bloodtype = btVal;
-
-    const organVal = sv(snapshot.organDonor);
-    if (organVal !== undefined) canonical.organDonor = organVal;
-
-    const bloodDonVal = sv(snapshot.bloodDonor);
-    if (bloodDonVal !== undefined) canonical.bloodDonor = bloodDonVal;
-
-    const countryVal = sv(snapshot.country);
-    if (countryVal !== undefined) canonical.country = countryVal;
-
-    const stateVal = sv(snapshot.state);
-    if (stateVal !== undefined) canonical.state = stateVal;
-
-    const cityVal = sv(snapshot.city);
-    if (cityVal !== undefined) canonical.city = cityVal;
-
-    const phoneVal = sv(snapshot.phone);
-if (phoneVal !== undefined) {
-  canonical.phone = phoneVal;
-  canonical.phoneDigits = String(phoneVal).replace(/\D/g, "");
-}
-
-
-    if (snapshot.measurementSystem)
-      canonical.measurementSystem = snapshot.measurementSystem;
-    if (typeof snapshot.heightM === "number") canonical.heightM = snapshot.heightM;
-    if (typeof snapshot.weightKg === "number") canonical.weightKg = snapshot.weightKg;
-    if (typeof snapshot.bmi === "number") canonical.bmi = snapshot.bmi;
-    if (snapshot.bmiCategory) canonical.bmiCategory = snapshot.bmiCategory;
-
-    canonical.diseases = Array.isArray(snapshot.diseases) ? snapshot.diseases : [];
-    canonical.allergies = Array.isArray(snapshot.allergies) ? snapshot.allergies : [];
-    canonical.medications = Array.isArray(snapshot.medications) ? snapshot.medications : [];
-
-    const updateDoc = { $set: canonical };
-
-// ✅ Si el estado final es vivo, BORRAMOS causeOfDeath del documento
-if (canonical.isDeceased === false) {
-  updateDoc.$unset = { causeOfDeath: 1 };
-}
-if (target?.approvedAt) {
-  updateDoc.$set.updatedAt = target.approvedAt;
-}
-
-    // Copiar "estado anterior" a TODOS los Patient con ese email
-    await Patient.updateMany({ email }, updateDoc, { timestamps: false });
-
-    // Registrar decisión del paciente
-    await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: { lastHealthDecisionAt: new Date() } },
-      { new: false }
-    );
-
-    // Devolver snapshot alineado
-    const finalState = await computeHealthSnapshotByEmail(email);
-    return res.json({
-      ok: true,
-      hasRecords: finalState.hasRecords,
-      snapshot: finalState.snapshot,
-      pendingDecision: false,
+   const data = await rejectPatientProfileService({
+      user: req.user,
+      profileId: req.params.id,
     });
+    return res.json(data);
   } catch (err) {
     console.error("rejectPatientProfile error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+    });
   }
 };
 
