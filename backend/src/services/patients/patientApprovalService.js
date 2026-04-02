@@ -5,6 +5,10 @@ import Diagnosis from "../../models/Diagnosis.js";
 import {
   computeHealthSnapshotByEmail,
   buildHealthSnapshotFromPatients,
+  normLower,
+  minorKeyOf,
+  minorQueryByBirthDateOrLegacy,
+  computeHealthSnapshotByMinorKey,
 } from "../../controllers/helpers/patienthelpers.js";
 
 const SYNC_FIELDS_SCALAR = [
@@ -285,4 +289,87 @@ export const rejectPatientProfileService = async ({ user, profileId }) => {
     snapshot: finalState.snapshot,
     pendingDecision: false,
   };
+};
+
+export const approveChildProfileService = async ({ user, profileId }) => {
+  if (user.role !== "patient") {
+    const err = new Error("Insufficient role");
+    err.status = 403;
+    throw err;
+  }
+
+  const parentEmail = normLower(user.email);
+
+  const doc = await Patient.findOne({
+    _id: profileId,
+    parentEmail,
+    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
+  }).lean();
+
+  if (!doc) {
+    const err = new Error("CHILD_PROFILE_NOT_FOUND");
+    err.status = 404;
+    throw err;
+  }
+
+  const oldKey = doc.minorKey || minorKeyOf(parentEmail, doc.fullname);
+  const newKey = minorKeyOf(parentEmail, doc.fullname);
+
+  const canonical = {};
+  for (const field of SYNC_FIELDS_SCALAR) {
+    if (Object.prototype.hasOwnProperty.call(doc, field) && doc[field] !== undefined) {
+      canonical[field] = doc[field];
+    }
+  }
+
+  for (const field of SYNC_FIELDS_ARRAY) {
+    canonical[field] = Array.isArray(doc[field]) ? doc[field] : [];
+  }
+
+  const canonicalSet = { ...canonical };
+  const canonicalUnset = {};
+
+  for (const f of SYNC_FIELDS_SCALAR) {
+    if (!(f in canonicalSet)) canonicalUnset[f] = 1;
+  }
+
+  for (const f of SYNC_FIELDS_ARRAY) {
+    if (!(f in canonicalSet)) canonicalSet[f] = [];
+  }
+
+  const approvedAt = new Date();
+  const approvedSnapshot = { set: canonicalSet, unset: canonicalUnset };
+
+  const updateDoc = {
+    $set: {
+      ...canonicalSet,
+      approvedSnapshot,
+      approvedAt,
+      updatedAt: approvedAt,
+      minorKey: newKey,
+      parentEmail,
+    },
+  };
+
+  if (Object.keys(canonicalUnset).length > 0) {
+    updateDoc.$unset = canonicalUnset;
+  }
+
+  await Patient.updateMany(
+    { parentEmail, age: { $lt: 18 }, minorKey: oldKey },
+    updateDoc,
+    { timestamps: false }
+  );
+
+  await PatientHistory.create({
+    patientKey: newKey,
+    approvedAt,
+    approvedSnapshot,
+    approvedFromProfile: profileId,
+    editedBy: doc.lastEditedBy || doc.createdBy || null,
+  });
+
+  const { hasRecords, snapshot } = await computeHealthSnapshotByMinorKey(newKey, parentEmail);
+
+  return { ok: true, hasRecords, snapshot, pendingDecision: false };
 };

@@ -60,6 +60,7 @@ import {
 import {
   approvePatientProfileService,
   rejectPatientProfileService,
+  approveChildProfileService,
 } from "../services/patients/patientApprovalService.js";
 /**
  * Crear paciente
@@ -1227,80 +1228,16 @@ export const getMyChildrenHealthInfo = async (req, res) => {
 
 export const approveChildProfile = async (req, res) => {
   try {
-    if (req.user.role !== "patient") {
-      return res.status(403).json({ error: "Insufficient role" });
-    }
-
-    const parentEmail = normLower(req.user.email);
-    const profileId = req.params.id;
-
-    const doc = await Patient.findOne({
-      _id: profileId,
-      parentEmail,
-      ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
-    }).lean();
-
-    if (!doc) {
-      return res.status(404).json({ errorCode: "CHILD_PROFILE_NOT_FOUND" });
-    }
-
-    const oldKey = doc.minorKey || minorKeyOf(parentEmail, doc.fullname);
-    const newKey = minorKeyOf(parentEmail, doc.fullname);
-
-    // Canonical (igual que adulto)
-    const canonical = {};
-    for (const field of SYNC_FIELDS_SCALAR) {
-      if (Object.prototype.hasOwnProperty.call(doc, field) && doc[field] !== undefined) {
-        canonical[field] = doc[field];
-      }
-    }
-    for (const field of SYNC_FIELDS_ARRAY) {
-      canonical[field] = Array.isArray(doc[field]) ? doc[field] : [];
-    }
-
-    const canonicalSet = { ...canonical };
-    const canonicalUnset = {};
-    for (const f of SYNC_FIELDS_SCALAR) {
-      if (!(f in canonicalSet)) canonicalUnset[f] = 1;
-    }
-    for (const f of SYNC_FIELDS_ARRAY) {
-      if (!(f in canonicalSet)) canonicalSet[f] = [];
-    }
-
-    const approvedAt = new Date();
-    const approvedSnapshot = { set: canonicalSet, unset: canonicalUnset };
-
-    const updateDoc = {
-      $set: {
-        ...canonicalSet,
-        approvedSnapshot,
-        approvedAt,
-         updatedAt: approvedAt,
-        minorKey: newKey,
-        parentEmail,
-      },
-    };
-    if (Object.keys(canonicalUnset).length > 0) updateDoc.$unset = canonicalUnset;
-
-    await Patient.updateMany(
-      { parentEmail, age: { $lt: 18 }, minorKey: oldKey },
-      updateDoc, { timestamps: false }
-    );
-
-    // Historial (para menores por patientKey)
-    await PatientHistory.create({
-      patientKey: newKey,
-      approvedAt,
-      approvedSnapshot,
-      approvedFromProfile: profileId,
-      editedBy: doc.lastEditedBy || doc.createdBy || null,
+    const data = await approveChildProfileService({
+      user: req.user,
+      profileId: req.params.id,
     });
-
-    const { hasRecords, snapshot } = await computeHealthSnapshotByMinorKey(newKey, parentEmail);
-    return res.json({ ok: true, hasRecords, snapshot, pendingDecision: false });
+     return res.json(data);
   } catch (err) {
     console.error("approveChildProfile error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+    });
   }
 };
 
