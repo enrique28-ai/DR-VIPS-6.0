@@ -31,3 +31,6 @@ coverage/
 # Temporales
 .tmp/
 .temp/
+
+#Claude
+CLAUDE.md
