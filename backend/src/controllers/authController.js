@@ -121,7 +121,7 @@ const isAllowedProfessional = async (email = "", hdClaim = "") => {
   );
 };
 // Helpers para códigos/tokens
-const gen6Code = () => (Math.floor(100000 + Math.random() * 900000)).toString(); // 6 dígitos
+const gen6Code = () => crypto.randomInt(100000, 1000000).toString(); // 6 dígitos (CSPRNG)
 
 
 // POST /api/auth/register
