@@ -1,43 +1,4 @@
 // controllers/patient.controller.js
-import Patient from "../models/Patient.js";
-import Diagnosis from "../models/Diagnosis.js";
-//import dns from "node:dns/promises";
-import User from "../models/User.js";
-import {
-  normPhoneWithCountry,
-  normalize,
-  toBool,
-  normGender,
-  verifyEmail,
-  computeHealthSnapshotByEmail,
-  hasPendingHealthDecisionForEmail,
-  FT_TO_M,
-  LB_TO_KG,
-  buildHealthSnapshotFromPatients,
-  identityQueryFromPatient,
-  normStr,
-  normLower,
-  normUpper,
-  arrKey,
-  near,
-  sanitizeChildren,
-  normNameKey,
-  parseChildrenCount,
-   minorKeyOf,
-  hasPendingGuardianDecisionForMinorKey,
-  computeHealthSnapshotByMinorKey,
-  computeDynamicAge,
-  mapAgeToBand,
-  applyDynamicAgeToPatient,
-  applyDynamicAgeToSnapshotSet,
-  minorQueryByBirthDateOrLegacy,
-  t,
-  isYmd,
-  ymdUTC,
-  parseYmdToUtcNoon,
-} from "./helpers/patienthelpers.js";
-import PatientHistory from "../models/PatientHistory.js";
-
 import {
   getMyHistoryService,
   getPatientHistoryService,
@@ -154,29 +115,6 @@ export const getGlobalPatientPreview = async (req, res) => {
   }
 };
 
-/**
- * Importar paciente a mi lista
- * POST /api/patients/import/:id
- */
-/*export const importPatient = async (req, res) => {
-  try {
-    const patientId = req.params.id;
-
-    const base = await Patient.findById(patientId).select("_id createdBy owners").lean();
-    if (!base) return res.status(404).json({ error: "Patient not found" });
-
-    const updated = await Patient.findByIdAndUpdate(
-      patientId,
-      { $addToSet: { owners: { $each: [req.user._id, base.createdBy] } } },
-      { new: true }
-    ).lean({ virtuals: true });
-
-    return res.json({ message: "Patient imported successfully", patient: updated });
-  } catch (err) {
-    console.error("importPatient error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
-};*/
 
 export const importPatient = async (req, res) => {
   try {
@@ -241,30 +179,6 @@ export const updatePatient = async (req, res) => {
   }
 };
 
-/*export const deletePatient = async (req, res) => {
-  try {
-    // 1) Asegura ownership (solo puedes borrar tus pacientes)
-    const patient = await Patient.findOne({
-      _id: req.params.id,
-      createdBy: req.user._id
-    });
-    if (!patient) {
-      return res.status(404).json({ error: "Paciente no encontrado" });
-    }
-
-    // 2) Borra TODOS los diagnósticos que referencian al paciente
-    await Diagnosis.deleteMany({ patient: patient._id }); // sin createdBy
-
-    // 3) Borra el paciente
-    await patient.deleteOne(); // (si luego agregas hook pre('deleteOne'), también se disparará)
-
-    // 4) Respuesta
-    return res.status(204).end();
-  } catch (err) {
-    console.error("deletePatient error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
-};*/
 
 
 // === GET /api/patients/me/health-info ===
@@ -283,34 +197,6 @@ export const getMyHealthInfo = async (req, res) => {
   }
 };
 
-
-// Campos que vamos a sincronizar entre todos los doctors
-const SYNC_FIELDS_SCALAR = [
-  "fullname",
-  "age",
-  "ageCategory",
-  "bloodtype",
-  "gender",
-  "organDonor",
-  "bloodDonor",
-  "measurementSystem",
-  "heightM",
-  "weightKg",
-  "bmi",
-  "bmiCategory",
-  "isDeceased",
-  "causeOfDeath",
-  "country",
-  "state",
-  "city",
-  "phone",
-  "phoneDigits",
-  "childrenCount",
-  "birthDate",
-"dateOfDeath"
-];
-
-const SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications", "children"];
 
 /**
  * Paciente APRUEBA la versión de un doctor.
@@ -347,7 +233,6 @@ export const rejectPatientProfile = async (req, res) => {
   }
 };
 
-// Helper: armar query identidad (email > phoneDigits > fallback)
 
 
 /**
