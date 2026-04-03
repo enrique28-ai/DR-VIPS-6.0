@@ -18,6 +18,7 @@ const patientErrorKey = (code) => {
     CHILDREN_COUNT_REQUIRED: "patients.errors.childrenCountRequired",
     CHILDREN_COUNT_INVALID: "patients.errors.childrenCountInvalid",
     CHILDREN_COUNT_MISMATCH: "patients.errors.childrenCountMismatch",
+    PENDING_GUARDIAN_DECISION: "patients.errors.pendingGuardianDecision",
   };
   return map[code] || null;
 };
@@ -196,16 +197,16 @@ export function useUpdatePatient(id) {
   }
       
 
-      if (status === 409) {
-        toast.error(i18n.t("patients.toasts.conflictPendingPortal")); // "This patient has a pending profile..." etc.
+      const key = patientErrorKey(code);
+      if ((status === 400 || status === 403 || status === 409) && key) {
+        toast.error(i18n.t(key));
         return;
       }
 
-       const key = patientErrorKey(code);
-  if ((status === 400 || status === 403) && key) {
-    toast.error(i18n.t(key));
-    return;
-  }
+      if (status === 409) {
+        toast.error(i18n.t("patients.toasts.conflictPendingPortal"));
+        return;
+      }
 
       if (status !== 429) {
         toast.error(i18n.t("patients.toasts.updateFailed"));

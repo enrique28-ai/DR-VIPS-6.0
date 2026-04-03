@@ -400,17 +400,6 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     throw err;
   }
 
-  if (current.email) {
-    const locked = await hasPendingHealthDecisionForEmail(current.email);
-    if (locked) {
-      const err = new Error(
-        "This patient has a pending profile in the portal. Wait until the patient approves or rejects it before editing."
-      );
-      err.status = 409;
-      throw err;
-    }
-  }
-
   const update = { lastEditedBy: user._id };
   const unset = {};
 
@@ -544,24 +533,6 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   }
 
   const nextFullname = "fullname" in update ? update.fullname : current.fullname;
-
-  const currentAgeDyn = computeDynamicAge(current);
-  const isCurrentMinor =
-    Number.isFinite(currentAgeDyn) && currentAgeDyn < 18 && current.parentEmail;
-
-  if (isCurrentMinor) {
-    const mk = current.minorKey || minorKeyOf(current.parentEmail, current.fullname);
-    const lockedMinor = await hasPendingGuardianDecisionForMinorKey(
-      mk,
-      current.parentEmail
-    );
-    if (lockedMinor) {
-      const err = new Error("Pending guardian decision");
-      err.status = 409;
-      err.errorCode = "PENDING_GUARDIAN_DECISION";
-      throw err;
-    }
-  }
 
   const wantsChildrenUpdate = "children" in body || "childrenCount" in body;
 
@@ -946,6 +917,36 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     err.status = 400;
     err.errorCode = "NO_CHANGES";
     throw err;
+  }
+
+  if (current.email) {
+    const locked = await hasPendingHealthDecisionForEmail(current.email);
+    if (locked) {
+      const err = new Error(
+        "This patient has a pending profile in the portal. Wait until the patient approves or rejects it before editing."
+      );
+      err.status = 409;
+      err.errorCode = "PENDING_PORTAL";
+      throw err;
+    }
+  }
+
+  const currentAgeDyn = computeDynamicAge(current);
+  const isCurrentMinor =
+    Number.isFinite(currentAgeDyn) && currentAgeDyn < 18 && current.parentEmail;
+
+  if (isCurrentMinor) {
+    const mk = current.minorKey || minorKeyOf(current.parentEmail, current.fullname);
+    const lockedMinor = await hasPendingGuardianDecisionForMinorKey(
+      mk,
+      current.parentEmail
+    );
+    if (lockedMinor) {
+      const err = new Error("Pending guardian decision");
+      err.status = 409;
+      err.errorCode = "PENDING_GUARDIAN_DECISION";
+      throw err;
+    }
   }
 
   update.lastEditedBy = user._id;

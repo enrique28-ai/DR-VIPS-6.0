@@ -477,8 +477,8 @@
       "invalidDateOfDeath": "La fecha de defunción no es válida.",
       "dateOfDeathInFuture": "La fecha de defunción no puede estar en el futuro.",
       "dateOfDeathBeforeBirthDate": "La fecha de defunción no puede ser anterior a la fecha de nacimiento.",
-      "sendIsDeceasedWithDateOfDeath": "Debes enviar isDeceased junto con dateOfDeath."
-
+      "sendIsDeceasedWithDateOfDeath": "Debes enviar isDeceased junto con dateOfDeath.",
+      "pendingGuardianDecision": "Este menor tiene una decisión de tutor pendiente. Espera a que el tutor apruebe o rechace antes de editar."
     }
   },
 

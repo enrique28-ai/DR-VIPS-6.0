@@ -490,7 +490,8 @@
       "invalidDateOfDeath": "Invalid date of death.",
       "dateOfDeathInFuture": "Date of death cannot be in the future.",
       "dateOfDeathBeforeBirthDate": "Date of death cannot be before the birth date.",
-      "sendIsDeceasedWithDateOfDeath": "You must send isDeceased along with dateOfDeath."
+      "sendIsDeceasedWithDateOfDeath": "You must send isDeceased along with dateOfDeath.",
+      "pendingGuardianDecision": "This minor has a pending guardian decision. Wait until the guardian approves or rejects it before editing."
     }
 },
 "diagnoses": {
