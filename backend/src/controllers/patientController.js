@@ -63,287 +63,34 @@ import {
   approveChildProfileService,
   rejectChildProfileService,
 } from "../services/patients/patientApprovalService.js";
+import { createPatientService } from "../services/patients/patientWriteService.js";
 /**
  * Crear paciente
  */
 export const createPatient = async (req, res) => {
   try {
-    const { fullname, diseases, allergies, medications, email, phone, age, bloodtype, gender, organDonor: organIn, bloodDonor: bloodIn, 
-      measurementSystem, height, weight, country, state, city, children, childrenCount, parentEmail, birthDate
-    } = req.body;
-
-    const gRaw = normGender(gender);
-    const isValidGender = gRaw === "male" || gRaw === "female";
-    const hasOrgan = typeof organIn  !== "undefined";
-    const hasBlood = typeof bloodIn  !== "undefined";
-
-
-    // ✅ birthDate obligatorio para nuevos pacientes
-if (birthDate === undefined || birthDate === null || birthDate === "") {
-  return res.status(400).json({ errorCode: "BIRTHDATE_REQUIRED" });
-}
-
-let parsedBirthDate = null;
-
-if (birthDate !== undefined && birthDate !== null && birthDate !== "") {
-  parsedBirthDate = isYmd(birthDate) ? parseYmdToUtcNoon(birthDate) : new Date(birthDate);
-
-  if (Number.isNaN(parsedBirthDate.getTime())) {
-    return res.status(400).json({ errorCode: "INVALID_BIRTHDATE" });
-  }
-
-  // ✅ compara por “día”, no por hora
-  if (ymdUTC(parsedBirthDate) > ymdUTC(new Date())) {
-    return res.status(400).json({ errorCode: "BIRTHDATE_IN_FUTURE" });
-  }
-}
-
-
-const ageNum = computeDynamicAge({ birthDate: parsedBirthDate, age: Number(age) });
-if (!Number.isFinite(ageNum) || ageNum < 0 || ageNum > 120) {
-  return res.status(400).json({ errorCode: "INVALID_AGE" });
-}
-const isMinor = ageNum < 18;
-
-    if (
-      !fullname ||
-      (!isMinor && (!email || !phone)) ||
-       !bloodtype || !isValidGender
-      || !hasOrgan || !hasBlood || !measurementSystem || !height || !weight || !country ||!state||!city
-    ) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    // —— Validación antropométrica (tu schema requiere heightM/weightKg) ——
-    if (measurementSystem == null || height == null || weight == null) {
-      return res.status(400).json({ error: "Provide measurementSystem, height and weight" });
-    }
-    const sys = String(measurementSystem).toLowerCase();
-    const H = Number(height);
-    const W = Number(weight);
-    if (!["metric","imperial"].includes(sys) || !(H > 0) || !(W > 0)) {
-      return res.status(400).json({ error: "Invalid anthropometric payload" });
-    }
-    const heightM  = sys === "metric" ? H : H * FT_TO_M;
-    const weightKg = sys === "metric" ? W : W * LB_TO_KG;
-    
-    const organDonor = toBool(organIn);
-    const bloodDonor = toBool(bloodIn);
-
-    // === FAMILY BUSINESS RULES ===
-// Adults: can optionally declare children. If they send children/childrenCount, both are validated.
-// Minors: must send parentEmail; parent must exist and must list the minor name in their children list.
-
-// Minors cannot declare children.
-if (isMinor && (typeof children !== "undefined" || typeof childrenCount !== "undefined")) {
-      return res.status(400).json({ 
-        errorCode: "MINOR_CANNOT_DECLARE_CHILDREN",
-        error: "Minors cannot declare children." 
+    const data = await createPatientService({
+      user: req.user,
+      body: req.body,
+      });
+      return res.status(201).json(data);
+  } catch (err) {
+    if (err?.code === 11000) {
+      const isEmailDup = !!err?.keyPattern?.email || !!err?.keyValue?.email;
+      return res.status(409).json({
+        errorCode: isEmailDup ? "PATIENT_EMAIL_EXISTS" : "PATIENT_DUPLICATE",
+        error: isEmailDup
+          ? "A patient with this email already exists."
+          : "Duplicate patient data.",
       });
     }
 
-let finalChildren = [];
-let finalChildrenCount = 0;
-let finalParentEmail = undefined;
-
-if (!isMinor) {
-  const wantsChildren =
-    typeof children !== "undefined" || typeof childrenCount !== "undefined";
-
-  if (wantsChildren) {
-        const n = parseChildrenCount(childrenCount);
-        if (n === null) {
-          return res.status(400).json({ 
-            errorCode: "CHILDREN_COUNT_INVALID",
-            error: "childrenCount must be an integer >= 0" 
-          });
-        }
-        if (typeof n === "undefined") {
-          return res.status(400).json({ 
-            errorCode: "CHILDREN_COUNT_REQUIRED",
-            error: "childrenCount is required when declaring children" 
-          });
-        }
-
-    if (n === 0) {
-      finalChildren = [];
-      finalChildrenCount = 0;
-    } else {
-      const list = sanitizeChildren(children);
-     if (list.length !== n) {
-            return res.status(400).json({
-              errorCode: "CHILDREN_COUNT_MISMATCH",
-              error: "children must include the name of each child and match childrenCount",
-            });
-          }
-      finalChildren = list;
-      finalChildrenCount = n;
-    }
-  }
-}
-
-if (isMinor) {
-      const peIn = normLower(parentEmail);
-      if (!peIn) {
-        return res.status(400).json({
-          errorCode: "PARENT_EMAIL_REQUIRED",
-          error: "Parent email is required to create a minor patient.",
-        });
-      }
-
-  finalParentEmail = peIn;
-  const parentEmailCheck = await verifyEmail(finalParentEmail);
-  if (!parentEmailCheck.ok) {
-    return res.status(400).json({ error: parentEmailCheck.error });
-  }
-
-  const parentDoc = await Patient.findOne({ email: finalParentEmail })
-  .select("_id age children approvedAt approvedSnapshot")
-  .lean();
-
-if (!parentDoc) {
-  return res.status(403).json({
-    errorCode: "PARENT_NOT_FOUND",
-    error: "Access denied: parent email not found in the system.",
-  });
-}
-
-if (!(Number(parentDoc.age) >= 18)) {
-  return res.status(403).json({
-    errorCode: "PARENT_NOT_ADULT",
-    error: "Access denied: parent record must be an adult.",
-  });
-}
-
-// ✅ NEW: Parent must have approved at least their first version
-if (!parentDoc.approvedAt) {
-  return res.status(403).json({
-    errorCode: "PARENT_NOT_APPROVED",
-    error: "Access denied: the parent/tutor must approve their profile before registering minors.",
-  });
-}
-
-const childKey = normNameKey(fullname);
-const snap = parentDoc.approvedSnapshot;
-const parentChildren =
-  Array.isArray(snap?.set?.children) ? snap.set.children :
-  Array.isArray(snap?.children) ? snap.children :
-  (Array.isArray(parentDoc.children) ? parentDoc.children : []);
-
-const isListed = parentChildren.some((c) => {
-  const cName = typeof c === "string" ? c : c?.name;
-  return normNameKey(cName) === childKey;
-});
-
-if (!isListed) {
-  return res.status(403).json({
-    errorCode: "MINOR_NOT_LISTED",
-    error: "Access denied: minor name is not listed in the parent's children list.",
-  });
-}
-}
-
-   let mk;
-
-if (isMinor) {
-  mk = minorKeyOf(finalParentEmail, fullname);
-  if (!mk) {
-    return res.status(400).json({ errorCode: "MINOR_KEY_INVALID" });
-  }
-
-  const lockedMinor = await hasPendingGuardianDecisionForMinorKey(mk, finalParentEmail);
-  if (lockedMinor) {
-    return res.status(409).json({ errorCode: "PENDING_GUARDIAN_DECISION" });
-  }
-}
-
-
-// ============================
-
-
-     // Email: validar si viene o si es adulto
-    let normalizedEmail;
-    if (email) {
-      const emailCheck = await verifyEmail(email);
-      if (!emailCheck.ok) return res.status(400).json({ error: emailCheck.error });
-      normalizedEmail = String(email).toLowerCase().trim();
-    } else if (!isMinor) {
-      return res.status(400).json({ error: "Email is required for adults" });
-    }
-
-    // Phone: validar si viene o si es adulto
-    let ph = { ok: true, phone: undefined, digits: undefined };
-    if (phone) {
-      ph = normPhoneWithCountry(country, phone);
-      if (!ph.ok) return res.status(400).json({ error: ph.error });
-    } else if (!isMinor) {
-      return res.status(400).json({ error: "Phone is required for adults" });
-    }
-
-    if (normalizedEmail) {
-      const existing = await Patient.findOne({ email: normalizedEmail })
-        .select("_id createdBy")
-        .lean();
-
-      if (existing) {
-        return res.status(409).json({
-          errorCode: "PATIENT_EMAIL_EXISTS",
-          error:
-            "A patient with this email already exists in the global database. Please use 'Search Global' to import them.",
-          // opcional, por si luego quieres navegar al detalle (aunque hoy el createdBy lo bloquearía)
-          patientId: existing._id,
-        });
-      }
-    }
-
-        // 🔒 Control: si el paciente ya tiene una versión pendiente en el portal,
-    // ningún doctor puede crear otro perfil hasta que el paciente decida.
-    if (normalizedEmail) {
-      const locked = await hasPendingHealthDecisionForEmail(normalizedEmail);
-      if (locked) {
-        return res.status(409).json({
-        errorCode: "PENDING_PORTAL",
-        error:
-        "This patient has a pending profile in the portal. Wait until the patient approves or rejects it before creating a new version.",
-    });
-      }
-
-    }
-
-
-    const doc = await Patient.create({
-      fullname, diseases: normalize(diseases), allergies: normalize(allergies), medications: normalize(medications), ...(normalizedEmail ? { email: normalizedEmail } : {}), bloodtype,  gender: gRaw, 
-      organDonor, bloodDonor, isDeceased: false, ...(ph.phone ? { phone: ph.phone, phoneDigits: ph.digits } : {}), 
-      causeOfDeath: undefined, measurementSystem: sys, heightM, weightKg, country: String(country).trim(), state: String(state).trim(), city: String(city).trim(),
-       createdBy: req.user._id,owners: [req.user._id],
-      lastEditedBy: req.user._id,
-      // NEW: cachea exactamente lo que tecleó el usuario
-      originalAnthro: { system: sys, height: H, weight: W },
-      children: finalChildren,
-      childrenCount: finalChildrenCount,
-      parentEmail: finalParentEmail,
-      ...(isMinor ? { minorKey: mk } : {}),
-      birthDate: parsedBirthDate,
-      age: ageNum,
-      ageCategory: mapAgeToBand(ageNum),
-
-    });
-
-    return res.status(201).json(applyDynamicAgeToPatient(doc.toObject({ virtuals: true })));
-  } catch (err) {
-    // índices únicos compuestos (createdBy+email/phone/fullname) -> E11000
-   if (err?.code === 11000) {
-  const isEmailDup = !!err?.keyPattern?.email || !!err?.keyValue?.email;
-  return res.status(409).json({
-    errorCode: isEmailDup ? "PATIENT_EMAIL_EXISTS" : "PATIENT_DUPLICATE",
-    error: isEmailDup
-      ? "A patient with this email already exists."
-      : "Duplicate patient data.",
-  });
-}
-
     console.error("createPatient error:", err);
-    return res.status(500).json({ error: "Server error" });
+  return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      patientId: err.patientId,
+      error: err.message || "Server error",
+    });
   }
 };
 
