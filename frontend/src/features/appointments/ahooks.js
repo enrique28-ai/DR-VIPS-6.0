@@ -16,6 +16,7 @@ export function useAppointments() {
       }));
     },
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     onError: (e) => {
       if (e?.response?.status !== 429) toast.error(i18n.t("calendar.toasts.loadFailed"));
     },
