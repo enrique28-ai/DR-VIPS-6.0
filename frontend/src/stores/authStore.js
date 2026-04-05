@@ -101,8 +101,8 @@ export const useAuthStore = create(persist((set) => ({
     set({ isLoading: true, error: null });
     try {
       await api.post(`${API}/login`, { email, password, recaptchaToken });
+      queryClient.clear();
       const { data } = await api.get(`${API}/me`);
-      queryClient.clear();         
       set({ user: data.user, isAuthenticated: true, isLoading: false });
       toast.success(i18n.t("auth.toasts.loginSuccess"));
       return data.user;
@@ -126,8 +126,8 @@ export const useAuthStore = create(persist((set) => ({
     set({ isLoading: true, error: null });
     try {
       await api.post(`${API}/register`, { name, email, password, recaptchaToken, role });
+      queryClient.clear();
       const { data } = await api.get(`${API}/me`);
-      queryClient.clear();         
       set({ user: data.user, isAuthenticated: true, isLoading: false });
       toast.success(i18n.t("auth.toasts.signupSuccess"));
       return data.user;
@@ -257,8 +257,8 @@ export const useAuthStore = create(persist((set) => ({
   finalizeGoogleRole: async (role) => {
     try {
       await api.post(`${API}/google/finalize`, { role });
-      const { data } = await api.get(`${API}/me`);
       queryClient.clear();
+      const { data } = await api.get(`${API}/me`);
       set({ user: data.user, isAuthenticated: true });
       return data.user;
     } catch (err) {
