@@ -16,4 +16,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const url = err.config?.url || "";
+    if (
+      err?.response?.status === 401 &&
+      !url.includes("/auth/me") &&
+      !url.includes("/auth/logout")
+    ) {
+      const { useAuthStore } = await import("../stores/authStore.js");
+      const store = useAuthStore.getState();
+      if (store.isAuthenticated) store.logout();
+    }
+    return Promise.reject(err);
+  }
+);
+
 export default api;
