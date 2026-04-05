@@ -62,6 +62,7 @@ export const startReminderJob = () => {
   cron.schedule("* * * * *", async () => {
     try {
       const now = new Date();
+      now.setSeconds(0, 0);
 
       for (const mins of leadMinutesList) {
         // ventana de 1 minuto para evitar repeats
