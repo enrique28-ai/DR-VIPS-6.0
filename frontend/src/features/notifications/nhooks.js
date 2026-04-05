@@ -9,6 +9,8 @@ export function useNotifications() {
       return data; // { items, unreadCount }
     },
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+    retry: 2,
   });
 }
 
