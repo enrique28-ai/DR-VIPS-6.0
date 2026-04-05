@@ -147,30 +147,31 @@ if (typeof req.query.hasOperations !== "undefined") {
 }
 
 
-    // 🔹 CON TEXTO: filtramos por NOMBRE DEL DIAGNÓSTICO (title) usando substring
-    let docs = await Diagnosis.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
+    // 🔹 CON TEXTO: push text filter to DB via $regex
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.$or = [
+      { title: { $regex: escaped, $options: "i" } },
+      { description: { $regex: escaped, $options: "i" } },
+    ];
 
-    const qn = q.toLowerCase();
+    const [docsRaw, total] = await Promise.all([
+      Diagnosis.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Diagnosis.countDocuments(filter),
+    ]);
 
-    docs = docs.filter((d) => {
-      const title = (d.title ?? "").toLowerCase();
-      const extra = (d.description ?? d.symptoms ?? "").toLowerCase();
-      return title.includes(qn) ||
-        extra.includes(qn)           // 👈 SOLO POR NOMBRE DEL DIAGNÓSTICO
-    });
+    const pages = Math.ceil(total / limit) || 0;
+    let items = docsRaw;
 
-    const total = docs.length;
-const pages = Math.ceil(total / limit) || 0;
-let items = docs.slice(skip, skip + limit);
+    const lang = getLang(req);
+    if (lang && items.length > 0) {
+      items = await translateDiagnosisTitles(items, lang);
+    }
 
-const lang = getLang(req);
-if (lang && items.length > 0) {
-  items = await translateDiagnosisTitles(items, lang);
-}
-
-return res.json({ items, total, page, pages });
+    return res.json({ items, total, page, pages });
 
   } catch (err) {
     console.error("getDiagnosesByPatient error:", err);
@@ -382,8 +383,10 @@ export const getMyDiagnosesPortal = async (req, res) => {
 
 
     // ⚙️ CON texto: buscamos por título, descripción, nombre del doc y correo del doc
+    // safety cap: prevents loading entire collection into memory
     let docs = await Diagnosis.find(filter)
       .sort({ createdAt: -1 })
+      .limit(5000)
       .populate("createdBy", "name email")
       .lean();
 
@@ -687,8 +690,10 @@ export const getMyChildDiagnosesPortal = async (req, res) => {
     }
 
     // --- CON q: filtra in-memory (igual estilo a tu /mine) ---
+    // safety cap: prevents loading entire collection into memory
     let docs = await Diagnosis.find(filter)
       .sort({ createdAt: -1 })
+      .limit(5000)
       .populate("createdBy", "name email role")
       .lean();
 
