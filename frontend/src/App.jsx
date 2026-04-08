@@ -66,28 +66,8 @@ export default function App() {
     checkAuth();
   }, [checkAuth]);
 
-  // 1) Si el usuario vuelve con la flecha atrás (bfcache), vuelve a consultar /me
-  useEffect(() => {
-    const onShow = (e) => {
-      if (e.persisted) {
-        // forzamos una verificación real de sesión
-        useAuthStore.getState().checkAuth();
-      }
-    };
-    window.addEventListener("pageshow", onShow);
-    return () => window.removeEventListener("pageshow", onShow);
-  }, []);
-
-  // 2) Cuando la pestaña vuelve a estar visible, re-verifica también
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        useAuthStore.getState().checkAuth();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
+  // Auth re-checks on pageshow/visibilitychange removed to avoid
+  // guest /auth/me spam. PrivateRoute handles its own revalidation.
 
   return (
     <Routes>
