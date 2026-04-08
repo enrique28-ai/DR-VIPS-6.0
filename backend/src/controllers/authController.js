@@ -169,7 +169,8 @@ export const register = async (req, res) => {
     });
 
     // Enviar verificación en background
-    await sendVerificationEmail(user.email, user.verificationToken, lang);
+    sendVerificationEmail(user.email, user.verificationToken, lang)
+      .catch((e) => console.error("Email send failed (register):", e.message));
   } catch (err) {
     console.error("register error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -253,7 +254,8 @@ export const verifyEmail = async (req, res) => {
     res.json({ success: true, message: "Email verified" });
 
     // Welcome en background
-    await sendWelcomeEmail(user.email, user.name, lang);
+    sendWelcomeEmail(user.email, user.name, lang)
+      .catch((e) => console.error("Email send failed (welcome):", e.message));
   } catch (err) {
     console.error("verifyEmail error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -272,11 +274,15 @@ export const resendVerificationCode = async (req, res) => {
     user.verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    // Responde primero
-    res.json({ success: true, message: "Verification code resent" });
+    // Enviar verificación (crítico — el usuario pidió el código explícitamente)
+    try {
+      await sendVerificationEmail(user.email, user.verificationToken, lang);
+    } catch (e) {
+      console.error("Email send failed (resend):", e.message);
+      return res.status(500).json({ error: "Could not send verification email" });
+    }
 
-    // Envío en background
-    await sendVerificationEmail(user.email, user.verificationToken, lang);
+    res.json({ success: true, message: "Verification code resent" });
   } catch (err) {
     console.error("resendVerificationCode error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -312,7 +318,8 @@ export const forgotPassword = async (req, res) => {
     res.json({ success: true, message: "If the email exists, we sent a code" });
 
     // Envío en background
-    await sendPasswordResetCodeEmail(user.email, code, lang);
+    sendPasswordResetCodeEmail(user.email, code, lang)
+      .catch((e) => console.error("Email send failed (forgot):", e.message));
   } catch (err) {
     console.error("forgotPassword error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -353,7 +360,8 @@ export const resetPassword = async (req, res) => {
     res.json({ success: true, message: "Password updated" });
 
     // Notificación en background
-    await sendResetSuccessEmail(user.email, lang);
+    sendResetSuccessEmail(user.email, lang)
+      .catch((e) => console.error("Email send failed (reset-success):", e.message));
   } catch (err) {
     console.error("resetPassword error:", err);
     return res.status(500).json({ error: "Server error" });
