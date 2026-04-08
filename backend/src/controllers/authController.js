@@ -296,7 +296,7 @@ export const forgotPassword = async (req, res) => {
     const { email } = req.body || {};
     const user = await User.findOne({ email });
     // Respuesta genérica para no filtrar si existe o no
-    if (!user) return res.json({ success: true, message: "If the email exists, we sent a link" });
+    if (!user) return res.json({ success: true, message: "If the email exists, we sent a code" });
     if (user.googleId) {
     return res.status(400).json({ errorCode: "USE_GOOGLE" });
     }
