@@ -16,18 +16,26 @@ export default function AuthOnlyRoute({ children }) {
     let alive = true;
     const t = setTimeout(() => { if (alive) setShowLoader(true); }, 200);
     (async () => {
-      try { await checkAuth(); } catch {}
+      try {
+        if (useAuthStore.getState().isAuthenticated) {
+          await checkAuth();
+        }
+      } catch {}
       if (alive) {
         setChecking(false);
         setShowLoader(false);
       }
     })();
     return () => { alive = false; clearTimeout(t); };
-   }, []);
+   }, [checkAuth]);
 
    // re-verifica si volvemos con Back/Forward (bfcache)
   useEffect(() => {
-    const onShow = (e) => { if (e.persisted) useAuthStore.getState().checkAuth(); };
+    const onShow = (e) => {
+      if (e.persisted && useAuthStore.getState().isAuthenticated) {
+        useAuthStore.getState().checkAuth();
+      }
+    };
     window.addEventListener("pageshow", onShow);
     return () => window.removeEventListener("pageshow", onShow);
   }, []);
