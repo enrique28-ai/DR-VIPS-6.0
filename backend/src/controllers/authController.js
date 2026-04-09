@@ -301,18 +301,11 @@ export const forgotPassword = async (req, res) => {
     return res.status(400).json({ errorCode: "USE_GOOGLE" });
     }
 
-
-    // Token largo y aleatorio sin crypto
-   // const rawToken = nanoid(64); // ~64 chars url-safe
-    //user.resetPasswordToken = rawToken; // almacenado en claro (válido en apps pequeñas)
-
     const code = gen6Code();
    const hashedCode   = crypto.createHash("sha256").update(code).digest("hex");
    user.resetPasswordToken = hashedCode;     // guardar SOLO el hash
-    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 1h
+    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
     await user.save();
-
-    //const resetURL = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password/${rawToken}`;
 
     // Responde primero
     res.json({ success: true, message: "If the email exists, we sent a code" });
@@ -334,9 +327,6 @@ export const resetPassword = async (req, res) => {
     const { password } = req.body || {};
     if (!token || !password) return res.status(400).json({ error: "Invalid payload" });
 
-    // Como guardamos el token en claro, lo buscamos directo
-    //const user = await User.findOne({
-      //resetPasswordToken: token,
     const tokenStr = String(token || "").trim();
     const isHex64 = /^[a-f0-9]{64}$/i.test(tokenStr);
     if (!isHex64) {
@@ -401,7 +391,7 @@ export const verifyResetCode = async (req, res) => {
     const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
 
     user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 1h para cambiar password
+    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min para cambiar password
     await user.save();
 
     return res.json({ success: true, token: rawToken });
