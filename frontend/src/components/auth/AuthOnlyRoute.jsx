@@ -4,7 +4,7 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { useState, useEffect } from "react";
 
 export default function AuthOnlyRoute({ children }) {
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated, checkAuth, user } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [showLoader, setShowLoader] = useState(false);
 
@@ -40,7 +40,15 @@ export default function AuthOnlyRoute({ children }) {
     return () => window.removeEventListener("pageshow", onShow);
   }, []);
    if (checking) return showLoader ? <TopBar /> : null;
-  if (isAuthenticated) return <Navigate to="/patients" replace />;
+  if (isAuthenticated) {
+    const dest =
+      user?.role === "patient"
+        ? "/docrecords/myhealthstate"
+        : user?.role === "doctor"
+          ? "/patients"
+          : "/";
+    return <Navigate to={dest} replace />;
+  }
   return children;
 }
 
