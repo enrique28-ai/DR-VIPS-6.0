@@ -344,6 +344,14 @@ export const resetPassword = async (req, res) => {
     user.password = password;               // se hashea en pre('save') del modelo
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiresAt = undefined;
+
+    // B2: recibir el código prueba control del inbox → tratar como verificación de email
+    if (!user.isVerified) {
+      user.isVerified = true;
+      user.verificationToken = undefined;
+      user.verificationTokenExpiresAt = undefined;
+    }
+
     await user.save();
 
     // Responde primero
