@@ -24,7 +24,6 @@ import {
   normUpper,
   arrKey,
   near,
-  t,
 } from "../../controllers/helpers/patienthelpers.js";
 
 export const createPatientService = async ({ user, body }) => {
@@ -886,10 +885,16 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     if (!changesFound && "phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changesFound = true;
     if (!changesFound && "isDeceased" in update && Boolean(update.isDeceased) !== Boolean(current.isDeceased)) changesFound = true;
     if (!changesFound && "causeOfDeath" in update && normStr(update.causeOfDeath) !== normStr(current.causeOfDeath)) changesFound = true;
-    if (!changesFound && "childrenCount" in update && Number(update.childrenCount) !== Number(current.childrenCount)) changesFound = true;
+    const currentChildren = Array.isArray(current.children) ? current.children : [];
+    const currentChildrenCount =
+      Number.isFinite(Number(current.childrenCount))
+        ? Number(current.childrenCount)
+        : currentChildren.length;
+
+    if (!changesFound && "childrenCount" in update && Number(update.childrenCount) !== currentChildrenCount) changesFound = true;
     if (!changesFound && "parentEmail" in update && normLower(update.parentEmail) !== normLower(current.parentEmail)) changesFound = true;
-    if (!changesFound && "birthDate" in update && t(update.birthDate) !== t(current.birthDate)) changesFound = true;
-    if (!changesFound && "dateOfDeath" in update && t(update.dateOfDeath) !== t(current.dateOfDeath)) changesFound = true;
+    if (!changesFound && "birthDate" in update && ymdUTC(update.birthDate) !== ymdUTC(current.birthDate)) changesFound = true;
+    if (!changesFound && "dateOfDeath" in update && ymdUTC(update.dateOfDeath) !== ymdUTC(current.dateOfDeath)) changesFound = true;
     if (!changesFound && "ageCategory" in update && normStr(update.ageCategory) !== normStr(current.ageCategory)) changesFound = true;
 
     const touchedAnthro =

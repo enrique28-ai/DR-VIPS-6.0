@@ -590,8 +590,12 @@ if (isMinor) {
       organDonor: organDonor === "yes",
       bloodDonor: bloodDonor === "yes",
       isDeceased: life === "deceased",
-      dateOfDeath: life === "deceased" ? form.dateOfDeath : "",
-      ...(life === "deceased" ? { causeOfDeath: cause.trim() } : {}),
+      ...(life === "deceased"
+        ? {
+            dateOfDeath: form.dateOfDeath,
+            causeOfDeath: cause.trim(),
+          }
+        : {}),
       ...(isMinor ? { parentEmail: parentEmailNorm } : {}),
       ...(!isMinor ? { childrenCount: finalChildrenCount, children: finalChildren } : {}),
       measurementSystem: system,
