@@ -5,8 +5,15 @@
   "close": "Close",
   "view": "View",
   "accept": "Accept",
-  "reject": "Reject"
+  "reject": "Reject",
+  "translate": "Translate",
+  "selectLanguage": "Select language",
+  "selectDate": "Select date"
 
+},
+"languageGate": {
+  "title": "Select your language",
+  "description": "You can change this later from the interface, but first choose how you want to view DR VIPS."
 },
 "myChildren": {
   "title": "My children",
@@ -28,7 +35,8 @@
     "approveOk": "Changes approved.",
     "approveFail": "Failed to approve changes.",
     "rejectOk": "Changes rejected.",
-    "rejectFail": "Failed to reject changes."
+    "rejectFail": "Failed to reject changes.",
+    "loadFailed": "Failed to load children information."
   }
 },
 
@@ -387,7 +395,9 @@
     "countryRequired": "Please select a country.",
     "emailImmutable": "The email cannot be modified once registered.",
     "dateOfDeath": "Date of death",
-    "dateOfDeathPlaceholder": "YYYY-MM-DD"
+    "dateOfDeathPlaceholder": "YYYY-MM-DD",
+    "childrenNamesImmutable": "Existing children names cannot be edited.",
+    "childrenNamesDuplicate": "Children names must be unique."
   },
 
   "detail": {
@@ -539,6 +549,7 @@
   },
   "detail": {
     "notFoundTitle": "Diagnosis not found",
+    "notFound": "Diagnosis not found",
     "backToList": "Back to diagnoses",
     "description": "Description",
     "medicines": "Medicines",
@@ -645,10 +656,12 @@
     "back": "Back"
   },
   "empty": {
+    "title": "No health information yet",
     "description": "None of your doctors have registered a personal profile for you yet. Once a doctor creates or updates your information, you'll be able to review and approve it here.",
     "backToState": "Back to my diagnoses"
   },
   "header": {
+    "pendingReview": "Pending review",
     "description": "This is how your doctors have registered your personal information.",
     "allUpToDate": "All your information is up to date. There is nothing pending to approve.",
     "lastUpdate": "Last update request:",
@@ -720,12 +733,14 @@
     "approve": "Approve and share with all doctors",
     "reject": "Reject this version",
     "approving": "Approving...",
-    "rejecting": "Rejecting..."
+    "rejecting": "Rejecting...",
+    "clearTranslation": "Clear translation"
   }
 },
 "calendar": {
   "title": "Appointments Calendar",
   "menu": "Calendar",
+  "newAppointment": "New appointment",
   "scheduleBtn": "Schedule Appointment",
   "scheduling": "Scheduling...",
   "selectPatient": "Select Patient (Alive only)",

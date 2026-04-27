@@ -475,11 +475,7 @@ if (needsChildren) {
   // 🔒 existentes no cambian
   for (let i = 0; i < minChildren; i++) {
     if (normNameKey(names[i]) !== normNameKey(initialChildrenNames[i] || "")) {
-      toast.error(
-        t("patients.edit.childrenNamesImmutable", {
-          defaultValue: "Existing children names cannot be edited.",
-        })
-      );
+      toast.error(t("patients.edit.childrenNamesImmutable"));
       return;
     }
   }
@@ -497,11 +493,7 @@ if (needsChildren) {
   for (const nm of names) {
     const k = normNameKey(nm);
     if (k && seen.has(k)) {
-      toast.error(
-        t("patients.edit.childrenNamesDuplicate", {
-          defaultValue: "Children names must be unique.",
-        })
-      );
+      toast.error(t("patients.edit.childrenNamesDuplicate"));
       return;
     }
     if (k) seen.add(k);

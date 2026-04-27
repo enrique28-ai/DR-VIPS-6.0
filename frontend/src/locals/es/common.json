@@ -5,8 +5,15 @@
   "close": "Cerrar",
   "view": "Ver",
   "accept": "Aceptar",
-  "reject": "Rechazar"
+  "reject": "Rechazar",
+  "translate": "Traducir",
+  "selectLanguage": "Seleccionar idioma",
+  "selectDate": "Selecciona fecha"
 
+},
+"languageGate": {
+  "title": "Selecciona tu idioma",
+  "description": "Puedes cambiarlo después desde la interfaz, pero primero elige cómo quieres ver DR VIPS."
 },
 "myChildren": {
   "title": "Mis hijos",
@@ -28,7 +35,8 @@
     "approveOk": "Cambios aprobados.",
     "approveFail": "Error al aprobar cambios.",
     "rejectOk": "Cambios rechazados.",
-    "rejectFail": "Error al rechazar cambios."
+    "rejectFail": "Error al rechazar cambios.",
+    "loadFailed": "No se pudo cargar la información de tus hijos."
   }
 },
 
@@ -375,7 +383,9 @@
       "countryRequired": "Seleccione un país.",
       "emailImmutable": "El correo electrónico no puede ser modificado una vez registrado.",
       "dateOfDeath": "Fecha de defunción",
-      "dateOfDeathPlaceholder": "YYYY-MM-DD"
+      "dateOfDeathPlaceholder": "YYYY-MM-DD",
+      "childrenNamesImmutable": "Los nombres de hijos existentes no se pueden editar.",
+      "childrenNamesDuplicate": "Los nombres de los hijos deben ser únicos."
 
     },
     "detail": {
@@ -527,6 +537,7 @@
   },
   "detail": {
     "notFoundTitle": "Diagnóstico no encontrado",
+    "notFound": "Diagnóstico no encontrado",
     "backToList": "Volver a diagnósticos",
     "description": "Descripción",
     "medicines": "Medicinas",
@@ -633,10 +644,12 @@
     
   },
   "empty": {
+    "title": "Aún no hay información de salud",
     "description": "Ninguno de sus médicos ha registrado todavía un perfil personal para usted. Una vez que un médico cree o actualice su información, podrá revisarla y aprobarla aquí.",
     "backToState": "Volver a mis diagnósticos"
   },
   "header": {
+    "pendingReview": "Revisión pendiente",
     "description": "Así es como sus médicos han registrado su información personal.",
     "allUpToDate": "Toda su información está actualizada. No hay nada pendiente por aprobar.",
     "lastUpdate": "Última solicitud de actualización:",
@@ -708,12 +721,14 @@
     "approve": "Aprobar y compartir con todos los médicos",
     "reject": "Rechazar esta versión",
     "approving": "Aprobando...",
-    "rejecting": "Rechazando..."
+    "rejecting": "Rechazando...",
+    "clearTranslation": "Limpiar traducción"
   }
 },
 "calendar": {
   "title": "Calendario de Citas",
   "menu": "Calendario",
+  "newAppointment": "Nueva cita",
   "scheduleBtn": "Agendar Cita",
   "scheduling": "Agendando...",
   "selectPatient": "Seleccionar Paciente (solo vivos)",

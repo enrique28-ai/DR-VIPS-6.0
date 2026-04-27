@@ -24,7 +24,7 @@ export function LanguageSwitcher() {
 import { useTranslation } from "react-i18next";
 
 export function LanguageSwitcher() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   
   const changeLanguage = (lang) => {
     i18n.changeLanguage(lang);
@@ -37,7 +37,7 @@ export function LanguageSwitcher() {
       value={i18n.language}
       onChange={(e) => changeLanguage(e.target.value)}
       className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white text-gray-800"
-      aria-label="Select language"
+      aria-label={t("common.selectLanguage")}
     >
       <option value="en">EN</option>
       <option value="es">ES</option>

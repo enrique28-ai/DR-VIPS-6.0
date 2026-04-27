@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 export function LanguageGate({ children }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [lang, setLang] = useState(() => {
     if (typeof window === "undefined") return "en";
@@ -21,10 +21,9 @@ export function LanguageGate({ children }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="max-w-md w-full bg-white rounded-2xl shadow p-8 text-center space-y-6">
-        <h1 className="text-2xl font-bold">Select your language</h1>
+        <h1 className="text-2xl font-bold">{t("languageGate.title")}</h1>
         <p className="text-gray-600 text-sm">
-          You can change this later from the interface, but first choose how
-          you want to view DR VIPS.
+          {t("languageGate.description")}
         </p>
         <div className="flex flex-col gap-3">
           <button

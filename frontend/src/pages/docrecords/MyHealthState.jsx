@@ -236,7 +236,7 @@ export default function MyHealthState() {
             <form onSubmit={(e) => e.preventDefault()} className="flex-1">
               <Input
                 className="w-full h-11"
-                placeholder="Search by diagnosis name, doctor name or email..."
+                placeholder={t("myHealthState.list.searchPlaceholder")}
                 value={q}
                 onChange={(e) => {
                   setQ(e.target.value);

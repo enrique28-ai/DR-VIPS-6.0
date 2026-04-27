@@ -43,7 +43,7 @@ const title =
   onClick={handleTranslateThisCard}
   disabled={!!translatingOne}
   className="absolute right-4 top-4 rounded-full p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600"
-  title="Translate"
+  title={t("common.translate")}
 >
   {translatingOne ? (
     <Loader2 className="h-4 w-4 animate-spin" />

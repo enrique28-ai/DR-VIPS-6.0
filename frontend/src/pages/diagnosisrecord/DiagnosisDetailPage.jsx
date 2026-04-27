@@ -138,7 +138,7 @@ export default function DiagnosisDetailPage() {
            <Button variant="secondary" onClick={handleTranslate} disabled={isPending}  className="w-full sm:w-auto">
             <span className="inline-flex items-center gap-2">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
-            {t("Translate")}
+            {t("common.translate")}
           </span>
         </Button>
           <Button full={false} variant="secondary"  className="w-full sm:w-auto" onClick={() => setShowHistory(true)}>

@@ -319,7 +319,7 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
     ) : (
       <Languages className="h-4 w-4" />
     )}
-    {t("Translate")}
+    {t("common.translate")}
   </span>
 </Button>
 

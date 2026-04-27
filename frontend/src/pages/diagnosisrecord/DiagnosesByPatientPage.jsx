@@ -298,7 +298,7 @@ const subtitlePages = pages > 0 ? pages : pagesSnapshot;
               setPage(1);
             }}
             className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm hover:bg-gray-200"
-            title="Today"
+            title={t("diagnoses.list.filters.today")}
           >
              {t("diagnoses.list.filters.today")}
           </button>

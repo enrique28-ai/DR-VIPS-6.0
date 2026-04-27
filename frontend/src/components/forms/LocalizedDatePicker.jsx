@@ -16,7 +16,7 @@ export default function LocalizedDatePicker({
   placeholder,
   ...rest
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith("es") ? "es" : "en";
 
   // Función auxiliar para entender lo que llega (Date o String)
@@ -34,7 +34,7 @@ export default function LocalizedDatePicker({
   };
 
   const selectedDate = getSelectedDate();
-  const fallbackPlaceholder = locale === "es" ? "Selecciona fecha" : "Select date";
+  const fallbackPlaceholder = t("common.selectDate");
 
   return (
     <DatePicker
