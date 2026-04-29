@@ -325,6 +325,20 @@ export const createPatientService = async ({ user, body }) => {
     }
   }
 
+  if (ph.digits) {
+    const existing = await Patient.findOne({ phoneDigits: ph.digits })
+      .select("_id")
+      .lean();
+
+    if (existing) {
+      const err = new Error("A patient with this phone already exists.");
+      err.status = 409;
+      err.errorCode = "PATIENT_PHONE_EXISTS";
+      err.patientId = existing._id;
+      throw err;
+    }
+  }
+
   const doc = await Patient.create({
     fullname,
     diseases: normalize(diseases),
