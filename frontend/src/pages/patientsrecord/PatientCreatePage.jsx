@@ -86,6 +86,12 @@ useEffect(() => {
   if (isMinor) {
     setHasChildren("no");
     setChildrenCountAndResize(0);
+
+    setForm((f) => ({
+      ...f,
+      email: "",
+      phone: "",
+    }));
   } else {
     setParentEmail("");
     if (hasChildren === "yes" && childrenCount === 0) setChildrenCountAndResize(1);
@@ -348,8 +354,8 @@ if (isMinor) {
     createPatient.mutate(
       {
         fullname: form.fullname.trim(),
-        ...( !isMinor || normalizedEmail ? { email: normalizedEmail } : {} ),
-        ...( !isMinor || totalDigits > 0 ? { phone: rest } : {} ),
+        ...(!isMinor ? { email: normalizedEmail } : {}),
+        ...(!isMinor ? { phone: rest } : {}),
         birthDate: form.birthDate,
         age: ageNum,
         diseases: diseasesArr,
