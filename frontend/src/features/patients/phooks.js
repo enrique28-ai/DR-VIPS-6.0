@@ -195,6 +195,11 @@ export function useUpdatePatient(id) {
     );
     return;
   }
+
+  if (status === 409 && code === "PATIENT_EMAIL_EXISTS") {
+    toast.error(i18n.t("patients.toasts.conflictEmailExists"));
+    return;
+  }
       
 
       const key = patientErrorKey(code);

@@ -165,8 +165,20 @@ export const updatePatient = async (req, res) => {
     return res.json(data);
   } catch (err) {
     if (err?.code === 11000) {
-      return res.status(400).json({
-        error: "Duplicate key: patient already exists for this user",
+      const isEmailDup = !!err?.keyPattern?.email || !!err?.keyValue?.email;
+      const isPhoneDup = !!err?.keyPattern?.phoneDigits || !!err?.keyValue?.phoneDigits;
+
+      return res.status(409).json({
+        errorCode: isEmailDup
+          ? "PATIENT_EMAIL_EXISTS"
+          : isPhoneDup
+            ? "PATIENT_PHONE_EXISTS"
+            : "PATIENT_DUPLICATE",
+        error: isEmailDup
+          ? "A patient with this email already exists."
+          : isPhoneDup
+            ? "A patient with this phone already exists."
+            : "Duplicate patient data.",
       });
     }
 

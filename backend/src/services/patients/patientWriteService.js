@@ -709,6 +709,22 @@ export const updatePatientService = async ({ user, patientId, body }) => {
         err.status = 400;
         throw err;
       }
+
+      const existing = await Patient.findOne({
+        email: e,
+        _id: { $ne: current._id },
+      }).select("_id").lean();
+
+      if (existing) {
+        const err = new Error(
+          "A patient with this email already exists in the global database. Please use 'Search Global' to import them."
+        );
+        err.status = 409;
+        err.errorCode = "PATIENT_EMAIL_EXISTS";
+        err.patientId = existing._id;
+        throw err;
+      }
+
       update.email = e;
     }
   }
