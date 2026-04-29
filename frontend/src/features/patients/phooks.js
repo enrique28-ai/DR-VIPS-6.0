@@ -110,6 +110,10 @@ export function useCreatePatient() {
           toast.error(i18n.t("patients.toasts.conflictEmailExists"));
           return;
         }
+        if (code === "PATIENT_PHONE_EXISTS") {
+          toast.error(i18n.t("patients.toasts.conflictPhoneExists", "A patient with this phone already exists."));
+          return;
+        }
         // Mensaje del backend: paciente tiene versión pendiente en el portal
         toast.error(i18n.t("patients.toasts.conflictPendingPortal"));
         return;

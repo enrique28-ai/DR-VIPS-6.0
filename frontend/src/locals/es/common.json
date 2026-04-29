@@ -464,6 +464,7 @@
       "approveHealthInfoFailed": "No hemos podido aprobar su información.",
       "conflictPendingPortal": "Este paciente tiene un perfil pendiente en el portal. Resuélvalo primero.",
       "conflictEmailExists": "Ya existe un paciente con este correo. No puedes crear otro registro con el mismo email.",
+      "conflictPhoneExists": "Ya existe un paciente con este teléfono.",
       "rejectHealthInfoSuccess": "Conservamos su información anterior.",
       "rejectHealthInfoFailed": "No podíamos rechazar esta información.",
       "importSuccess": "Paciente importado correctamente.",

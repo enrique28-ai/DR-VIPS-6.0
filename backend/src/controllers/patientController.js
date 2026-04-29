@@ -41,11 +41,19 @@ export const createPatient = async (req, res) => {
   } catch (err) {
     if (err?.code === 11000) {
       const isEmailDup = !!err?.keyPattern?.email || !!err?.keyValue?.email;
+      const isPhoneDup = !!err?.keyPattern?.phoneDigits || !!err?.keyValue?.phoneDigits;
+
       return res.status(409).json({
-        errorCode: isEmailDup ? "PATIENT_EMAIL_EXISTS" : "PATIENT_DUPLICATE",
+        errorCode: isEmailDup
+          ? "PATIENT_EMAIL_EXISTS"
+          : isPhoneDup
+            ? "PATIENT_PHONE_EXISTS"
+            : "PATIENT_DUPLICATE",
         error: isEmailDup
           ? "A patient with this email already exists."
-          : "Duplicate patient data.",
+          : isPhoneDup
+            ? "A patient with this phone already exists."
+            : "Duplicate patient data.",
       });
     }
 
