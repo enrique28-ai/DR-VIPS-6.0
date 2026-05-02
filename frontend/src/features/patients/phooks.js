@@ -204,6 +204,16 @@ export function useUpdatePatient(id) {
     toast.error(i18n.t("patients.toasts.conflictEmailExists"));
     return;
   }
+
+  if (status === 409 && code === "PATIENT_PHONE_EXISTS") {
+    toast.error(
+      i18n.t(
+        "patients.toasts.conflictPhoneExists",
+        "A patient with this phone already exists."
+      )
+    );
+    return;
+  }
       
 
       const key = patientErrorKey(code);
