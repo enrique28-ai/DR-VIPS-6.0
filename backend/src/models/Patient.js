@@ -269,6 +269,14 @@ patientSchema.pre("findOneAndUpdate", function (next) {
     const hasM = has("heightM");
     const hasK = has("weightKg");
     if (hasM || hasK) {
+      if (!(hasM && hasK)) {
+        return next(
+          new mongoose.Error.ValidatorError({
+            message: "To update direct anthropometrics send heightM and weightKg together.",
+          })
+        );
+      }
+
       const h = asNum(get("heightM"));
       const w = asNum(get("weightKg"));
       const { bmi, bmiCategory } = computeBmi(w, h);

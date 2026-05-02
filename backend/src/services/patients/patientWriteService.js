@@ -767,6 +767,20 @@ export const updatePatientService = async ({ user, patientId, body }) => {
         err.status = 400;
         throw err;
       }
+
+      const existing = await Patient.findOne({
+        phoneDigits: ph.digits,
+        _id: { $ne: current._id },
+      }).select("_id").lean();
+
+      if (existing) {
+        const err = new Error("A patient with this phone already exists.");
+        err.status = 409;
+        err.errorCode = "PATIENT_PHONE_EXISTS";
+        err.patientId = existing._id;
+        throw err;
+      }
+
       update.phone = ph.phone;
       update.phoneDigits = ph.digits;
     }
