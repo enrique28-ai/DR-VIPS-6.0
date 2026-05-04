@@ -13,7 +13,9 @@ dnsPromises.resolve6 = async () => [];
 syncBuiltinESMExports();
 
 const { default: Patient } = await import("../../../models/Patient.js");
-const { createPatientService } = await import("../patientWriteService.js");
+const { createPatientService } = await import(
+  "../../../services/patients/patientWriteService.js"
+);
 
 const originalPatientMethods = {
   create: Patient.create,

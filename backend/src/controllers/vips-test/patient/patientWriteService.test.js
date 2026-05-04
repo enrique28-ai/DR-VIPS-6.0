@@ -14,7 +14,7 @@ syncBuiltinESMExports();
 
 const { default: Patient } = await import("../../../models/Patient.js");
 const { createPatientService, updatePatientService } = await import(
-  "../patientWriteService.js"
+  "../../../services/patients/patientWriteService.js"
 );
 
 const originalPatientMethods = {

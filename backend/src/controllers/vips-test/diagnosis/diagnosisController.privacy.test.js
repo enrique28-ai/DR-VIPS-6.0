@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import Diagnosis from "../../models/Diagnosis.js";
-import Patient from "../../models/Patient.js";
+import Diagnosis from "../../../models/Diagnosis.js";
+import Patient from "../../../models/Patient.js";
 import {
   createDiagnosis,
   getDiagnosesByPatient,
   getDiagnosisById,
   updateDiagnosis,
-} from "../diagnosisController.js";
+} from "../../diagnosisController.js";
 
-const diagnosisController = await import("../diagnosisController.js");
+const diagnosisController = await import("../../diagnosisController.js");
 
 const originalPatientMethods = {
   exists: Patient.exists,

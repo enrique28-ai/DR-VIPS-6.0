@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPatientService } from "../patientWriteService.js";
+import { createPatientService } from "../../../services/patients/patientWriteService.js";
 
 const user = { _id: "doctor-id" };
 
