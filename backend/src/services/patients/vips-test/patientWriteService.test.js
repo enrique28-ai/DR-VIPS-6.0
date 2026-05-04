@@ -12,9 +12,9 @@ dnsPromises.resolve4 = async () => [];
 dnsPromises.resolve6 = async () => [];
 syncBuiltinESMExports();
 
-const { default: Patient } = await import("../../models/Patient.js");
+const { default: Patient } = await import("../../../models/Patient.js");
 const { createPatientService, updatePatientService } = await import(
-  "./patientWriteService.js"
+  "../patientWriteService.js"
 );
 
 const originalPatientMethods = {
