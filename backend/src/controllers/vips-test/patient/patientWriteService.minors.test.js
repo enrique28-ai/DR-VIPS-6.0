@@ -237,6 +237,69 @@ test("createPatientService rejects minors not listed in parent's children", asyn
   }
 });
 
+test("createPatientService creates a minor with parentEmail without saving it as minor email", async () => {
+  restorePatientMethods();
+
+  const parentFindOneCalls = mockParentFindOne(makeApprovedAdultParent());
+  const parentFindOne = Patient.findOne;
+  const guardianDecisionCalls = [];
+  const createCalls = [];
+
+  Patient.findOne = (query) => {
+    if (query.email) return parentFindOne(query);
+
+    guardianDecisionCalls.push(query);
+    return {
+      sort: (sort) => {
+        assert.deepEqual(sort, { updatedAt: -1 });
+        return {
+          select: (projection) => {
+            assert.equal(projection, "updatedAt approvedAt");
+            return {
+              lean: async () => null,
+            };
+          },
+        };
+      },
+    };
+  };
+
+  Patient.create = async (payload) => {
+    createCalls.push(payload);
+    return {
+      toObject: () => ({ _id: "minor-patient-id", ...payload }),
+    };
+  };
+
+  try {
+    const body = makeMinorCreateBody();
+    const result = await createPatientService({
+      user: { _id: "doctor-id" },
+      body,
+    });
+
+    assert.equal(parentFindOneCalls.length, 1);
+    assert.deepEqual(parentFindOneCalls[0], { email: "parent@example.com" });
+    assert.equal(guardianDecisionCalls.length, 1);
+    assert.equal(createCalls.length, 1);
+
+    const payload = createCalls[0];
+    assert.equal(payload.parentEmail, "parent@example.com");
+    assert.equal(payload.fullname, "Minor Patient");
+    assert.equal(payload.minorKey, "parent@example.com::minor patient");
+    assert(payload.birthDate instanceof Date);
+    assert.equal(payload.birthDate.toISOString().slice(0, 10), body.birthDate);
+    assert.equal(Object.hasOwn(payload, "email"), false);
+    assert.equal(Object.hasOwn(payload, "phone"), false);
+    assert.equal(Object.hasOwn(payload, "phoneDigits"), false);
+
+    assert.equal(result.parentEmail, "parent@example.com");
+    assert.equal(Object.hasOwn(result, "email"), false);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("createPatientService rejects minors declaring children", async () => {
   restorePatientMethods();
   rejectCreate();
