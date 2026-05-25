@@ -55,10 +55,10 @@ export const createAppointment = async (req, res) => {
     }
 
     // ✅ ANTI-OVERLAP (Backend Check)
-    // Buscamos si el doctor ya tiene algo 'pending' o 'accepted' en ese rango
+    // Buscamos si el doctor o paciente ya tiene algo 'pending' o 'accepted' en ese rango
     const conflict = await Appointment.findOne({
-      doctor: req.user._id,
       status: { $in: ["pending", "accepted"] },
+      $or: [{ doctor: req.user._id }, { patient: patientId }],
       start: { $lt: e }, // Empieza antes de que yo termine
       end: { $gt: s },   // Termina después de que yo empiece
     }).select("_id");

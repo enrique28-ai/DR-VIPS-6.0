@@ -248,8 +248,48 @@ test("createAppointment rejects overlapping doctor appointment with 409", async 
     assert.equal(conflictCalls.length, 1);
     assert.deepEqual(conflictCalls[0], {
       query: {
-        doctor: "doctor-id",
         status: { $in: ["pending", "accepted"] },
+        $or: [{ doctor: "doctor-id" }, { patient: "patient-id" }],
+        start: { $lt: endDate },
+        end: { $gt: startDate },
+      },
+      select: "_id",
+    });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment rejects overlapping patient appointment with 409", async () => {
+  restoreModelMethods();
+
+  mockPatientFindOne(makePatient());
+  const conflictCalls = mockAppointmentFindOne({
+    _id: "patient-conflict-id",
+    doctor: "other-doctor-id",
+    patient: "patient-id",
+  });
+  guardAppointmentCreate();
+  guardUserFindOne();
+  guardNotificationCreate();
+
+  const req = makeReq({ body: makeCreateBody() });
+  const res = makeRes();
+  const startDate = new Date(req.body.start);
+  const endDate = new Date(req.body.end);
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error: "Time range overlaps an existing appointment",
+    });
+    assert.equal(conflictCalls.length, 1);
+    assert.deepEqual(conflictCalls[0], {
+      query: {
+        status: { $in: ["pending", "accepted"] },
+        $or: [{ doctor: "doctor-id" }, { patient: "patient-id" }],
         start: { $lt: endDate },
         end: { $gt: startDate },
       },
@@ -290,6 +330,49 @@ test("createAppointment creates pending appointment when no conflict", async () 
     assert.ok(createCalls[0].end instanceof Date);
     assert.equal(createCalls[0].start.toISOString(), req.body.start);
     assert.equal(createCalls[0].end.toISOString(), req.body.end);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment allows same time for different doctor and different patient", async () => {
+  restoreModelMethods();
+
+  mockPatientFindOne(makePatient({ _id: "patient-b-id", email: "" }));
+  const conflictCalls = mockAppointmentFindOne(null);
+  const appt = makeAppointment({ patient: "patient-b-id" });
+  const createCalls = mockAppointmentCreate(appt);
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called when patient has no email");
+  };
+  guardNotificationCreate();
+
+  const req = makeReq({
+    body: makeCreateBody({ patientId: "patient-b-id" }),
+  });
+  const res = makeRes();
+  const startDate = new Date(req.body.start);
+  const endDate = new Date(req.body.end);
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body, appt);
+    assert.deepEqual(conflictCalls, [
+      {
+        query: {
+          status: { $in: ["pending", "accepted"] },
+          $or: [{ doctor: "doctor-id" }, { patient: "patient-b-id" }],
+          start: { $lt: endDate },
+          end: { $gt: startDate },
+        },
+        select: "_id",
+      },
+    ]);
+    assert.equal(createCalls.length, 1);
+    assert.equal(createCalls[0].doctor, "doctor-id");
+    assert.equal(createCalls[0].patient, "patient-b-id");
   } finally {
     restoreModelMethods();
   }
