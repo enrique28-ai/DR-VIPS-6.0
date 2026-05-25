@@ -26,6 +26,14 @@ import {
   near,
 } from "../../controllers/helpers/patienthelpers.js";
 
+const nameFromChild = (child) => (typeof child === "string" ? child : child?.name);
+
+const childNameKeyFromMinorKey = (minorKey, parentEmail) => {
+  const mk = normLower(minorKey);
+  const prefix = `${normLower(parentEmail)}::`;
+  return mk && mk.startsWith(prefix) ? mk.slice(prefix.length) : "";
+};
+
 export const createPatientService = async ({ user, body }) => {
   const {
     fullname,
@@ -512,24 +520,15 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     update.ageCategory = mapAgeToBand(nextAge);
   }
 
-  if (typeof fullname !== "undefined" && !isMinorNext) update.fullname = fullname;
+  if (typeof fullname !== "undefined") {
+    update.fullname = isMinorNext ? normStr(fullname) : fullname;
+  }
   if (typeof diseases !== "undefined") update.diseases = normalize(diseases);
   if (typeof allergies !== "undefined") update.allergies = normalize(allergies);
   if (typeof medications !== "undefined") update.medications = normalize(medications);
   if (typeof bloodtype !== "undefined") update.bloodtype = bloodtype;
 
   if (isMinorNext) {
-    if ("fullname" in body) {
-      const incomingNameKey = normNameKey(fullname);
-      const currentNameKey = normNameKey(current.fullname);
-      if (incomingNameKey && currentNameKey && incomingNameKey !== currentNameKey) {
-        const err = new Error("Minor fullname is immutable");
-        err.status = 400;
-        err.errorCode = "MINOR_FULLNAME_IMMUTABLE";
-        throw err;
-      }
-    }
-
     if ("parentEmail" in body && current.parentEmail) {
       const incomingPE = normLower(parentEmail);
       const currentPE = normLower(current.parentEmail);
@@ -544,8 +543,6 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       }
     }
   }
-
-  const nextFullname = "fullname" in update ? update.fullname : current.fullname;
 
   const wantsChildrenUpdate = "children" in body || "childrenCount" in body;
 
@@ -654,15 +651,17 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       throw err;
     }
 
-    const childKey = normNameKey(nextFullname);
+    const currentMinorNameKey =
+      childNameKeyFromMinorKey(current.minorKey, parentEmailEffective) ||
+      normNameKey(current.fullname);
     const snap = parentDoc.approvedSnapshot;
     const parentChildren =
       Array.isArray(snap?.set?.children) ? snap.set.children :
-      Array.isArray(snap?.children) ? snap.children : [];
+      Array.isArray(snap?.children) ? snap.children :
+      Array.isArray(parentDoc.children) ? parentDoc.children : [];
 
     const isListed = parentChildren.some((c) => {
-      const cName = typeof c === "string" ? c : c?.name;
-      return normNameKey(cName) === childKey;
+      return normNameKey(nameFromChild(c)) === currentMinorNameKey;
     });
 
     if (!isListed) {
@@ -672,6 +671,21 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       err.status = 403;
       err.errorCode = "MINOR_NOT_LISTED";
       throw err;
+    }
+
+    if ("fullname" in update) {
+      const proposedNameKey = normNameKey(update.fullname);
+      const duplicateChild = parentChildren.some((c) => {
+        const childKey = normNameKey(nameFromChild(c));
+        return childKey === proposedNameKey && childKey !== currentMinorNameKey;
+      });
+
+      if (duplicateChild) {
+        const err = new Error("A child with this name already exists for this parent.");
+        err.status = 409;
+        err.errorCode = "CHILD_NAME_ALREADY_EXISTS";
+        throw err;
+      }
     }
 
     if (!current.minorKey) {

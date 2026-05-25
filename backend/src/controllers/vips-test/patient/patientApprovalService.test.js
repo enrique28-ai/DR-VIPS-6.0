@@ -5,7 +5,9 @@ import Patient from "../../../models/Patient.js";
 import PatientHistory from "../../../models/PatientHistory.js";
 import User from "../../../models/User.js";
 import {
+  approveChildProfileService,
   approvePatientProfileService,
+  rejectChildProfileService,
   rejectPatientProfileService,
 } from "../../../services/patients/patientApprovalService.js";
 
@@ -13,6 +15,7 @@ const originalPatientMethods = {
   find: Patient.find,
   findOne: Patient.findOne,
   updateMany: Patient.updateMany,
+  updateOne: Patient.updateOne,
 };
 
 const originalPatientHistoryMethods = {
@@ -31,6 +34,7 @@ function restoreModelMethods() {
   Patient.find = originalPatientMethods.find;
   Patient.findOne = originalPatientMethods.findOne;
   Patient.updateMany = originalPatientMethods.updateMany;
+  Patient.updateOne = originalPatientMethods.updateOne;
   PatientHistory.create = originalPatientHistoryMethods.create;
   User.findByIdAndUpdate = originalUserMethods.findByIdAndUpdate;
 }
@@ -64,6 +68,60 @@ function makePatient(overrides = {}) {
   };
 }
 
+function makeChildPatient(overrides = {}) {
+  return {
+    _id: "child-profile-id",
+    fullname: "Corrected Minor",
+    parentEmail: "parent@example.com",
+    minorKey: "parent@example.com::minor patient",
+    birthDate: new Date("2016-01-01T12:00:00.000Z"),
+    age: 10,
+    ageCategory: "0-12",
+    bloodtype: "O+",
+    gender: "female",
+    organDonor: false,
+    bloodDonor: false,
+    measurementSystem: "metric",
+    heightM: 1.35,
+    weightKg: 32,
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    diseases: [],
+    allergies: [],
+    medications: [],
+    children: [],
+    approvedAt: new Date("2026-01-01T12:00:00.000Z"),
+    approvedSnapshot: {
+      set: {
+        fullname: "Minor Patient",
+        age: 10,
+        ageCategory: "0-12",
+        bloodtype: "O+",
+        gender: "female",
+        organDonor: false,
+        bloodDonor: false,
+        measurementSystem: "metric",
+        heightM: 1.35,
+        weightKg: 32,
+        country: "United States",
+        state: "California",
+        city: "San Diego",
+        diseases: [],
+        allergies: [],
+        medications: [],
+        children: [],
+        birthDate: new Date("2016-01-01T12:00:00.000Z"),
+      },
+      unset: {},
+    },
+    createdBy: "doctor-id",
+    lastEditedBy: "doctor-id",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    ...overrides,
+  };
+}
+
 function makePatientUser(overrides = {}) {
   return {
     _id: "patient-user-id",
@@ -71,6 +129,48 @@ function makePatientUser(overrides = {}) {
     email: "Patient@Example.com",
     ...overrides,
   };
+}
+
+function mockFlexiblePatientFindSequence(responses) {
+  const calls = [];
+
+  Patient.find = (query) => {
+    const response = responses[calls.length];
+    const call = { query, select: undefined, sort: undefined, populate: undefined };
+    calls.push(call);
+
+    if (response.kind === "selectLean") {
+      return {
+        select: (projection) => {
+          call.select = projection;
+          return {
+            lean: async () => response.value,
+          };
+        },
+      };
+    }
+
+    if (response.kind === "sortLean" || response.kind === "sortPopulateLean") {
+      return {
+        sort: (sort) => {
+          call.sort = sort;
+          return {
+            lean: async () => response.value,
+            populate(path, select) {
+              call.populate = { path, select };
+              return {
+                lean: async () => response.value,
+              };
+            },
+          };
+        },
+      };
+    }
+
+    throw new Error(`Unsupported Patient.find mock response: ${response.kind}`);
+  };
+
+  return calls;
 }
 
 function mockPatientFindOne(value) {
@@ -117,6 +217,17 @@ function mockPatientUpdateMany() {
   const calls = [];
 
   Patient.updateMany = async (query, updateDoc, options) => {
+    calls.push({ query, updateDoc, options });
+    return { acknowledged: true, modifiedCount: 1 };
+  };
+
+  return calls;
+}
+
+function mockPatientUpdateOne() {
+  const calls = [];
+
+  Patient.updateOne = async (query, updateDoc, options) => {
     calls.push({ query, updateDoc, options });
     return { acknowledged: true, modifiedCount: 1 };
   };
@@ -352,6 +463,166 @@ test("approvePatientProfileService marks the target profile as approved", async 
     assert.equal(historyCalls[0].approvedAt, updateManyCalls[0].updateDoc.$set.approvedAt);
     assert.equal(userUpdateCalls.length, 1);
     assert.deepEqual(findCalls[0].populate, { path: "createdBy", select: "name email" });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("approveChildProfileService updates minor fullname and minorKey on parent approval", async () => {
+  restoreModelMethods();
+
+  const target = makeChildPatient();
+  const findOneCalls = mockPatientFindOne(target);
+  const findCalls = mockFlexiblePatientFindSequence([
+    { kind: "selectLean", value: [] },
+    {
+      kind: "sortPopulateLean",
+      value: [
+        makeChildPatient({
+          fullname: "Corrected Minor",
+          minorKey: "parent@example.com::corrected minor",
+        }),
+      ],
+    },
+  ]);
+  const updateManyCalls = mockPatientUpdateMany();
+  const updateOneCalls = mockPatientUpdateOne();
+  const historyCalls = mockPatientHistoryCreate();
+
+  try {
+    const result = await approveChildProfileService({
+      user: makePatientUser({ email: "Parent@Example.com" }),
+      profileId: "child-profile-id",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pendingDecision, false);
+    assert.equal(findOneCalls[0]._id, "child-profile-id");
+    assert.equal(findOneCalls[0].parentEmail, "parent@example.com");
+    assert.equal(updateManyCalls.length, 1);
+    assert.deepEqual(updateManyCalls[0].query, {
+      parentEmail: "parent@example.com",
+      age: { $lt: 18 },
+      minorKey: "parent@example.com::minor patient",
+    });
+    assert.equal(updateManyCalls[0].updateDoc.$set.fullname, "Corrected Minor");
+    assert.equal(updateManyCalls[0].updateDoc.$set.minorKey, "parent@example.com::corrected minor");
+    assert.equal(
+      updateManyCalls[0].updateDoc.$set.approvedSnapshot.set.fullname,
+      "Corrected Minor"
+    );
+    assert.deepEqual(updateManyCalls[0].options, { timestamps: false });
+    assert.equal(updateOneCalls.length, 0);
+    assert.equal(historyCalls.length, 1);
+    assert.equal(historyCalls[0].patientKey, "parent@example.com::corrected minor");
+    assert.equal(findCalls[0].select, "_id children childrenCount approvedSnapshot");
+    assert.deepEqual(findCalls[1].populate, { path: "createdBy", select: "name email role" });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("approveChildProfileService updates parent children and approved snapshot children on rename", async () => {
+  restoreModelMethods();
+
+  const target = makeChildPatient();
+  const parentDoc = {
+    _id: "parent-profile-id",
+    children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],
+    childrenCount: 2,
+    approvedSnapshot: {
+      set: {
+        fullname: "Parent Profile",
+        children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],
+        childrenCount: 2,
+      },
+    },
+  };
+
+  mockPatientFindOne(target);
+  mockFlexiblePatientFindSequence([
+    { kind: "selectLean", value: [parentDoc] },
+    {
+      kind: "sortPopulateLean",
+      value: [
+        makeChildPatient({
+          fullname: "Corrected Minor",
+          minorKey: "parent@example.com::corrected minor",
+        }),
+      ],
+    },
+  ]);
+  mockPatientUpdateMany();
+  const updateOneCalls = mockPatientUpdateOne();
+  mockPatientHistoryCreate();
+
+  try {
+    const result = await approveChildProfileService({
+      user: makePatientUser({ email: "Parent@Example.com" }),
+      profileId: "child-profile-id",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(updateOneCalls.length, 1);
+    assert.deepEqual(updateOneCalls[0].query, { _id: "parent-profile-id" });
+    assert.equal(updateOneCalls[0].updateDoc.$set.children[0].name, "Corrected Minor");
+    assert.equal(updateOneCalls[0].updateDoc.$set.children[1].name, "Sibling Child");
+    assert.equal(updateOneCalls[0].updateDoc.$set.childrenCount, 2);
+    assert.equal(
+      updateOneCalls[0].updateDoc.$set["approvedSnapshot.set.children"][0].name,
+      "Corrected Minor"
+    );
+    assert.equal(updateOneCalls[0].updateDoc.$set["approvedSnapshot.set.childrenCount"], 2);
+    assert.deepEqual(updateOneCalls[0].options, { timestamps: false });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("rejectChildProfileService restores previous approved fullname and old minorKey for rename", async () => {
+  restoreModelMethods();
+
+  const target = makeChildPatient({
+    fullname: "Corrected Minor",
+    minorKey: "parent@example.com::minor patient",
+  });
+
+  mockPatientFindOne(target);
+  mockFlexiblePatientFindSequence([
+    { kind: "sortLean", value: [target] },
+    {
+      kind: "sortPopulateLean",
+      value: [
+        makeChildPatient({
+          fullname: "Minor Patient",
+          minorKey: "parent@example.com::minor patient",
+        }),
+      ],
+    },
+  ]);
+  const updateManyCalls = mockPatientUpdateMany();
+
+  Patient.updateOne = async () => {
+    throw new Error("Parent children should not be updated when rejecting a child rename");
+  };
+
+  try {
+    const result = await rejectChildProfileService({
+      user: makePatientUser({ email: "Parent@Example.com" }),
+      profileId: "child-profile-id",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pendingDecision, false);
+    assert.equal(updateManyCalls.length, 1);
+    assert.deepEqual(updateManyCalls[0].query, {
+      parentEmail: "parent@example.com",
+      minorKey: "parent@example.com::minor patient",
+      age: { $lt: 18 },
+    });
+    assert.equal(updateManyCalls[0].updateDoc.$set.fullname, "Minor Patient");
+    assert.equal(updateManyCalls[0].updateDoc.$set.minorKey, "parent@example.com::minor patient");
+    assert.deepEqual(updateManyCalls[0].options, { timestamps: false });
   } finally {
     restoreModelMethods();
   }

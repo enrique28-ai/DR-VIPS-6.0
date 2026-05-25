@@ -490,6 +490,8 @@
       "parentNotAdult": "Access denied: Parent record must be an adult.",
       "minorNotListed": "Access denied: Minor's name is not listed in the parent's children list.",
       "minorCannotDeclareChildren": "Minors cannot declare children.",
+      "childNameAlreadyExists": "A child with this name already exists for this parent.",
+      "minorFullnameImmutable": "The minor's name cannot be changed directly.",
       "parentEmailNotAllowed": "Parent email is only allowed for minors.",
       "childrenCountRequired": "Please specify the number of children.",
       "childrenCountInvalid": "Children count must be a valid number.",

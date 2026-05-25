@@ -6,6 +6,7 @@ import {
   computeHealthSnapshotByEmail,
   buildHealthSnapshotFromPatients,
   normLower,
+  normNameKey,
   minorKeyOf,
   minorQueryByBirthDateOrLegacy,
   computeHealthSnapshotByMinorKey,
@@ -37,6 +38,86 @@ const SYNC_FIELDS_SCALAR = [
 ];
 
 const SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications", "children"];
+
+const nameFromChild = (child) => (typeof child === "string" ? child : child?.name);
+
+const snapshotSetOf = (snapshot) =>
+  snapshot && typeof snapshot === "object" && snapshot.set && typeof snapshot.set === "object"
+    ? snapshot.set
+    : snapshot;
+
+const approvedFullnameFromSnapshot = (snapshot) => {
+  const set = snapshotSetOf(snapshot);
+  if (typeof set?.fullname === "string") return set.fullname;
+  if (typeof snapshot?.fullname === "string") return snapshot.fullname;
+  return "";
+};
+
+const childNameKeyFromMinorKey = (minorKey, parentEmail) => {
+  const mk = normLower(minorKey);
+  const prefix = `${normLower(parentEmail)}::`;
+  return mk && mk.startsWith(prefix) ? mk.slice(prefix.length) : "";
+};
+
+const renameChildList = (children, oldChildNameOrKey, newChildName) => {
+  if (!Array.isArray(children)) return [];
+
+  const oldKey = normNameKey(oldChildNameOrKey);
+  if (!oldKey) return children;
+
+  let replaced = false;
+  return children.map((child) => {
+    const childKey = normNameKey(nameFromChild(child));
+    if (replaced || childKey !== oldKey) return child;
+
+    replaced = true;
+    return typeof child === "string" ? newChildName : { ...child, name: newChildName };
+  });
+};
+
+const oldMinorKeyForDoc = (parentEmail, doc) => {
+  if (doc?.minorKey) return doc.minorKey;
+  return minorKeyOf(parentEmail, approvedFullnameFromSnapshot(doc?.approvedSnapshot));
+};
+
+async function renameApprovedChildForParent({ parentEmail, oldChildNameOrKey, newChildName }) {
+  const parentDocs = await Patient.find({ email: parentEmail })
+    .select("_id children childrenCount approvedSnapshot")
+    .lean();
+
+  for (const parentDoc of parentDocs) {
+    const set = {};
+    const children = Array.isArray(parentDoc.children) ? parentDoc.children : [];
+    const renamedChildren = renameChildList(children, oldChildNameOrKey, newChildName);
+
+    set.children = renamedChildren;
+    set.childrenCount = renamedChildren.length;
+
+    if (Array.isArray(parentDoc.approvedSnapshot?.set?.children)) {
+      const renamedSnapshotChildren = renameChildList(
+        parentDoc.approvedSnapshot.set.children,
+        oldChildNameOrKey,
+        newChildName
+      );
+
+      set["approvedSnapshot.set.children"] = renamedSnapshotChildren;
+      set["approvedSnapshot.set.childrenCount"] = renamedSnapshotChildren.length;
+    }
+
+    if (Array.isArray(parentDoc.approvedSnapshot?.children)) {
+      const renamedLegacySnapshotChildren = renameChildList(
+        parentDoc.approvedSnapshot.children,
+        oldChildNameOrKey,
+        newChildName
+      );
+
+      set["approvedSnapshot.children"] = renamedLegacySnapshotChildren;
+      set["approvedSnapshot.childrenCount"] = renamedLegacySnapshotChildren.length;
+    }
+
+    await Patient.updateOne({ _id: parentDoc._id }, { $set: set }, { timestamps: false });
+  }
+}
 
 export const approvePatientProfileService = async ({ user, profileId }) => {
   if (user.role !== "patient") {
@@ -312,8 +393,17 @@ export const approveChildProfileService = async ({ user, profileId }) => {
     throw err;
   }
 
-  const oldKey = doc.minorKey || minorKeyOf(parentEmail, doc.fullname);
-  const newKey = minorKeyOf(parentEmail, doc.fullname);
+  const previousApprovedFullname = approvedFullnameFromSnapshot(doc.approvedSnapshot);
+  const approvedFullname = String(doc.fullname ?? "").trim();
+  const oldKey = oldMinorKeyForDoc(parentEmail, doc);
+  const newKey = minorKeyOf(parentEmail, approvedFullname);
+
+  if (!oldKey || !newKey) {
+    const err = new Error("Invalid minor key");
+    err.status = 400;
+    err.errorCode = "MINOR_KEY_INVALID";
+    throw err;
+  }
 
   const canonical = {};
   for (const field of SYNC_FIELDS_SCALAR) {
@@ -327,6 +417,7 @@ export const approveChildProfileService = async ({ user, profileId }) => {
   }
 
   const canonicalSet = { ...canonical };
+  canonicalSet.fullname = approvedFullname;
   const canonicalUnset = {};
 
   for (const f of SYNC_FIELDS_SCALAR) {
@@ -360,6 +451,15 @@ export const approveChildProfileService = async ({ user, profileId }) => {
     updateDoc,
     { timestamps: false }
   );
+
+  if (oldKey !== newKey) {
+    await renameApprovedChildForParent({
+      parentEmail,
+      oldChildNameOrKey:
+        previousApprovedFullname || childNameKeyFromMinorKey(oldKey, parentEmail),
+      newChildName: approvedFullname,
+    });
+  }
 
   await PatientHistory.create({
     patientKey: newKey,
@@ -395,7 +495,14 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
     throw err;
   }
 
-  const key = target.minorKey || minorKeyOf(parentEmail, target.fullname);
+  const key = oldMinorKeyForDoc(parentEmail, target);
+
+  if (!key) {
+    const err = new Error("Invalid minor key");
+    err.status = 400;
+    err.errorCode = "MINOR_KEY_INVALID";
+    throw err;
+  }
 
   const allPats = await Patient.find({
     parentEmail,
@@ -435,6 +542,7 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
           ...prevSet,
           approvedSnapshot: snap,
           approvedAt: decidedAt,
+          minorKey: key,
         },
       };
 
@@ -523,6 +631,7 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
       ...canonicalSet,
       approvedSnapshot,
       approvedAt: decidedAt,
+      minorKey: key,
     },
   };
 

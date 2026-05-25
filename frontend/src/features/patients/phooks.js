@@ -12,7 +12,9 @@ const patientErrorKey = (code) => {
     PARENT_NOT_ADULT: "patients.errors.parentNotAdult",
     MINOR_NOT_LISTED: "patients.errors.minorNotListed",
     MINOR_CANNOT_DECLARE_CHILDREN: "patients.errors.minorCannotDeclareChildren",
+    MINOR_FULLNAME_IMMUTABLE: "patients.errors.minorFullnameImmutable",
     PARENT_EMAIL_NOT_ALLOWED: "patients.errors.parentEmailNotAllowed",
+    CHILD_NAME_ALREADY_EXISTS: "patients.errors.childNameAlreadyExists",
 
     // Children (Adults)
     CHILDREN_COUNT_REQUIRED: "patients.errors.childrenCountRequired",

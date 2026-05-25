@@ -477,6 +477,8 @@
       "parentNotAdult": "Acceso denegado: El registro del padre/madre debe corresponder a un adulto.",
       "minorNotListed": "Acceso denegado: El nombre del menor no aparece en la lista de hijos del padre/madre.",
       "minorCannotDeclareChildren": "Un menor de edad no puede registrar hijos.",
+      "childNameAlreadyExists": "Ya existe un hijo con este nombre para este padre o tutor.",
+      "minorFullnameImmutable": "El nombre del menor no puede cambiarse directamente.",
       "parentEmailNotAllowed": "El correo de padre/madre solo se permite para menores.",
       "childrenCountRequired": "Indica la cantidad de hijos.",
       "childrenCountInvalid": "La cantidad de hijos debe ser un número válido.",

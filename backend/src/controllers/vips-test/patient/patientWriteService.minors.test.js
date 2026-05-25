@@ -13,7 +13,7 @@ dnsPromises.resolve6 = async () => [];
 syncBuiltinESMExports();
 
 const { default: Patient } = await import("../../../models/Patient.js");
-const { createPatientService } = await import(
+const { createPatientService, updatePatientService } = await import(
   "../../../services/patients/patientWriteService.js"
 );
 
@@ -21,6 +21,7 @@ const originalPatientMethods = {
   create: Patient.create,
   find: Patient.find,
   findOne: Patient.findOne,
+  findOneAndUpdate: Patient.findOneAndUpdate,
 };
 
 after(() => {
@@ -68,10 +69,36 @@ function makeApprovedAdultParent(overrides = {}) {
   };
 }
 
+function makeMinorPatient(overrides = {}) {
+  return {
+    _id: "minor-patient-id",
+    fullname: "Minor Patient",
+    birthDate: new Date(`${minorBirthDate()}T12:00:00.000Z`),
+    age: 10,
+    bloodtype: "O+",
+    gender: "female",
+    organDonor: false,
+    bloodDonor: false,
+    measurementSystem: "metric",
+    heightM: 1.35,
+    weightKg: 32,
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    parentEmail: "parent@example.com",
+    minorKey: "parent@example.com::minor patient",
+    owners: ["doctor-id"],
+    createdBy: "doctor-id",
+    lastEditedBy: "doctor-id",
+    ...overrides,
+  };
+}
+
 function restorePatientMethods() {
   Patient.create = originalPatientMethods.create;
   Patient.find = originalPatientMethods.find;
   Patient.findOne = originalPatientMethods.findOne;
+  Patient.findOneAndUpdate = originalPatientMethods.findOneAndUpdate;
 }
 
 function mockParentFindOne(parentDoc) {
@@ -87,6 +114,55 @@ function mockParentFindOne(parentDoc) {
         };
       },
     };
+  };
+
+  return calls;
+}
+
+function mockPatientFindOneSequence(responses) {
+  const calls = [];
+
+  Patient.findOne = (query) => {
+    const response = responses[calls.length];
+    const call = { query, sort: undefined, select: undefined };
+    calls.push(call);
+
+    if (!response || response.kind === "lean") {
+      return {
+        lean: async () => response?.value,
+      };
+    }
+
+    if (response.kind === "selectLean") {
+      return {
+        select: (projection) => {
+          call.select = projection;
+          if (response.projection) assert.equal(projection, response.projection);
+          return {
+            lean: async () => response.value,
+          };
+        },
+      };
+    }
+
+    if (response.kind === "sortSelectLean") {
+      return {
+        sort: (sort) => {
+          call.sort = sort;
+          return {
+            select: (projection) => {
+              call.select = projection;
+              if (response.projection) assert.equal(projection, response.projection);
+              return {
+                lean: async () => response.value,
+              };
+            },
+          };
+        },
+      };
+    }
+
+    throw new Error(`Unsupported Patient.findOne mock response: ${response.kind}`);
   };
 
   return calls;
@@ -324,6 +400,118 @@ test("createPatientService rejects minors declaring children", async () => {
         return true;
       }
     );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService lets doctors propose minor fullname rename without changing minorKey", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient();
+  const parent = makeApprovedAdultParent({
+    approvedSnapshot: {
+      set: {
+        children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],
+      },
+    },
+    children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],
+  });
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: "_id age children approvedAt approvedSnapshot",
+    },
+    { kind: "sortSelectLean", value: null, projection: "updatedAt approvedAt" },
+  ]);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async (leanOptions) => {
+        updateCalls[updateCalls.length - 1].leanOptions = leanOptions;
+        return {
+          ...current,
+          ...updateDoc.$set,
+          minorKey: current.minorKey,
+        };
+      },
+    };
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: { fullname: "  Corrected Minor  " },
+    });
+
+    assert.equal(result.fullname, "Corrected Minor");
+    assert.equal(result.minorKey, "parent@example.com::minor patient");
+    assert.equal(findOneCalls.length, 3);
+    assert.deepEqual(findOneCalls[1].query, { email: "parent@example.com" });
+    assert.equal(findOneCalls[2].query.parentEmail, "parent@example.com");
+    assert.equal(findOneCalls[2].query.minorKey, "parent@example.com::minor patient");
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.fullname, "Corrected Minor");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "minorKey"), false);
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+    });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService blocks duplicate proposed child names under the same parent", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient();
+  const parent = makeApprovedAdultParent({
+    approvedSnapshot: {
+      set: {
+        children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],
+      },
+    },
+    children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],
+  });
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: "_id age children approvedAt approvedSnapshot",
+    },
+  ]);
+
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for duplicate child names");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: current._id,
+          body: { fullname: "Sibling Child" },
+        }),
+      (err) => {
+        assert.equal(err.status, 409);
+        assert.equal(err.errorCode, "CHILD_NAME_ALREADY_EXISTS");
+        assert.equal(err.message, "A child with this name already exists for this parent.");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 2);
   } finally {
     restorePatientMethods();
   }
