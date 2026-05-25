@@ -86,6 +86,47 @@ function mockDiagnosisFindById(response) {
   return calls;
 }
 
+function mockDiagnosisFind(response) {
+  const calls = [];
+
+  Diagnosis.find = (query) => {
+    const call = {
+      query,
+      sort: undefined,
+      skip: undefined,
+      limit: undefined,
+      populate: undefined,
+    };
+    calls.push(call);
+
+    return {
+      sort(sort) {
+        call.sort = sort;
+        return {
+          skip(skip) {
+            call.skip = skip;
+            return {
+              limit(limit) {
+                call.limit = limit;
+                return {
+                  populate(path, select) {
+                    call.populate = { path, select };
+                    return {
+                      lean: async () => response,
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+  };
+
+  return calls;
+}
+
 test("getMyDiagnosesPortal rejects non-patient role with 403", async () => {
   restoreModelMethods();
 
@@ -126,6 +167,61 @@ test("getMyDiagnosesPortal returns empty list when email has no Patient docs", a
         query: { email: "patient@example.com" },
         projection: { _id: 1 },
       },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getMyDiagnosesPortal scopes diagnosis list to the patient's own profiles", async () => {
+  restoreModelMethods();
+
+  const patientIds = [{ _id: "patient-id-a" }, { _id: "patient-id-b" }];
+  const findPatientCalls = mockPatientFind(patientIds);
+  const findDiagnosisCalls = mockDiagnosisFind([
+    { _id: "diagnosis-id-b", patient: "patient-id-b", title: "Owned diagnosis" },
+  ]);
+  const countCalls = [];
+
+  Diagnosis.countDocuments = async (query) => {
+    countCalls.push(query);
+    return 2;
+  };
+
+  const req = makeReq({
+    query: { page: "2", limit: "1" },
+  });
+  const res = makeRes();
+
+  try {
+    await getMyDiagnosesPortal(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, {
+      items: [
+        { _id: "diagnosis-id-b", patient: "patient-id-b", title: "Owned diagnosis" },
+      ],
+      total: 2,
+      page: 2,
+      pages: 2,
+    });
+    assert.deepEqual(findPatientCalls, [
+      {
+        query: { email: "patient@example.com" },
+        projection: { _id: 1 },
+      },
+    ]);
+    assert.deepEqual(findDiagnosisCalls, [
+      {
+        query: { patient: { $in: ["patient-id-a", "patient-id-b"] } },
+        sort: { createdAt: -1 },
+        skip: 1,
+        limit: 1,
+        populate: { path: "createdBy", select: "name email" },
+      },
+    ]);
+    assert.deepEqual(countCalls, [
+      { patient: { $in: ["patient-id-a", "patient-id-b"] } },
     ]);
   } finally {
     restoreModelMethods();
