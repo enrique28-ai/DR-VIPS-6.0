@@ -105,6 +105,28 @@ function mockPatientFindOne(response) {
   return calls;
 }
 
+function mockPatientFindOneSequence(responses) {
+  const calls = [];
+  let index = 0;
+
+  Patient.findOne = (query) => {
+    calls.push(query);
+    const response = index < responses.length
+      ? responses[index]
+      : responses[responses.length - 1];
+    index += 1;
+
+    return {
+      select: (projection) => {
+        assert.equal(projection, "_id email parentEmail fullname name");
+        return response;
+      },
+    };
+  };
+
+  return calls;
+}
+
 function mockPatientFind(response) {
   const calls = [];
 
@@ -449,19 +471,31 @@ test("createAppointment rejects when doctor does not own the patient with 404", 
         isDeceased: false,
         $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
       },
+      {
+        _id: "patient-id",
+        isDeceased: true,
+        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+      },
     ]);
   } finally {
     restoreModelMethods();
   }
 });
 
-test("createAppointment rejects deceased patient by requiring an alive patient", async () => {
+test("createAppointment rejects deceased adult patient with stable errorCode", async () => {
   restoreModelMethods();
   guardAppointmentCreate();
   guardNotificationCreate();
   guardAppointmentFindOne();
 
-  const findOneCalls = mockPatientFindOne(null);
+  const findOneCalls = mockPatientFindOneSequence([
+    null,
+    {
+      _id: "deceased-patient-id",
+      email: "patient@example.com",
+      fullname: "Patient Owner",
+    },
+  ]);
   const req = makeReq({
     body: {
       patientId: "deceased-patient-id",
@@ -475,11 +509,68 @@ test("createAppointment rejects deceased patient by requiring an alive patient",
     await createAppointment(req, res);
 
     assert.equal(res.statusCode, 404);
-    assert.deepEqual(res.body, { error: "Patient not found or is deceased" });
+    assert.deepEqual(res.body, {
+      error: "Patient not found or is deceased",
+      errorCode: "APPOINTMENT_PATIENT_DECEASED",
+    });
     assert.deepEqual(findOneCalls, [
       {
         _id: "deceased-patient-id",
         isDeceased: false,
+        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+      },
+      {
+        _id: "deceased-patient-id",
+        isDeceased: true,
+        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment rejects deceased minor patient with stable errorCode", async () => {
+  restoreModelMethods();
+  guardAppointmentCreate();
+  guardNotificationCreate();
+  guardAppointmentFindOne();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    null,
+    {
+      _id: "deceased-minor-patient-id",
+      email: "",
+      parentEmail: "parent@example.com",
+      fullname: "Minor Patient",
+    },
+  ]);
+  const req = makeReq({
+    body: {
+      patientId: "deceased-minor-patient-id",
+      start: "2026-06-01T10:00:00.000Z",
+      end: "2026-06-01T10:30:00.000Z",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 404);
+    assert.deepEqual(res.body, {
+      error: "Patient not found or is deceased",
+      errorCode: "APPOINTMENT_PATIENT_DECEASED",
+    });
+    assert.deepEqual(findOneCalls, [
+      {
+        _id: "deceased-minor-patient-id",
+        isDeceased: false,
+        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+      },
+      {
+        _id: "deceased-minor-patient-id",
+        isDeceased: true,
         $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
       },
     ]);
@@ -585,6 +676,7 @@ test("acceptAppointment blocks deceased patient appointment with 409", async () 
     assert.equal(res.statusCode, 409);
     assert.deepEqual(res.body, {
       error: "Cannot manage appointments for a deceased patient.",
+      errorCode: "APPOINTMENT_PATIENT_DECEASED",
     });
     assert.equal(saveCalled, false);
   } finally {
@@ -767,6 +859,7 @@ test("deleteAppointment blocks parent tutor from deleting deceased child appoint
     assert.equal(res.statusCode, 409);
     assert.deepEqual(res.body, {
       error: "Cannot manage appointments for a deceased patient.",
+      errorCode: "APPOINTMENT_PATIENT_DECEASED",
     });
     assert.equal(deleteCalled, false);
   } finally {

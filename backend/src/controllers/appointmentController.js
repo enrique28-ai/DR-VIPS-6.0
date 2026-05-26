@@ -36,6 +36,11 @@ const patientUserMatchesAppointmentPatient = (patient, email) => {
 };
 
 const DECEASED_APPOINTMENT_ERROR = "Cannot manage appointments for a deceased patient.";
+const DECEASED_APPOINTMENT_ERROR_CODE = "APPOINTMENT_PATIENT_DECEASED";
+const deceasedAppointmentErrorBody = (error = DECEASED_APPOINTMENT_ERROR) => ({
+  error,
+  errorCode: DECEASED_APPOINTMENT_ERROR_CODE,
+});
 const appointmentPatientIsDeceased = (appt) => appt?.patient?.isDeceased === true;
 // -----------------------
 
@@ -61,6 +66,18 @@ export const createAppointment = async (req, res) => {
     }).select("_id email parentEmail fullname name");
 
     if (!patient) {
+      const deceasedPatient = await Patient.findOne({
+        _id: patientId,
+        isDeceased: true,
+        $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
+      }).select("_id email parentEmail fullname name");
+
+      if (deceasedPatient) {
+        return res
+          .status(404)
+          .json(deceasedAppointmentErrorBody("Patient not found or is deceased"));
+      }
+
       return res.status(404).json({ error: "Patient not found or is deceased" });
     }
 
@@ -154,7 +171,7 @@ export const acceptAppointment = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized" });
     }
     if (appointmentPatientIsDeceased(appt)) {
-      return res.status(409).json({ error: DECEASED_APPOINTMENT_ERROR });
+      return res.status(409).json(deceasedAppointmentErrorBody());
     }
     if (appt.status !== "pending") {
       return res.status(400).json({ error: "Appointment is not pending" });
@@ -211,7 +228,7 @@ export const deleteAppointment = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized" });
     }
     if (appointmentPatientIsDeceased(appt) && !isDoctorOwner) {
-      return res.status(409).json({ error: DECEASED_APPOINTMENT_ERROR });
+      return res.status(409).json(deceasedAppointmentErrorBody());
     }
     const startStrEn = formatDateTime(appt.start, "en-US");
     const startStrEs = formatDateTime(appt.start, "es-MX");

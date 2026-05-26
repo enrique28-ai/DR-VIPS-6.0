@@ -776,6 +776,9 @@
     "invalidRange": "Please select a valid time range",
     "overlap": "That time range is already taken!"
   },
+  "errors": {
+    "patientDeceased": "Cannot manage appointments for a deceased patient."
+  },
   "toasts": {
     "loadFailed": "Failed to load appointments",
     "createSuccess": "Appointment created",

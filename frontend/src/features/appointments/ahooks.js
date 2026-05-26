@@ -3,6 +3,24 @@ import api from "../../lib/axios.js";
 import toast from "react-hot-toast";
 import i18n from "../../i18n";
 
+const appointmentErrorKey = (code) => {
+  const map = {
+    APPOINTMENT_PATIENT_DECEASED: "calendar.errors.patientDeceased",
+  };
+  return map[code] || null;
+};
+
+const appointmentErrorMessage = (error, fallbackKey, { allowBackendMessage = false } = {}) => {
+  const code = error?.response?.data?.errorCode;
+  const key = appointmentErrorKey(code);
+  if (key) return i18n.t(key);
+
+  const backendMessage = error?.response?.data?.error;
+  if (allowBackendMessage && backendMessage) return backendMessage;
+
+  return i18n.t(fallbackKey);
+};
+
 export function useAppointments() {
   return useQuery({
     queryKey: ["appointments"],
@@ -32,7 +50,11 @@ export function useCreateAppointment() {
       qc.invalidateQueries({ queryKey: ["appointments"] });
     },
     onError: (e) =>
-      toast.error(e.response?.data?.error || i18n.t("calendar.toasts.createFailed")),
+      toast.error(
+        appointmentErrorMessage(e, "calendar.toasts.createFailed", {
+          allowBackendMessage: true,
+        })
+      ),
   });
 }
 
@@ -44,7 +66,7 @@ export function useAcceptAppointment() {
       toast.success(i18n.t("calendar.toasts.acceptSuccess"));
       qc.invalidateQueries({ queryKey: ["appointments"] });
     },
-    onError: () => toast.error(i18n.t("calendar.toasts.acceptFailed")),
+    onError: (e) => toast.error(appointmentErrorMessage(e, "calendar.toasts.acceptFailed")),
   });
 }
 
@@ -56,6 +78,6 @@ export function useRejectAppointment() {
       toast.success(i18n.t("calendar.toasts.deleteSuccess"));
       qc.invalidateQueries({ queryKey: ["appointments"] });
     },
-    onError: () => toast.error(i18n.t("calendar.toasts.deleteFailed")),
+    onError: (e) => toast.error(appointmentErrorMessage(e, "calendar.toasts.deleteFailed")),
   });
 }
