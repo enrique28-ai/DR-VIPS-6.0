@@ -78,7 +78,7 @@ function mockAppointmentFindByIdForDelete(response) {
     populate: (firstPath, firstSelect) => {
       calls.push({ id, path: firstPath, select: firstSelect });
       assert.equal(firstPath, "patient");
-      assert.equal(firstSelect, "email fullname name ");
+      assert.equal(firstSelect, "email parentEmail fullname name");
       return {
         populate: (secondPath, secondSelect) => {
           calls.push({ id, path: secondPath, select: secondSelect });
@@ -155,7 +155,7 @@ test("doctor owner can delete appointment", async () => {
     await deleteAppointment(req, res);
 
     assert.deepEqual(findByIdCalls, [
-      { id: "appointment-id", path: "patient", select: "email fullname name " },
+      { id: "appointment-id", path: "patient", select: "email parentEmail fullname name" },
       { id: "appointment-id", path: "doctor", select: "name  email" },
     ]);
     assert.deepEqual(userFindCalls, [

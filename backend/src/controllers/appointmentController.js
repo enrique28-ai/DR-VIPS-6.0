@@ -27,6 +27,13 @@ const formatDateTime = (date, locale) => {
 // Tratamos los nombres como Strings simples, no Arrays.
 const patientDisplayName = (p) => p?.fullname || "Patient";
 const doctorDisplayName = (d) => d?.name || "Doctor";
+const patientUserMatchesAppointmentPatient = (patient, email) => {
+  const normalizedEmail = normEmail(email);
+  return Boolean(normalizedEmail) && (
+    normEmail(patient?.email) === normalizedEmail ||
+    normEmail(patient?.parentEmail) === normalizedEmail
+  );
+};
 // -----------------------
 
 
@@ -48,7 +55,7 @@ export const createAppointment = async (req, res) => {
       _id: patientId,
       isDeceased: false,
       $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-    }).select("_id email fullname name");
+    }).select("_id email parentEmail fullname name");
 
     if (!patient) {
       return res.status(404).json({ error: "Patient not found or is deceased" });
@@ -79,7 +86,7 @@ export const createAppointment = async (req, res) => {
     });
 
       // 🔔 NOTIF al paciente (si existe cuenta User para ese email)
-    const pEmail = normEmail(patient.email);
+    const pEmail = normEmail(patient.email) || normEmail(patient.parentEmail);
     if (pEmail) {
       const patientUser = await User.findOne({ email: pEmail }).select("_id").lean();
       if (patientUser?._id) {
@@ -114,13 +121,15 @@ export const getAppointments = async (req, res) => {
       query = { doctor: req.user._id };
     } else {
       const email = normEmail(req.user.email);
-      const myProfiles = await Patient.find({ email }).select("_id");
+      const myProfiles = await Patient.find({
+        $or: [{ email }, { parentEmail: email }],
+      }).select("_id");
       const ids = myProfiles.map((p) => p._id);
       query = { patient: { $in: ids } };
     }
 
     const appts = await Appointment.find(query)
-      .populate("patient", "fullname email name ")
+      .populate("patient", "fullname email parentEmail name")
       .populate("doctor", "name  email")
       .sort({ start: 1 });
 
@@ -133,11 +142,11 @@ export const getAppointments = async (req, res) => {
 
 export const acceptAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email fullname name ");
+    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     const email = normEmail(req.user.email);
-    if (normEmail(appt.patient?.email) !== email) {
+    if (!patientUserMatchesAppointmentPatient(appt.patient, email)) {
       return res.status(403).json({ error: "Unauthorized" });
     }
     if (appt.status !== "pending") {
@@ -182,14 +191,14 @@ export const acceptAppointment = async (req, res) => {
 
 export const deleteAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email fullname name ").populate("doctor", "name  email");
+    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name").populate("doctor", "name  email");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     //const isDoctorOwner = appt.doctor.toString() === req.user._id.toString();
     const isDoctorOwner =
       String(appt.doctor?._id || appt.doctor) === String(req.user._id);
 
-    const isPatientOwner = normEmail(appt.patient?.email) === normEmail(req.user.email);
+    const isPatientOwner = patientUserMatchesAppointmentPatient(appt.patient, req.user.email);
 
     if (!isDoctorOwner && !isPatientOwner) {
       return res.status(403).json({ error: "Unauthorized" });

@@ -8,11 +8,14 @@ import {
   acceptAppointment,
   createAppointment,
   deleteAppointment,
+  getAppointments,
 } from "../../appointmentController.js";
 
 const originalAppointmentMethods = {
   create: Appointment.create,
+  find: Appointment.find,
   findById: Appointment.findById,
+  findOne: Appointment.findOne,
 };
 
 const originalNotificationMethods = {
@@ -20,6 +23,7 @@ const originalNotificationMethods = {
 };
 
 const originalPatientMethods = {
+  find: Patient.find,
   findOne: Patient.findOne,
 };
 
@@ -29,8 +33,11 @@ after(() => {
 
 function restoreModelMethods() {
   Appointment.create = originalAppointmentMethods.create;
+  Appointment.find = originalAppointmentMethods.find;
   Appointment.findById = originalAppointmentMethods.findById;
+  Appointment.findOne = originalAppointmentMethods.findOne;
   Notification.create = originalNotificationMethods.create;
+  Patient.find = originalPatientMethods.find;
   Patient.findOne = originalPatientMethods.findOne;
 }
 
@@ -76,6 +83,12 @@ function guardNotificationCreate() {
   };
 }
 
+function guardAppointmentFindOne() {
+  Appointment.findOne = () => {
+    throw new Error("Appointment.findOne should not be called in this rejection path");
+  };
+}
+
 function mockPatientFindOne(response) {
   const calls = [];
 
@@ -83,10 +96,49 @@ function mockPatientFindOne(response) {
     calls.push(query);
     return {
       select: (projection) => {
-        assert.equal(projection, "_id email fullname name");
+        assert.equal(projection, "_id email parentEmail fullname name");
         return response;
       },
     };
+  };
+
+  return calls;
+}
+
+function mockPatientFind(response) {
+  const calls = [];
+
+  Patient.find = (query) => {
+    const call = { query, select: undefined };
+    calls.push(call);
+    return {
+      select: (projection) => {
+        call.select = projection;
+        return response;
+      },
+    };
+  };
+
+  return calls;
+}
+
+function mockAppointmentFind(response) {
+  const calls = [];
+
+  Appointment.find = (query) => {
+    const call = { query, populate: [], sort: undefined };
+    calls.push(call);
+    const chain = {
+      populate: (path, select) => {
+        call.populate.push({ path, select });
+        return chain;
+      },
+      sort: (sort) => {
+        call.sort = sort;
+        return response;
+      },
+    };
+    return chain;
   };
 
   return calls;
@@ -99,7 +151,7 @@ function mockAppointmentFindByIdForAccept(response) {
     populate: (path, select) => {
       calls.push({ id, path, select });
       assert.equal(path, "patient");
-      assert.equal(select, "email fullname name ");
+      assert.equal(select, "email parentEmail fullname name");
       return response;
     },
   });
@@ -114,7 +166,7 @@ function mockAppointmentFindByIdForDelete(response) {
     populate: (firstPath, firstSelect) => {
       calls.push({ id, path: firstPath, select: firstSelect });
       assert.equal(firstPath, "patient");
-      assert.equal(firstSelect, "email fullname name ");
+      assert.equal(firstSelect, "email parentEmail fullname name");
       return {
         populate: (secondPath, secondSelect) => {
           calls.push({ id, path: secondPath, select: secondSelect });
@@ -128,6 +180,85 @@ function mockAppointmentFindByIdForDelete(response) {
 
   return calls;
 }
+
+function mockAppointmentFindOne(response) {
+  const calls = [];
+
+  Appointment.findOne = (query) => {
+    const call = { query, select: undefined };
+    calls.push(call);
+    return {
+      select: (projection) => {
+        call.select = projection;
+        return response;
+      },
+    };
+  };
+
+  return calls;
+}
+
+function mockNotificationCreate() {
+  const calls = [];
+
+  Notification.create = async (payload) => {
+    calls.push(payload);
+    return payload;
+  };
+
+  return calls;
+}
+
+test("getAppointments includes child appointments for parent by parentEmail", async () => {
+  restoreModelMethods();
+
+  const appts = [{ _id: "child-appointment-id" }];
+  const patientFindCalls = mockPatientFind([
+    { _id: "parent-patient-id" },
+    { _id: "child-patient-id" },
+  ]);
+  const appointmentFindCalls = mockAppointmentFind(appts);
+  const req = makeReq({
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: " Parent@Example.com ",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await getAppointments(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, appts);
+    assert.deepEqual(patientFindCalls, [
+      {
+        query: {
+          $or: [
+            { email: "parent@example.com" },
+            { parentEmail: "parent@example.com" },
+          ],
+        },
+        select: "_id",
+      },
+    ]);
+    assert.deepEqual(appointmentFindCalls, [
+      {
+        query: {
+          patient: { $in: ["parent-patient-id", "child-patient-id"] },
+        },
+        populate: [
+          { path: "patient", select: "fullname email parentEmail name" },
+          { path: "doctor", select: "name  email" },
+        ],
+        sort: { start: 1 },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
 
 test("createAppointment rejects invalid dates with 400", async () => {
   restoreModelMethods();
@@ -229,7 +360,7 @@ test("acceptAppointment rejects when appointment does not exist with 404", async
       {
         id: "missing-appointment-id",
         path: "patient",
-        select: "email fullname name ",
+        select: "email parentEmail fullname name",
       },
     ]);
   } finally {
@@ -239,6 +370,7 @@ test("acceptAppointment rejects when appointment does not exist with 404", async
 
 test("acceptAppointment rejects patient email mismatch with 403", async () => {
   restoreModelMethods();
+  guardAppointmentFindOne();
   guardNotificationCreate();
 
   let saveCalled = false;
@@ -257,6 +389,103 @@ test("acceptAppointment rejects patient email mismatch with 403", async () => {
   const req = makeReq({
     params: { id: "appointment-id" },
     user: { _id: "patient-user-id", role: "patient", email: "patient@example.com" },
+  });
+  const res = makeRes();
+
+  try {
+    await acceptAppointment(req, res);
+
+    assert.equal(res.statusCode, 403);
+    assert.deepEqual(res.body, { error: "Unauthorized" });
+    assert.equal(saveCalled, false);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("acceptAppointment allows parent tutor for child appointment", async () => {
+  restoreModelMethods();
+
+  let saveCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: "doctor-id",
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+    },
+    status: "pending",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    end: new Date("2026-06-01T10:30:00.000Z"),
+    save: async () => {
+      assert.equal(appt.status, "accepted");
+      saveCalled = true;
+    },
+  };
+  mockAppointmentFindByIdForAccept(appt);
+  const conflictCalls = mockAppointmentFindOne(null);
+  const notificationCalls = mockNotificationCreate();
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: { _id: "parent-user-id", role: "patient", email: " parent@example.com " },
+  });
+  const res = makeRes();
+
+  try {
+    await acceptAppointment(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, appt);
+    assert.equal(appt.status, "accepted");
+    assert.equal(saveCalled, true);
+    assert.deepEqual(conflictCalls, [
+      {
+        query: {
+          _id: { $ne: "appointment-id" },
+          doctor: "doctor-id",
+          status: "accepted",
+          start: { $lt: appt.end },
+          end: { $gt: appt.start },
+        },
+        select: "_id",
+      },
+    ]);
+    assert.equal(notificationCalls.length, 1);
+    assert.equal(notificationCalls[0].recipient, "doctor-id");
+    assert.equal(notificationCalls[0].meta.role, "doctor");
+    assert.equal(notificationCalls[0].message.en.includes("Minor Patient"), true);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("acceptAppointment rejects unrelated parent for child appointment with 403", async () => {
+  restoreModelMethods();
+  guardAppointmentFindOne();
+  guardNotificationCreate();
+
+  let saveCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: "doctor-id",
+    patient: {
+      email: "",
+      parentEmail: "parent@example.com",
+      fullname: "Minor Patient",
+    },
+    status: "pending",
+    save: async () => {
+      saveCalled = true;
+      throw new Error("appt.save should not be called in rejection paths");
+    },
+  };
+  mockAppointmentFindByIdForAccept(appt);
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: { _id: "other-user-id", role: "patient", email: "other@example.com" },
   });
   const res = makeRes();
 
@@ -305,6 +534,54 @@ test("deleteAppointment rejects when requester is neither doctor nor patient own
     assert.equal(res.statusCode, 403);
     assert.deepEqual(res.body, { error: "Unauthorized" });
     assert.equal(deleteCalled, false);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("deleteAppointment allows parent tutor to decline child appointment", async () => {
+  restoreModelMethods();
+
+  let deleteCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: { _id: "doctor-id", name: "Dr. Owner", email: "doctor@example.com" },
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+    },
+    status: "pending",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    deleteOne: async () => {
+      deleteCalled = true;
+    },
+  };
+  mockAppointmentFindByIdForDelete(appt);
+  const notificationCalls = mockNotificationCreate();
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: "parent@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { message: "Appointment deleted" });
+    assert.equal(deleteCalled, true);
+    assert.equal(notificationCalls.length, 1);
+    assert.equal(notificationCalls[0].recipient, "doctor-id");
+    assert.equal(notificationCalls[0].title.en, "Appointment Declined");
+    assert.equal(notificationCalls[0].meta.role, "doctor");
+    assert.equal(notificationCalls[0].meta.patientName, "Minor Patient");
+    assert.equal(notificationCalls[0].message.en.includes("Minor Patient"), true);
   } finally {
     restoreModelMethods();
   }

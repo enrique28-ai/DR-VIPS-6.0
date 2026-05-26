@@ -75,6 +75,7 @@ function makePatient(overrides = {}) {
   return {
     _id: "patient-id",
     email: "Patient@Example.com ",
+    parentEmail: undefined,
     fullname: "Patient Owner",
     name: "Patient Owner",
     ...overrides,
@@ -152,7 +153,7 @@ function mockAppointmentFindByIdForAccept(response) {
     populate: (path, select) => {
       calls.push({ id, path, select });
       assert.equal(path, "patient");
-      assert.equal(select, "email fullname name ");
+      assert.equal(select, "email parentEmail fullname name");
       return response;
     },
   });
@@ -403,6 +404,43 @@ test("createAppointment sends patient notification when patient user exists", as
     ]);
     assert.equal(notificationCalls.length, 1);
     assert.equal(notificationCalls[0].recipient, "patient-user-id");
+    assert.equal(notificationCalls[0].code, "APPT_NEW_appointment-id");
+    assert.equal(notificationCalls[0].relatedAppointment, "appointment-id");
+    assert.equal(notificationCalls[0].meta.role, "patient");
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment sends parent notification when minor has parentEmail and no email", async () => {
+  restoreModelMethods();
+
+  mockPatientFindOne(makePatient({
+    email: "",
+    parentEmail: " Parent@Example.com ",
+    fullname: "Minor Patient",
+  }));
+  mockAppointmentFindOne(null);
+  const appt = makeAppointment({ patient: "patient-id" });
+  mockAppointmentCreate(appt);
+  const userFindCalls = mockUserFindOne({ _id: "parent-user-id" });
+  const notificationCalls = mockNotificationCreate();
+
+  const req = makeReq({ body: makeCreateBody() });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(userFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: "_id",
+      },
+    ]);
+    assert.equal(notificationCalls.length, 1);
+    assert.equal(notificationCalls[0].recipient, "parent-user-id");
     assert.equal(notificationCalls[0].code, "APPT_NEW_appointment-id");
     assert.equal(notificationCalls[0].relatedAppointment, "appointment-id");
     assert.equal(notificationCalls[0].meta.role, "patient");
