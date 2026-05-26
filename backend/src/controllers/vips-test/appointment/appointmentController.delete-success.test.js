@@ -78,7 +78,7 @@ function mockAppointmentFindByIdForDelete(response) {
     populate: (firstPath, firstSelect) => {
       calls.push({ id, path: firstPath, select: firstSelect });
       assert.equal(firstPath, "patient");
-      assert.equal(firstSelect, "email parentEmail fullname name");
+      assert.equal(firstSelect, "email parentEmail fullname name isDeceased");
       return {
         populate: (secondPath, secondSelect) => {
           calls.push({ id, path: secondPath, select: secondSelect });
@@ -155,12 +155,44 @@ test("doctor owner can delete appointment", async () => {
     await deleteAppointment(req, res);
 
     assert.deepEqual(findByIdCalls, [
-      { id: "appointment-id", path: "patient", select: "email parentEmail fullname name" },
+      { id: "appointment-id", path: "patient", select: "email parentEmail fullname name isDeceased" },
       { id: "appointment-id", path: "doctor", select: "name  email" },
     ]);
     assert.deepEqual(userFindCalls, [
       { query: { email: "patient@example.com" }, select: "_id" },
     ]);
+    assert.equal(deleteCalled, true);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { message: "Appointment deleted" });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("doctor owner can delete deceased patient appointment for cleanup", async () => {
+  restoreModelMethods();
+
+  let deleteCalled = false;
+  const appt = makeAppointment({
+    patient: {
+      email: "patient@example.com",
+      fullname: "Patient Owner",
+      isDeceased: true,
+    },
+    deleteOne: async () => {
+      deleteCalled = true;
+    },
+  });
+  mockAppointmentFindByIdForDelete(appt);
+  mockUserFindOne(null);
+  guardNotificationCreate();
+
+  const req = makeReq();
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
     assert.equal(deleteCalled, true);
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, { message: "Appointment deleted" });

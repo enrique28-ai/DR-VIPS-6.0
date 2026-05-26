@@ -153,7 +153,7 @@ function mockAppointmentFindByIdForAccept(response) {
     populate: (path, select) => {
       calls.push({ id, path, select });
       assert.equal(path, "patient");
-      assert.equal(select, "email parentEmail fullname name");
+      assert.equal(select, "email parentEmail fullname name isDeceased");
       return response;
     },
   });

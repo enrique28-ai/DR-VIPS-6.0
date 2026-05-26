@@ -151,7 +151,7 @@ function mockAppointmentFindByIdForAccept(response) {
     populate: (path, select) => {
       calls.push({ id, path, select });
       assert.equal(path, "patient");
-      assert.equal(select, "email parentEmail fullname name");
+      assert.equal(select, "email parentEmail fullname name isDeceased");
       return response;
     },
   });
@@ -166,7 +166,7 @@ function mockAppointmentFindByIdForDelete(response) {
     populate: (firstPath, firstSelect) => {
       calls.push({ id, path: firstPath, select: firstSelect });
       assert.equal(firstPath, "patient");
-      assert.equal(firstSelect, "email parentEmail fullname name");
+      assert.equal(firstSelect, "email parentEmail fullname name isDeceased");
       return {
         populate: (secondPath, secondSelect) => {
           calls.push({ id, path: secondPath, select: secondSelect });
@@ -209,10 +209,60 @@ function mockNotificationCreate() {
   return calls;
 }
 
+test("getAppointments excludes deceased adult patient appointments for doctors", async () => {
+  restoreModelMethods();
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for doctor appointment reads");
+  };
+
+  const aliveAppt = {
+    _id: "alive-adult-appointment-id",
+    patient: { _id: "adult-patient-id", isDeceased: false },
+  };
+  const deceasedAppt = {
+    _id: "deceased-adult-appointment-id",
+    patient: { _id: "deceased-patient-id", isDeceased: true },
+  };
+  const appointmentFindCalls = mockAppointmentFind([aliveAppt, deceasedAppt]);
+  const req = makeReq({
+    user: {
+      _id: "doctor-id",
+      role: "doctor",
+      email: "doctor@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await getAppointments(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, [aliveAppt]);
+    assert.deepEqual(appointmentFindCalls, [
+      {
+        query: { doctor: "doctor-id" },
+        populate: [
+          { path: "patient", select: "fullname email parentEmail name isDeceased" },
+          { path: "doctor", select: "name  email" },
+        ],
+        sort: { start: 1 },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("getAppointments includes child appointments for parent by parentEmail", async () => {
   restoreModelMethods();
 
-  const appts = [{ _id: "child-appointment-id" }];
+  const appts = [
+    {
+      _id: "child-appointment-id",
+      patient: { _id: "child-patient-id", isDeceased: false },
+    },
+  ];
   const patientFindCalls = mockPatientFind([
     { _id: "parent-patient-id" },
     { _id: "child-patient-id" },
@@ -231,10 +281,11 @@ test("getAppointments includes child appointments for parent by parentEmail", as
     await getAppointments(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(res.body, appts);
+    assert.deepEqual(res.body, appts);
     assert.deepEqual(patientFindCalls, [
       {
         query: {
+          isDeceased: { $ne: true },
           $or: [
             { email: "parent@example.com" },
             { parentEmail: "parent@example.com" },
@@ -249,7 +300,71 @@ test("getAppointments includes child appointments for parent by parentEmail", as
           patient: { $in: ["parent-patient-id", "child-patient-id"] },
         },
         populate: [
-          { path: "patient", select: "fullname email parentEmail name" },
+          { path: "patient", select: "fullname email parentEmail name isDeceased" },
+          { path: "doctor", select: "name  email" },
+        ],
+        sort: { start: 1 },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getAppointments excludes deceased child appointments for parent tutor", async () => {
+  restoreModelMethods();
+
+  const aliveChildAppt = {
+    _id: "alive-child-appointment-id",
+    patient: {
+      _id: "alive-child-patient-id",
+      parentEmail: "parent@example.com",
+      isDeceased: false,
+    },
+  };
+  const deceasedChildAppt = {
+    _id: "deceased-child-appointment-id",
+    patient: {
+      _id: "deceased-child-patient-id",
+      parentEmail: "parent@example.com",
+      isDeceased: true,
+    },
+  };
+  const patientFindCalls = mockPatientFind([{ _id: "alive-child-patient-id" }]);
+  const appointmentFindCalls = mockAppointmentFind([aliveChildAppt, deceasedChildAppt]);
+  const req = makeReq({
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: " Parent@Example.com ",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await getAppointments(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, [aliveChildAppt]);
+    assert.deepEqual(patientFindCalls, [
+      {
+        query: {
+          isDeceased: { $ne: true },
+          $or: [
+            { email: "parent@example.com" },
+            { parentEmail: "parent@example.com" },
+          ],
+        },
+        select: "_id",
+      },
+    ]);
+    assert.deepEqual(appointmentFindCalls, [
+      {
+        query: {
+          patient: { $in: ["alive-child-patient-id"] },
+        },
+        populate: [
+          { path: "patient", select: "fullname email parentEmail name isDeceased" },
           { path: "doctor", select: "name  email" },
         ],
         sort: { start: 1 },
@@ -340,6 +455,39 @@ test("createAppointment rejects when doctor does not own the patient with 404", 
   }
 });
 
+test("createAppointment rejects deceased patient by requiring an alive patient", async () => {
+  restoreModelMethods();
+  guardAppointmentCreate();
+  guardNotificationCreate();
+  guardAppointmentFindOne();
+
+  const findOneCalls = mockPatientFindOne(null);
+  const req = makeReq({
+    body: {
+      patientId: "deceased-patient-id",
+      start: "2026-06-01T10:00:00.000Z",
+      end: "2026-06-01T10:30:00.000Z",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 404);
+    assert.deepEqual(res.body, { error: "Patient not found or is deceased" });
+    assert.deepEqual(findOneCalls, [
+      {
+        _id: "deceased-patient-id",
+        isDeceased: false,
+        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("acceptAppointment rejects when appointment does not exist with 404", async () => {
   restoreModelMethods();
   guardNotificationCreate();
@@ -360,7 +508,7 @@ test("acceptAppointment rejects when appointment does not exist with 404", async
       {
         id: "missing-appointment-id",
         path: "patient",
-        select: "email parentEmail fullname name",
+        select: "email parentEmail fullname name isDeceased",
       },
     ]);
   } finally {
@@ -397,6 +545,47 @@ test("acceptAppointment rejects patient email mismatch with 403", async () => {
 
     assert.equal(res.statusCode, 403);
     assert.deepEqual(res.body, { error: "Unauthorized" });
+    assert.equal(saveCalled, false);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("acceptAppointment blocks deceased patient appointment with 409", async () => {
+  restoreModelMethods();
+  guardAppointmentFindOne();
+  guardNotificationCreate();
+
+  let saveCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: "doctor-id",
+    patient: {
+      email: "patient@example.com",
+      fullname: "Patient Owner",
+      isDeceased: true,
+    },
+    status: "pending",
+    save: async () => {
+      saveCalled = true;
+      throw new Error("appt.save should not be called for deceased patients");
+    },
+  };
+  mockAppointmentFindByIdForAccept(appt);
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: { _id: "patient-user-id", role: "patient", email: "patient@example.com" },
+  });
+  const res = makeRes();
+
+  try {
+    await acceptAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error: "Cannot manage appointments for a deceased patient.",
+    });
     assert.equal(saveCalled, false);
   } finally {
     restoreModelMethods();
@@ -533,6 +722,52 @@ test("deleteAppointment rejects when requester is neither doctor nor patient own
 
     assert.equal(res.statusCode, 403);
     assert.deepEqual(res.body, { error: "Unauthorized" });
+    assert.equal(deleteCalled, false);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("deleteAppointment blocks parent tutor from deleting deceased child appointment", async () => {
+  restoreModelMethods();
+  guardNotificationCreate();
+
+  let deleteCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: { _id: "doctor-id", name: "Dr. Owner", email: "doctor@example.com" },
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+      isDeceased: true,
+    },
+    status: "pending",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    deleteOne: async () => {
+      deleteCalled = true;
+      throw new Error("appt.deleteOne should not be called for deceased patient tutor actions");
+    },
+  };
+  mockAppointmentFindByIdForDelete(appt);
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: "parent@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error: "Cannot manage appointments for a deceased patient.",
+    });
     assert.equal(deleteCalled, false);
   } finally {
     restoreModelMethods();

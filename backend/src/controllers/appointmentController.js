@@ -34,6 +34,9 @@ const patientUserMatchesAppointmentPatient = (patient, email) => {
     normEmail(patient?.parentEmail) === normalizedEmail
   );
 };
+
+const DECEASED_APPOINTMENT_ERROR = "Cannot manage appointments for a deceased patient.";
+const appointmentPatientIsDeceased = (appt) => appt?.patient?.isDeceased === true;
 // -----------------------
 
 
@@ -122,6 +125,7 @@ export const getAppointments = async (req, res) => {
     } else {
       const email = normEmail(req.user.email);
       const myProfiles = await Patient.find({
+        isDeceased: { $ne: true },
         $or: [{ email }, { parentEmail: email }],
       }).select("_id");
       const ids = myProfiles.map((p) => p._id);
@@ -129,11 +133,11 @@ export const getAppointments = async (req, res) => {
     }
 
     const appts = await Appointment.find(query)
-      .populate("patient", "fullname email parentEmail name")
+      .populate("patient", "fullname email parentEmail name isDeceased")
       .populate("doctor", "name  email")
       .sort({ start: 1 });
 
-    return res.json(appts);
+    return res.json(appts.filter((appt) => !appointmentPatientIsDeceased(appt)));
   } catch (err) {
     console.error("getAppointments error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -142,12 +146,15 @@ export const getAppointments = async (req, res) => {
 
 export const acceptAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name");
+    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name isDeceased");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     const email = normEmail(req.user.email);
     if (!patientUserMatchesAppointmentPatient(appt.patient, email)) {
       return res.status(403).json({ error: "Unauthorized" });
+    }
+    if (appointmentPatientIsDeceased(appt)) {
+      return res.status(409).json({ error: DECEASED_APPOINTMENT_ERROR });
     }
     if (appt.status !== "pending") {
       return res.status(400).json({ error: "Appointment is not pending" });
@@ -191,7 +198,7 @@ export const acceptAppointment = async (req, res) => {
 
 export const deleteAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name").populate("doctor", "name  email");
+    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name isDeceased").populate("doctor", "name  email");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     //const isDoctorOwner = appt.doctor.toString() === req.user._id.toString();
@@ -202,6 +209,9 @@ export const deleteAppointment = async (req, res) => {
 
     if (!isDoctorOwner && !isPatientOwner) {
       return res.status(403).json({ error: "Unauthorized" });
+    }
+    if (appointmentPatientIsDeceased(appt) && !isDoctorOwner) {
+      return res.status(409).json({ error: DECEASED_APPOINTMENT_ERROR });
     }
     const startStrEn = formatDateTime(appt.start, "en-US");
     const startStrEs = formatDateTime(appt.start, "es-MX");
