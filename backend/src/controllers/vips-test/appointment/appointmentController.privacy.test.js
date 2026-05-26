@@ -586,3 +586,52 @@ test("deleteAppointment allows parent tutor to decline child appointment", async
     restoreModelMethods();
   }
 });
+
+test("deleteAppointment allows parent tutor to cancel accepted child appointment", async () => {
+  restoreModelMethods();
+
+  let deleteCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: { _id: "doctor-id", name: "Dr. Owner", email: "doctor@example.com" },
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+    },
+    status: "accepted",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    deleteOne: async () => {
+      deleteCalled = true;
+    },
+  };
+  mockAppointmentFindByIdForDelete(appt);
+  const notificationCalls = mockNotificationCreate();
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: "parent@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { message: "Appointment deleted" });
+    assert.equal(deleteCalled, true);
+    assert.equal(notificationCalls.length, 1);
+    assert.equal(notificationCalls[0].recipient, "doctor-id");
+    assert.equal(notificationCalls[0].title.en, "Appointment Cancelled");
+    assert.equal(notificationCalls[0].meta.role, "doctor");
+    assert.equal(notificationCalls[0].meta.patientName, "Minor Patient");
+    assert.equal(notificationCalls[0].message.en.includes("Minor Patient"), true);
+    assert.equal(notificationCalls[0].message.en.includes("cancelled"), true);
+  } finally {
+    restoreModelMethods();
+  }
+});
