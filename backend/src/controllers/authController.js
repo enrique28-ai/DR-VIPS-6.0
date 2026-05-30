@@ -16,6 +16,7 @@ import path from "path";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import { isCaptchaEnabled } from "../middleware/recaptcha.js";
 const PENDING_SECRET = process.env.PENDING_SECRET;
 if (!PENDING_SECRET) {
   throw new Error("Missing required env var: PENDING_SECRET");
@@ -424,11 +425,13 @@ const oauth2 = new google.auth.OAuth2(
 export const googleInit = (req, res) => {
 
     // Exige haber pasado por /google/recaptcha recientemente
-  if (req.cookies?.g_captcha !== "ok") {
-    return res.status(400).send("Captcha required");
+  if (isCaptchaEnabled()) {
+    if (req.cookies?.g_captcha !== "ok") {
+      return res.status(400).send("Captcha required");
+    }
+    // Consúmela para que no se re-use
+    res.clearCookie("g_captcha");
   }
-  // Consúmela para que no se re-use
-  res.clearCookie("g_captcha");
 
   const state = nanoid(24);
     res.cookie("g_state", state, {

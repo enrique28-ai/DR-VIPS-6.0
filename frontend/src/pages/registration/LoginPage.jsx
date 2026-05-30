@@ -18,6 +18,7 @@ const GoogleIcon = (props) => (
   </svg>
 );
 
+const CAPTCHA_ENABLED = import.meta.env.VITE_CAPTCHA_ENABLED === "true";
 
 
 export default function LoginPage() {
@@ -33,10 +34,10 @@ export default function LoginPage() {
  
   const handleLogin = async (e) => {
     e.preventDefault();
-     if (!captcha) return toast.error(t("auth.login.errors.captcha"));
+     if (CAPTCHA_ENABLED && !captcha) return toast.error(t("auth.login.errors.captcha"));
 
   try {
-    await login(email, password, captcha);   // si falla, salta al catch
+    await login(email, password, CAPTCHA_ENABLED ? captcha : undefined);   // si falla, salta al catch
     // si quieres, aquí pones navigate(...) u otra acción post-login
   } catch {
     // si el backend rechazó el captcha u otro error:
@@ -74,19 +75,21 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <div className="mt-3 mb-6 flex justify-center">
-          <div className="inline-block">
-         <ReCAPTCHA
-          key={i18n.language} 
-          hl={i18n.language}
-           ref={recaptchaRef}
-           sitekey={RECAPTCHA_SITE_KEY}
-           onChange={(token) => setCaptcha(token || "")}
-         />
+        {CAPTCHA_ENABLED && (
+          <div className="mt-3 mb-6 flex justify-center">
+            <div className="inline-block">
+           <ReCAPTCHA
+            key={i18n.language}
+            hl={i18n.language}
+             ref={recaptchaRef}
+             sitekey={RECAPTCHA_SITE_KEY}
+             onChange={(token) => setCaptcha(token || "")}
+           />
+           </div>
          </div>
-       </div>
+        )}
 
-        <Button type="submit" className="cursor-pointer" loading={isLoading} disabled={!captcha || isLoading}> {t("auth.login.button")}</Button>
+        <Button type="submit" className="cursor-pointer" loading={isLoading} disabled={isLoading || (CAPTCHA_ENABLED && !captcha)}> {t("auth.login.button")}</Button>
         
 
     {/* —— OR —— */}
@@ -100,8 +103,8 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={async () => {
-            if (!captcha) { toast.error(t("auth.login.errors.captcha")); return; }
-            await useAuthStore.getState().googleStart(captcha);
+            if (CAPTCHA_ENABLED && !captcha) { toast.error(t("auth.login.errors.captcha")); return; }
+            await googleStart(CAPTCHA_ENABLED ? captcha : undefined);
           }}
           aria-label={t("auth.login.google")}
           className="cursor-pointer w-full inline-flex items-center justify-center gap-3 rounded-md border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2"

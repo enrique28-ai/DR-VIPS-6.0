@@ -8,6 +8,7 @@ import i18n from "../i18n";
 
 
 const API = import.meta.env.MODE === "development" ? "http://localhost:5001/api/auth" : "/auth";
+const CAPTCHA_ENABLED = import.meta.env.VITE_CAPTCHA_ENABLED === "true";
 
 
 const msgFromCode = (code, fallback, backendMsg) => {
@@ -231,7 +232,9 @@ export const useAuthStore = create(persist((set) => ({
  googleStart: async (recaptchaToken) => {
     try {
       // 1. Validar captcha con Axios (Usa la variable API correctamente)
-      await api.post(`${API}/google/recaptcha`, { recaptchaToken });
+      if (CAPTCHA_ENABLED) {
+        await api.post(`${API}/google/recaptcha`, { recaptchaToken });
+      }
 
       // 2. Redirigir a Google (Necesitamos la ruta ABSOLUTA del backend)
       // En local es el puerto 5001, en Render es "/api"

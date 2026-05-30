@@ -2,8 +2,12 @@
 // Si usas Node 18+, fetch ya existe y puedes quitar esta import.
 // import fetch from "node-fetch";
 
+export const isCaptchaEnabled = () => process.env.CAPTCHA_ENABLED === "true";
+
 export const verifyRecaptcha = () => async (req, res, next) => {
   try {
+    if (!isCaptchaEnabled()) return next();
+
     const token = req.body?.recaptchaToken;
     if (!token) return res.status(400).json({ error: "Missing captcha" });
 
