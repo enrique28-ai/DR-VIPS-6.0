@@ -206,6 +206,15 @@ const throwDeathStatusUpdateOnly = () => {
   throw err;
 };
 
+const throwPatientDeceasedReadonly = () => {
+  const err = new Error(
+    "Deceased patients cannot be edited unless they are changed back to alive."
+  );
+  err.status = 400;
+  err.errorCode = "PATIENT_DECEASED_READONLY";
+  throw err;
+};
+
 const collectEffectiveChangedFields = ({ current, update, unset }) => {
   const changed = new Set();
 
@@ -698,7 +707,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   const update = { lastEditedBy: user._id };
   const unset = {};
 
-  if ("dateOfDeath" in body && !("isDeceased" in body)) {
+  if ("dateOfDeath" in body && !("isDeceased" in body) && !current.isDeceased) {
     const err = new Error("Send isDeceased together with dateOfDeath");
     err.status = 400;
     err.errorCode = "SEND_ISDECEASED_WITH_DATEOFDEATH";
@@ -707,11 +716,17 @@ export const updatePatientService = async ({ user, patientId, body }) => {
 
   const nextIsDeceased =
     "isDeceased" in body ? toBool(body.isDeceased) : !!current.isDeceased;
+  const effectiveNormalChangedFields =
+    collectEffectiveNormalChangedFieldsFromBody({ current, body });
+
+  if (current.isDeceased && effectiveNormalChangedFields.size > 0) {
+    throwPatientDeceasedReadonly();
+  }
 
   if (
     isCurrentAdult &&
     hasEffectiveDeathStatusChangeFromBody({ current, body, nextIsDeceased }) &&
-    collectEffectiveNormalChangedFieldsFromBody({ current, body }).size > 0
+    effectiveNormalChangedFields.size > 0
   ) {
     throwDeathStatusUpdateOnly();
   }
@@ -1176,9 +1191,21 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       delete update.causeOfDeath;
     }
   } else if ("causeOfDeath" in body) {
-    const err = new Error("Send isDeceased together with causeOfDeath");
-    err.status = 400;
-    throw err;
+    if (current.isDeceased) {
+      const cod = String(body.causeOfDeath ?? "").trim();
+      if (!cod) {
+        const err = new Error(
+          "Cause of death is required when marking patient as deceased"
+        );
+        err.status = 400;
+        throw err;
+      }
+      update.causeOfDeath = cod;
+    } else {
+      const err = new Error("Send isDeceased together with causeOfDeath");
+      err.status = 400;
+      throw err;
+    }
   }
 
   const touchSys = typeof measurementSystem !== "undefined";

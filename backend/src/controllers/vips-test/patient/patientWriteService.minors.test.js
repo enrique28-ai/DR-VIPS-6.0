@@ -561,6 +561,255 @@ test("updatePatientService keeps minor death-status changes under guardian appro
   }
 });
 
+test("updatePatientService blocks normal edits for already deceased minors", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Accident",
+    ageCategory: "0-12",
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for deceased readonly rejection");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for deceased readonly rejection");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for deceased readonly rejection");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: current._id,
+          body: { city: "Los Angeles" },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "PATIENT_DECEASED_READONLY");
+        assert.equal(
+          err.message,
+          "Deceased patients cannot be edited unless they are changed back to alive."
+        );
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService keeps minor deceased-to-alive corrections under guardian approval", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Accident",
+    ageCategory: "0-12",
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  const parent = makeApprovedAdultParent();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: "_id age children approvedAt approvedSnapshot",
+    },
+    { kind: "sortSelectLean", value: null, projection: "updatedAt approvedAt" },
+  ]);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for minor pending edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for minor pending edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: { isDeceased: false },
+    });
+
+    assert.equal(result.isDeceased, false);
+    assert.equal(Object.hasOwn(result, "dateOfDeath"), false);
+    assert.equal(Object.hasOwn(result, "causeOfDeath"), false);
+    assert.equal(findOneCalls.length, 3);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.isDeceased, false);
+    assert.equal(updateCalls[0].updateDoc.$unset.dateOfDeath, 1);
+    assert.equal(updateCalls[0].updateDoc.$unset.causeOfDeath, 1);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedAt"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedSnapshot"), false);
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+    });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService keeps minor deceased death-field corrections under guardian approval", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Accident",
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  const parent = makeApprovedAdultParent();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: "_id age children approvedAt approvedSnapshot",
+    },
+    { kind: "sortSelectLean", value: null, projection: "updatedAt approvedAt" },
+  ]);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for minor pending edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for minor pending edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: {
+        dateOfDeath: "2026-01-20",
+        causeOfDeath: "Corrected accident",
+      },
+    });
+
+    assert.equal(result.isDeceased, true);
+    assert.equal(result.causeOfDeath, "Corrected accident");
+    assert.equal(result.dateOfDeath.toISOString().slice(0, 10), "2026-01-20");
+    assert.equal(findOneCalls.length, 3);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.causeOfDeath, "Corrected accident");
+    assert.equal(updateCalls[0].updateDoc.$set.dateOfDeath.toISOString().slice(0, 10), "2026-01-20");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedAt"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedSnapshot"), false);
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+    });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService does not treat unchanged full-form deceased minor payloads as normal edits", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Accident",
+    ageCategory: "0-12",
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  const parent = makeApprovedAdultParent();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: "_id age children approvedAt approvedSnapshot",
+    },
+    { kind: "sortSelectLean", value: null, projection: "updatedAt approvedAt" },
+  ]);
+
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called when no changes are detected");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called when no changes are detected");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called when no changes are detected");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: current._id,
+          body: {
+            fullname: current.fullname,
+            parentEmail: current.parentEmail,
+            birthDate: minorBirthDate(),
+            diseases: [],
+            allergies: [],
+            medications: [],
+            bloodtype: current.bloodtype,
+            gender: current.gender,
+            country: current.country,
+            state: current.state,
+            city: current.city,
+            organDonor: current.organDonor,
+            bloodDonor: current.bloodDonor,
+            measurementSystem: current.measurementSystem,
+            height: current.heightM,
+            weight: current.weightKg,
+            isDeceased: true,
+            dateOfDeath: "2026-01-15",
+            causeOfDeath: "Accident",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "NO_CHANGES");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 2);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService blocks duplicate proposed child names under the same parent", async () => {
   restorePatientMethods();
 

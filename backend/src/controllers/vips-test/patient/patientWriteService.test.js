@@ -628,6 +628,195 @@ test("updatePatientService immediately approves adult deceased-to-alive correcti
   }
 });
 
+test("updatePatientService blocks normal edits for already deceased adults", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Natural causes",
+    age: 36,
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for deceased readonly rejection");
+  };
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for deceased readonly rejection");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for deceased readonly rejection");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for deceased readonly rejection");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: { city: "Los Angeles" },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "PATIENT_DECEASED_READONLY");
+        assert.equal(
+          err.message,
+          "Deceased patients cannot be edited unless they are changed back to alive."
+        );
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService immediately approves adult deceased death-field corrections only", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Natural causes",
+    age: 36,
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const updateCalls = [];
+  const historyCalls = [];
+  const userDecisionCalls = [];
+
+  guardPendingPortalLookup();
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async (payload) => {
+    historyCalls.push(payload);
+    return payload;
+  };
+  User.findOneAndUpdate = async (query, updateDoc, options) => {
+    userDecisionCalls.push({ query, updateDoc, options });
+    return null;
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        dateOfDeath: "2026-01-20",
+        causeOfDeath: "Corrected cause",
+      },
+    });
+
+    assert.equal(result.isDeceased, true);
+    assert.equal(result.causeOfDeath, "Corrected cause");
+    assert.equal(result.dateOfDeath.toISOString().slice(0, 10), "2026-01-20");
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.isDeceased, undefined);
+    assert.equal(updateCalls[0].updateDoc.$set.causeOfDeath, "Corrected cause");
+    assert.equal(updateCalls[0].updateDoc.$set.dateOfDeath.toISOString().slice(0, 10), "2026-01-20");
+    assert(updateCalls[0].updateDoc.$set.approvedAt instanceof Date);
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.causeOfDeath,
+      "Corrected cause"
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.dateOfDeath.toISOString().slice(0, 10),
+      "2026-01-20"
+    );
+    assert.equal(historyCalls.length, 1);
+    assert.equal(userDecisionCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService does not treat unchanged full-form deceased adult payloads as normal edits", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Natural causes",
+    age: 36,
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    { kind: "selectLean", value: null, projection: "_id" },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called when no changes are detected");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called when no changes are detected");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called when no changes are detected");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            fullname: current.fullname,
+            email: current.email,
+            phone: "6195550101",
+            birthDate: "1990-01-01",
+            diseases: [],
+            allergies: [],
+            medications: [],
+            bloodtype: current.bloodtype,
+            gender: current.gender,
+            country: current.country,
+            state: current.state,
+            city: current.city,
+            organDonor: current.organDonor,
+            bloodDonor: current.bloodDonor,
+            children: [],
+            childrenCount: 0,
+            measurementSystem: current.measurementSystem,
+            height: current.heightM,
+            weight: current.weightKg,
+            isDeceased: true,
+            dateOfDeath: "2026-01-15",
+            causeOfDeath: "Natural causes",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "NO_CHANGES");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 3);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService blocks adult death-status changes mixed with actual normal edits", async () => {
   restorePatientMethods();
 

@@ -21,6 +21,7 @@ const patientErrorKey = (code) => {
     CHILDREN_COUNT_INVALID: "patients.errors.childrenCountInvalid",
     CHILDREN_COUNT_MISMATCH: "patients.errors.childrenCountMismatch",
     PENDING_GUARDIAN_DECISION: "patients.errors.pendingGuardianDecision",
+    PATIENT_DECEASED_READONLY: "patients.errors.patientDeceasedReadonly",
   };
   return map[code] || null;
 };
