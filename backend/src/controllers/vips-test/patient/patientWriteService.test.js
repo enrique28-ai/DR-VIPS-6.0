@@ -13,6 +13,8 @@ dnsPromises.resolve6 = async () => [];
 syncBuiltinESMExports();
 
 const { default: Patient } = await import("../../../models/Patient.js");
+const { default: PatientHistory } = await import("../../../models/PatientHistory.js");
+const { default: User } = await import("../../../models/User.js");
 const { createPatientService, updatePatientService } = await import(
   "../../../services/patients/patientWriteService.js"
 );
@@ -21,6 +23,16 @@ const originalPatientMethods = {
   create: Patient.create,
   find: Patient.find,
   findOne: Patient.findOne,
+  findOneAndUpdate: Patient.findOneAndUpdate,
+};
+
+const originalPatientHistoryMethods = {
+  create: PatientHistory.create,
+};
+
+const originalUserMethods = {
+  findOne: User.findOne,
+  findOneAndUpdate: User.findOneAndUpdate,
 };
 
 after(() => {
@@ -39,10 +51,28 @@ function makeAdultPatient(overrides = {}) {
     phone: "+16195550101",
     phoneDigits: "16195550101",
     country: "United States",
+    state: "California",
+    city: "San Diego",
     birthDate: new Date("1990-01-01T12:00:00.000Z"),
     age: 35,
+    ageCategory: "18-59",
+    bloodtype: "O+",
+    gender: "female",
+    organDonor: true,
+    bloodDonor: false,
+    measurementSystem: "metric",
+    heightM: 1.7,
+    weightKg: 70,
+    diseases: [],
+    allergies: [],
+    medications: [],
+    children: [],
+    childrenCount: 0,
+    isDeceased: false,
+    dateOfDeath: null,
     owners: ["doctor-id"],
     createdBy: "doctor-id",
+    lastEditedBy: "doctor-id",
     ...overrides,
   };
 }
@@ -71,6 +101,10 @@ function restorePatientMethods() {
   Patient.create = originalPatientMethods.create;
   Patient.find = originalPatientMethods.find;
   Patient.findOne = originalPatientMethods.findOne;
+  Patient.findOneAndUpdate = originalPatientMethods.findOneAndUpdate;
+  PatientHistory.create = originalPatientHistoryMethods.create;
+  User.findOne = originalUserMethods.findOne;
+  User.findOneAndUpdate = originalUserMethods.findOneAndUpdate;
 }
 
 function mockPatientFindOneSequence(responses) {
@@ -102,6 +136,61 @@ function mockPatientFindOneSequence(responses) {
   };
 
   return calls;
+}
+
+function applyUpdateForTest(current, updateDoc) {
+  const next = { ...current, ...(updateDoc.$set || {}) };
+  for (const field of Object.keys(updateDoc.$unset || {})) {
+    delete next[field];
+  }
+  return next;
+}
+
+function guardPendingPortalLookup() {
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for adult death-status auto-confirm");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for adult death-status auto-confirm");
+  };
+}
+
+function mockNoPendingPortalDecision(current) {
+  const patientFindCalls = [];
+  const userFindCalls = [];
+
+  Patient.find = (query) => {
+    patientFindCalls.push(query);
+    return {
+      sort: (sort) => {
+        assert.deepEqual(sort, { updatedAt: -1 });
+        return {
+          select: (projection) => {
+            assert.equal(projection, "_id updatedAt");
+            return {
+              lean: async () => [{ _id: current._id, updatedAt: current.updatedAt }],
+            };
+          },
+        };
+      },
+    };
+  };
+
+  User.findOne = (query) => {
+    userFindCalls.push(query);
+    return {
+      select: (projection) => {
+        assert.equal(projection, "lastHealthDecisionAt");
+        return {
+          lean: async () => ({
+            lastHealthDecisionAt: new Date("2026-01-03T12:00:00.000Z"),
+          }),
+        };
+      },
+    };
+  };
+
+  return { patientFindCalls, userFindCalls };
 }
 
 test("createPatientService blocks duplicate email on create", async () => {
@@ -297,6 +386,388 @@ test("updatePatientService rejects changing an existing email", async () => {
     );
 
     assert.equal(findOneCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService immediately approves adult alive-to-deceased status-only changes", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    age: 36,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    { kind: "selectLean", value: null, projection: "_id" },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+  const updateCalls = [];
+  const historyCalls = [];
+  const userDecisionCalls = [];
+
+  guardPendingPortalLookup();
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async (leanOptions) => {
+        updateCalls[updateCalls.length - 1].leanOptions = leanOptions;
+        return applyUpdateForTest(current, updateDoc);
+      },
+    };
+  };
+  PatientHistory.create = async (payload) => {
+    historyCalls.push(payload);
+    return payload;
+  };
+  User.findOneAndUpdate = async (query, updateDoc, options) => {
+    userDecisionCalls.push({ query, updateDoc, options });
+    return null;
+  };
+
+  try {
+    const body = {
+      fullname: current.fullname,
+      email: current.email,
+      phone: "6195550101",
+      birthDate: "1990-01-01",
+      diseases: [],
+      allergies: [],
+      medications: [],
+      bloodtype: current.bloodtype,
+      gender: current.gender,
+      country: current.country,
+      state: current.state,
+      city: current.city,
+      organDonor: current.organDonor,
+      bloodDonor: current.bloodDonor,
+      children: [],
+      childrenCount: 0,
+      measurementSystem: current.measurementSystem,
+      height: current.heightM,
+      weight: current.weightKg,
+      isDeceased: true,
+      dateOfDeath: "2026-01-15",
+      causeOfDeath: "Natural causes",
+    };
+
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body,
+    });
+
+    assert.equal(result.isDeceased, true);
+    assert.equal(result.causeOfDeath, "Natural causes");
+    assert.equal(result.dateOfDeath.toISOString().slice(0, 10), "2026-01-15");
+    assert.equal(findOneCalls.length, 3);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.isDeceased, true);
+    assert.equal(updateCalls[0].updateDoc.$set.causeOfDeath, "Natural causes");
+    assert.equal(updateCalls[0].updateDoc.$set.dateOfDeath.toISOString().slice(0, 10), "2026-01-15");
+    assert(updateCalls[0].updateDoc.$set.approvedAt instanceof Date);
+    assert.equal(
+      updateCalls[0].updateDoc.$set.updatedAt,
+      updateCalls[0].updateDoc.$set.approvedAt
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.isDeceased,
+      true
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.causeOfDeath,
+      "Natural causes"
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.dateOfDeath.toISOString().slice(0, 10),
+      "2026-01-15"
+    );
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+      timestamps: false,
+    });
+    assert.equal(historyCalls.length, 1);
+    assert.equal(historyCalls[0].patientEmail, current.email);
+    assert.equal(historyCalls[0].patientPhoneDigits, current.phoneDigits);
+    assert.equal(historyCalls[0].approvedFromProfile, current._id);
+    assert.equal(historyCalls[0].editedBy, user._id);
+    assert.equal(historyCalls[0].approvedAt, updateCalls[0].updateDoc.$set.approvedAt);
+    assert.deepEqual(
+      historyCalls[0].approvedSnapshot,
+      updateCalls[0].updateDoc.$set.approvedSnapshot
+    );
+    assert.deepEqual(userDecisionCalls, [
+      {
+        query: { email: current.email, role: "patient" },
+        updateDoc: { $set: { lastHealthDecisionAt: updateCalls[0].updateDoc.$set.approvedAt } },
+        options: { new: false },
+      },
+    ]);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService requires dateOfDeath for adult alive-to-deceased changes", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called without dateOfDeath");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called without dateOfDeath");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called without dateOfDeath");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            isDeceased: true,
+            causeOfDeath: "Natural causes",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "DATE_OF_DEATH_REQUIRED");
+        assert.equal(
+          err.message,
+          "Date of death is required when marking patient as deceased"
+        );
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService immediately approves adult deceased-to-alive corrections and clears death fields", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Natural causes",
+    age: 36,
+    updatedAt: new Date("2026-01-15T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-15T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const updateCalls = [];
+  const historyCalls = [];
+  const userDecisionCalls = [];
+
+  guardPendingPortalLookup();
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async (payload) => {
+    historyCalls.push(payload);
+    return payload;
+  };
+  User.findOneAndUpdate = async (query, updateDoc, options) => {
+    userDecisionCalls.push({ query, updateDoc, options });
+    return null;
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: { isDeceased: false },
+    });
+
+    assert.equal(result.isDeceased, false);
+    assert.equal(Object.hasOwn(result, "dateOfDeath"), false);
+    assert.equal(Object.hasOwn(result, "causeOfDeath"), false);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.isDeceased, false);
+    assert.equal(updateCalls[0].updateDoc.$unset.dateOfDeath, 1);
+    assert.equal(updateCalls[0].updateDoc.$unset.causeOfDeath, 1);
+    assert(updateCalls[0].updateDoc.$set.approvedAt instanceof Date);
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.isDeceased,
+      false
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.unset.dateOfDeath,
+      1
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.unset.causeOfDeath,
+      1
+    );
+    assert.equal(historyCalls.length, 1);
+    assert.equal(userDecisionCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService blocks adult death-status changes mixed with actual normal edits", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for mixed death-status rejection");
+  };
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for mixed death-status rejection");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for mixed death-status rejection");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for mixed death-status rejection");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            isDeceased: true,
+            dateOfDeath: "2026-01-15",
+            causeOfDeath: "Natural causes",
+            city: "Los Angeles",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "DEATH_STATUS_UPDATE_ONLY");
+        assert.equal(err.message, "Death status must be updated separately.");
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService returns mixed-edit error before normal adult field validators", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for mixed death-status rejection");
+  };
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for mixed death-status rejection");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for mixed death-status rejection");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for mixed death-status rejection");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            isDeceased: true,
+            dateOfDeath: "2026-01-15",
+            causeOfDeath: "Natural causes",
+            email: "other@example.com",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "DEATH_STATUS_UPDATE_ONLY");
+        assert.equal(err.message, "Death status must be updated separately.");
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService keeps normal adult non-death edits pending for patient approval", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: { city: "Los Angeles" },
+    });
+
+    assert.equal(result.city, "Los Angeles");
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.city, "Los Angeles");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedAt"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedSnapshot"), false);
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+    });
   } finally {
     restorePatientMethods();
   }

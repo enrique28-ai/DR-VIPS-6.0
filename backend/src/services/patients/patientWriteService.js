@@ -1,4 +1,6 @@
 import Patient from "../../models/Patient.js";
+import PatientHistory from "../../models/PatientHistory.js";
+import User from "../../models/User.js";
 import {
   normPhoneWithCountry,
   normalize,
@@ -28,10 +30,281 @@ import {
 
 const nameFromChild = (child) => (typeof child === "string" ? child : child?.name);
 
+const APPROVAL_SYNC_FIELDS_SCALAR = [
+  "fullname",
+  "age",
+  "ageCategory",
+  "bloodtype",
+  "gender",
+  "organDonor",
+  "bloodDonor",
+  "measurementSystem",
+  "heightM",
+  "weightKg",
+  "bmi",
+  "bmiCategory",
+  "isDeceased",
+  "causeOfDeath",
+  "country",
+  "state",
+  "city",
+  "phone",
+  "phoneDigits",
+  "childrenCount",
+  "birthDate",
+  "dateOfDeath",
+];
+
+const APPROVAL_SYNC_FIELDS_ARRAY = ["diseases", "allergies", "medications", "children"];
+
+const ADULT_DEATH_STATUS_ALLOWED_CHANGED_FIELDS = new Set([
+  "isDeceased",
+  "dateOfDeath",
+  "causeOfDeath",
+  "age",
+  "ageCategory",
+]);
+
 const childNameKeyFromMinorKey = (minorKey, parentEmail) => {
   const mk = normLower(minorKey);
   const prefix = `${normLower(parentEmail)}::`;
   return mk && mk.startsWith(prefix) ? mk.slice(prefix.length) : "";
+};
+
+const datesDiffer = (a, b) => {
+  const aKey = a ? ymdUTC(a) : "";
+  const bKey = b ? ymdUTC(b) : "";
+  return aKey !== bKey;
+};
+
+const bodyDateDiffers = (raw, currentValue) => {
+  if (raw === "" || raw === null) return currentValue !== undefined && currentValue !== null;
+
+  const parsed = isYmd(raw) ? parseYmdToUtcNoon(raw) : new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return normStr(raw) !== (currentValue ? ymdUTC(currentValue) : "");
+  }
+
+  return datesDiffer(parsed, currentValue);
+};
+
+const hasEffectiveDeathStatusChangeFromBody = ({ current, body, nextIsDeceased }) => {
+  if ("isDeceased" in body && Boolean(nextIsDeceased) !== Boolean(current.isDeceased)) {
+    return true;
+  }
+
+  if ("dateOfDeath" in body && bodyDateDiffers(body.dateOfDeath, current.dateOfDeath)) {
+    return true;
+  }
+
+  return (
+    "causeOfDeath" in body &&
+    normStr(body.causeOfDeath) !== normStr(current.causeOfDeath)
+  );
+};
+
+const collectEffectiveNormalChangedFieldsFromBody = ({ current, body }) => {
+  const changed = new Set();
+
+  if ("diseases" in body && arrKey(normalize(body.diseases)) !== arrKey(current.diseases)) changed.add("diseases");
+  if ("allergies" in body && arrKey(normalize(body.allergies)) !== arrKey(current.allergies)) changed.add("allergies");
+  if ("medications" in body && arrKey(normalize(body.medications)) !== arrKey(current.medications)) changed.add("medications");
+
+  if ("children" in body) {
+    const incoming = Array.isArray(body.children)
+      ? body.children.map((c) => normNameKey(c?.name))
+      : [];
+    const existing = Array.isArray(current.children)
+      ? current.children.map((c) => normNameKey(c?.name))
+      : [];
+    if (incoming.join("|") !== existing.join("|")) changed.add("children");
+  }
+
+  if ("childrenCount" in body) {
+    const parsedCount = parseChildrenCount(body.childrenCount);
+    const currentChildren = Array.isArray(current.children) ? current.children : [];
+    const currentCount = Number.isFinite(Number(current.childrenCount))
+      ? Number(current.childrenCount)
+      : currentChildren.length;
+
+    if (parsedCount !== undefined && parsedCount !== currentCount) changed.add("childrenCount");
+    if (parsedCount === null && normStr(body.childrenCount) !== normStr(currentCount)) changed.add("childrenCount");
+  }
+
+  if ("fullname" in body && normStr(body.fullname) !== normStr(current.fullname)) changed.add("fullname");
+  if ("email" in body && normLower(body.email) !== normLower(current.email)) changed.add("email");
+  if ("birthDate" in body && bodyDateDiffers(body.birthDate, current.birthDate)) changed.add("birthDate");
+  if ("bloodtype" in body && normUpper(body.bloodtype) !== normUpper(current.bloodtype)) changed.add("bloodtype");
+  if ("gender" in body && normLower(body.gender) !== normLower(current.gender)) changed.add("gender");
+  if ("organDonor" in body && Boolean(toBool(body.organDonor)) !== Boolean(current.organDonor)) changed.add("organDonor");
+  if ("bloodDonor" in body && Boolean(toBool(body.bloodDonor)) !== Boolean(current.bloodDonor)) changed.add("bloodDonor");
+  if ("country" in body && normStr(body.country) !== normStr(current.country)) changed.add("country");
+  if ("state" in body && normStr(body.state) !== normStr(current.state)) changed.add("state");
+  if ("city" in body && normStr(body.city) !== normStr(current.city)) changed.add("city");
+  if ("parentEmail" in body && normLower(body.parentEmail) !== normLower(current.parentEmail)) changed.add("parentEmail");
+
+  if ("phone" in body) {
+    const rawDigits = String(body.phone ?? "").replace(/\D/g, "");
+
+    if (!rawDigits) {
+      if (current.phone || current.phoneDigits) changed.add("phone");
+    } else {
+      const effectiveCountry = "country" in body ? body.country : current.country;
+      const normalized = effectiveCountry
+        ? normPhoneWithCountry(effectiveCountry, rawDigits)
+        : { ok: false };
+
+      if (normalized.ok) {
+        if (normStr(normalized.digits) !== normStr(current.phoneDigits)) changed.add("phone");
+      } else {
+        const currentPhoneDigits = String(current.phone || "").replace(/\D/g, "");
+        if (
+          rawDigits !== normStr(current.phoneDigits) &&
+          rawDigits !== currentPhoneDigits
+        ) {
+          changed.add("phone");
+        }
+      }
+    }
+  }
+
+  const touchedAnthro =
+    "measurementSystem" in body || "height" in body || "weight" in body;
+
+  if (touchedAnthro) {
+    const sys = normLower(body.measurementSystem || current.measurementSystem || "metric");
+    const heightValue = Number(body.height);
+    const weightValue = Number(body.weight);
+
+    if (sys !== normLower(current.measurementSystem)) changed.add("measurementSystem");
+
+    if (Number.isFinite(heightValue)) {
+      const nextHeightM = sys === "imperial" ? heightValue * FT_TO_M : heightValue;
+      if (!near(nextHeightM, current.heightM)) changed.add("heightM");
+    } else if ("height" in body && normStr(body.height) !== "") {
+      changed.add("heightM");
+    }
+
+    if (Number.isFinite(weightValue)) {
+      const nextWeightKg = sys === "imperial" ? weightValue * LB_TO_KG : weightValue;
+      if (!near(nextWeightKg, current.weightKg)) changed.add("weightKg");
+    } else if ("weight" in body && normStr(body.weight) !== "") {
+      changed.add("weightKg");
+    }
+  }
+
+  if ("heightM" in body && !near(Number(body.heightM), current.heightM)) changed.add("heightM");
+  if ("weightKg" in body && !near(Number(body.weightKg), current.weightKg)) changed.add("weightKg");
+
+  return changed;
+};
+
+const throwDeathStatusUpdateOnly = () => {
+  const err = new Error("Death status must be updated separately.");
+  err.status = 400;
+  err.errorCode = "DEATH_STATUS_UPDATE_ONLY";
+  throw err;
+};
+
+const collectEffectiveChangedFields = ({ current, update, unset }) => {
+  const changed = new Set();
+
+  for (const k of Object.keys(unset)) {
+    if (current[k] !== undefined && current[k] !== null) changed.add(k);
+  }
+
+  if ("diseases" in update && arrKey(update.diseases) !== arrKey(current.diseases)) changed.add("diseases");
+  if ("allergies" in update && arrKey(update.allergies) !== arrKey(current.allergies)) changed.add("allergies");
+  if ("medications" in update && arrKey(update.medications) !== arrKey(current.medications)) changed.add("medications");
+
+  if ("children" in update) {
+    const u = Array.isArray(update.children)
+      ? update.children.map((c) => normNameKey(c?.name))
+      : [];
+    const c = Array.isArray(current.children)
+      ? current.children.map((x) => normNameKey(x?.name))
+      : [];
+    if (u.join("|") !== c.join("|")) changed.add("children");
+  }
+
+  if ("fullname" in update && normStr(update.fullname) !== normStr(current.fullname)) changed.add("fullname");
+  if ("email" in update && normLower(update.email) !== normLower(current.email)) changed.add("email");
+  if ("age" in update && Number(update.age) !== Number(current.age)) changed.add("age");
+  if ("bloodtype" in update && normUpper(update.bloodtype) !== normUpper(current.bloodtype)) changed.add("bloodtype");
+  if ("gender" in update && normLower(update.gender) !== normLower(current.gender)) changed.add("gender");
+  if ("organDonor" in update && Boolean(update.organDonor) !== Boolean(current.organDonor)) changed.add("organDonor");
+  if ("bloodDonor" in update && Boolean(update.bloodDonor) !== Boolean(current.bloodDonor)) changed.add("bloodDonor");
+  if ("country" in update && normStr(update.country) !== normStr(current.country)) changed.add("country");
+  if ("state" in update && normStr(update.state) !== normStr(current.state)) changed.add("state");
+  if ("city" in update && normStr(update.city) !== normStr(current.city)) changed.add("city");
+  if ("phone" in update && normStr(update.phone) !== normStr(current.phone)) changed.add("phone");
+  if ("phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changed.add("phoneDigits");
+  if ("isDeceased" in update && Boolean(update.isDeceased) !== Boolean(current.isDeceased)) changed.add("isDeceased");
+  if ("causeOfDeath" in update && normStr(update.causeOfDeath) !== normStr(current.causeOfDeath)) changed.add("causeOfDeath");
+
+  const currentChildren = Array.isArray(current.children) ? current.children : [];
+  const currentChildrenCount =
+    Number.isFinite(Number(current.childrenCount))
+      ? Number(current.childrenCount)
+      : currentChildren.length;
+
+  if ("childrenCount" in update && Number(update.childrenCount) !== currentChildrenCount) changed.add("childrenCount");
+  if ("parentEmail" in update && normLower(update.parentEmail) !== normLower(current.parentEmail)) changed.add("parentEmail");
+  if ("birthDate" in update && datesDiffer(update.birthDate, current.birthDate)) changed.add("birthDate");
+  if ("dateOfDeath" in update && datesDiffer(update.dateOfDeath, current.dateOfDeath)) changed.add("dateOfDeath");
+  if ("ageCategory" in update && normStr(update.ageCategory) !== normStr(current.ageCategory)) changed.add("ageCategory");
+
+  const touchedAnthro =
+    "measurementSystem" in update || "height" in update || "weight" in update;
+
+  if (touchedAnthro) {
+    const sys = normLower(update.measurementSystem || current.measurementSystem || "metric");
+    const H = Number(update.height);
+    const W = Number(update.weight);
+
+    const nextHeightM = sys === "imperial" ? H * FT_TO_M : H;
+    const nextWeightKg = sys === "imperial" ? W * LB_TO_KG : W;
+
+    if (sys !== normLower(current.measurementSystem)) changed.add("measurementSystem");
+    if (!near(nextHeightM, current.heightM)) changed.add("heightM");
+    if (!near(nextWeightKg, current.weightKg)) changed.add("weightKg");
+  }
+
+  if ("heightM" in update && !near(update.heightM, current.heightM)) changed.add("heightM");
+  if ("weightKg" in update && !near(update.weightKg, current.weightKg)) changed.add("weightKg");
+
+  return changed;
+};
+
+const buildApprovedSnapshotFromPatient = (doc) => {
+  const canonicalSet = {};
+  const canonicalUnset = {};
+
+  for (const field of APPROVAL_SYNC_FIELDS_SCALAR) {
+    if (Object.prototype.hasOwnProperty.call(doc, field) && doc[field] !== undefined) {
+      canonicalSet[field] = doc[field];
+    } else {
+      canonicalUnset[field] = 1;
+    }
+  }
+
+  for (const field of APPROVAL_SYNC_FIELDS_ARRAY) {
+    canonicalSet[field] = Array.isArray(doc[field]) ? doc[field] : [];
+  }
+
+  return { set: canonicalSet, unset: canonicalUnset };
+};
+
+const applyUnsetToObject = (doc, unset) => {
+  const next = { ...doc };
+  for (const key of Object.keys(unset)) delete next[key];
+  return next;
+};
+
+const isCurrentAdultWithoutGuardian = (current) => {
+  const currentAgeDyn = computeDynamicAge(current);
+  const currentlyMinor = Number.isFinite(currentAgeDyn) && currentAgeDyn < 18;
+  return !currentlyMinor && !current.parentEmail && !current.minorKey;
 };
 
 export const createPatientService = async ({ user, body }) => {
@@ -421,6 +694,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     throw err;
   }
 
+  const isCurrentAdult = isCurrentAdultWithoutGuardian(current);
   const update = { lastEditedBy: user._id };
   const unset = {};
 
@@ -433,6 +707,26 @@ export const updatePatientService = async ({ user, patientId, body }) => {
 
   const nextIsDeceased =
     "isDeceased" in body ? toBool(body.isDeceased) : !!current.isDeceased;
+
+  if (
+    isCurrentAdult &&
+    hasEffectiveDeathStatusChangeFromBody({ current, body, nextIsDeceased }) &&
+    collectEffectiveNormalChangedFieldsFromBody({ current, body }).size > 0
+  ) {
+    throwDeathStatusUpdateOnly();
+  }
+
+  if (
+    isCurrentAdult &&
+    !current.isDeceased &&
+    nextIsDeceased &&
+    (!("dateOfDeath" in body) || body.dateOfDeath === "" || body.dateOfDeath === null)
+  ) {
+    const err = new Error("Date of death is required when marking patient as deceased");
+    err.status = 400;
+    err.errorCode = "DATE_OF_DEATH_REQUIRED";
+    throw err;
+  }
 
   let nextBirthDate = current.birthDate;
   if ("birthDate" in body) {
@@ -876,7 +1170,9 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       }
       update.causeOfDeath = cod;
     } else {
+      unset.dateOfDeath = 1;
       unset.causeOfDeath = 1;
+      delete update.dateOfDeath;
       delete update.causeOfDeath;
     }
   } else if ("causeOfDeath" in body) {
@@ -909,7 +1205,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   let changesFound = false;
 
   for (const k of Object.keys(unset)) {
-    if (typeof current[k] !== "undefined") {
+    if (current[k] !== undefined && current[k] !== null) {
       changesFound = true;
       break;
     }
@@ -982,7 +1278,24 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     throw err;
   }
 
-  if (current.email) {
+  const changedFields = collectEffectiveChangedFields({ current, update, unset });
+  const hasDeathStatusChange =
+    changedFields.has("isDeceased") ||
+    changedFields.has("dateOfDeath") ||
+    changedFields.has("causeOfDeath");
+  const shouldAutoConfirmAdultDeathStatus = isCurrentAdult && hasDeathStatusChange;
+
+  if (shouldAutoConfirmAdultDeathStatus) {
+    const mixedFields = [...changedFields].filter(
+      (field) => !ADULT_DEATH_STATUS_ALLOWED_CHANGED_FIELDS.has(field)
+    );
+
+    if (mixedFields.length > 0) {
+      throwDeathStatusUpdateOnly();
+    }
+  }
+
+  if (current.email && !shouldAutoConfirmAdultDeathStatus) {
     const locked = await hasPendingHealthDecisionForEmail(current.email);
     if (locked) {
       const err = new Error(
@@ -1014,20 +1327,69 @@ export const updatePatientService = async ({ user, patientId, body }) => {
 
   update.lastEditedBy = user._id;
 
+  let adultDeathApproval = null;
+
+  if (shouldAutoConfirmAdultDeathStatus) {
+    const approvedAt = new Date();
+    const finalPatientForSnapshot = applyUnsetToObject(
+      {
+        ...current,
+        ...update,
+        updatedAt: approvedAt,
+      },
+      unset
+    );
+    const approvedSnapshot = buildApprovedSnapshotFromPatient(finalPatientForSnapshot);
+
+    update.approvedAt = approvedAt;
+    update.approvedSnapshot = approvedSnapshot;
+    update.updatedAt = approvedAt;
+
+    adultDeathApproval = { approvedAt, approvedSnapshot };
+  }
+
   const updateDoc = {};
   if (Object.keys(update).length) updateDoc.$set = update;
   if (Object.keys(unset).length) updateDoc.$unset = unset;
 
+  const updateOptions = {
+    new: true,
+    runValidators: true,
+    context: "query",
+    ...(adultDeathApproval ? { timestamps: false } : {}),
+  };
+
   const updated = await Patient.findOneAndUpdate(
     { _id: patientId, $or: [{ owners: user._id }, { createdBy: user._id }] },
     Object.keys(updateDoc).length ? updateDoc : { $set: {} },
-    { new: true, runValidators: true, context: "query" }
+    updateOptions
   ).lean({ virtuals: true });
 
   if (!updated) {
     const err = new Error("Paciente no encontrado");
     err.status = 404;
     throw err;
+  }
+
+  if (adultDeathApproval) {
+    const email = normLower(updated.email || current.email);
+
+    await PatientHistory.create({
+      patientEmail: email || undefined,
+      patientPhoneDigits: updated.phoneDigits || current.phoneDigits || undefined,
+      approvedFromProfile: updated._id,
+      editedBy: updated.lastEditedBy || updated.createdBy || user._id || null,
+      approvedSnapshot: adultDeathApproval.approvedSnapshot,
+      approvedAt: adultDeathApproval.approvedAt,
+    });
+
+    if (email) {
+      await User.findOneAndUpdate(
+        { email, role: "patient" },
+        { $set: { lastHealthDecisionAt: adultDeathApproval.approvedAt } },
+        { new: false }
+      );
+    }
   }
 
   return applyDynamicAgeToPatient(updated);

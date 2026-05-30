@@ -13,6 +13,8 @@ dnsPromises.resolve6 = async () => [];
 syncBuiltinESMExports();
 
 const { default: Patient } = await import("../../../models/Patient.js");
+const { default: PatientHistory } = await import("../../../models/PatientHistory.js");
+const { default: User } = await import("../../../models/User.js");
 const { createPatientService, updatePatientService } = await import(
   "../../../services/patients/patientWriteService.js"
 );
@@ -22,6 +24,14 @@ const originalPatientMethods = {
   find: Patient.find,
   findOne: Patient.findOne,
   findOneAndUpdate: Patient.findOneAndUpdate,
+};
+
+const originalPatientHistoryMethods = {
+  create: PatientHistory.create,
+};
+
+const originalUserMethods = {
+  findOneAndUpdate: User.findOneAndUpdate,
 };
 
 after(() => {
@@ -99,6 +109,8 @@ function restorePatientMethods() {
   Patient.find = originalPatientMethods.find;
   Patient.findOne = originalPatientMethods.findOne;
   Patient.findOneAndUpdate = originalPatientMethods.findOneAndUpdate;
+  PatientHistory.create = originalPatientHistoryMethods.create;
+  User.findOneAndUpdate = originalUserMethods.findOneAndUpdate;
 }
 
 function mockParentFindOne(parentDoc) {
@@ -166,6 +178,14 @@ function mockPatientFindOneSequence(responses) {
   };
 
   return calls;
+}
+
+function applyUpdateForTest(current, updateDoc) {
+  const next = { ...current, ...(updateDoc.$set || {}) };
+  for (const field of Object.keys(updateDoc.$unset || {})) {
+    delete next[field];
+  }
+  return next;
 }
 
 function rejectCreate() {
@@ -459,6 +479,78 @@ test("updatePatientService lets doctors propose minor fullname rename without ch
     assert.equal(updateCalls.length, 1);
     assert.equal(updateCalls[0].updateDoc.$set.fullname, "Corrected Minor");
     assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "minorKey"), false);
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+    });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService keeps minor death-status changes under guardian approval", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: false,
+    dateOfDeath: null,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  const parent = makeApprovedAdultParent();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: "_id age children approvedAt approvedSnapshot",
+    },
+    { kind: "sortSelectLean", value: null, projection: "updatedAt approvedAt" },
+  ]);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async (leanOptions) => {
+        updateCalls[updateCalls.length - 1].leanOptions = leanOptions;
+        return applyUpdateForTest(current, updateDoc);
+      },
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for minor pending edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for minor pending edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: {
+        isDeceased: true,
+        dateOfDeath: "2026-01-15",
+        causeOfDeath: "Accident",
+      },
+    });
+
+    assert.equal(result.isDeceased, true);
+    assert.equal(result.causeOfDeath, "Accident");
+    assert.equal(result.dateOfDeath.toISOString().slice(0, 10), "2026-01-15");
+    assert.equal(findOneCalls.length, 3);
+    assert.deepEqual(findOneCalls[1].query, { email: "parent@example.com" });
+    assert.equal(findOneCalls[2].query.parentEmail, "parent@example.com");
+    assert.equal(findOneCalls[2].query.minorKey, "parent@example.com::minor patient");
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.isDeceased, true);
+    assert.equal(updateCalls[0].updateDoc.$set.causeOfDeath, "Accident");
+    assert.equal(updateCalls[0].updateDoc.$set.dateOfDeath.toISOString().slice(0, 10), "2026-01-15");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedAt"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedSnapshot"), false);
     assert.deepEqual(updateCalls[0].options, {
       new: true,
       runValidators: true,
