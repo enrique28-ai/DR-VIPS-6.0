@@ -42,6 +42,42 @@ const deceasedAppointmentErrorBody = (error = DECEASED_APPOINTMENT_ERROR) => ({
   errorCode: DECEASED_APPOINTMENT_ERROR_CODE,
 });
 const appointmentPatientIsDeceased = (appt) => appt?.patient?.isDeceased === true;
+const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+const GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR =
+  "The guardian is unavailable. Assign a new guardian before scheduling appointments for this minor.";
+const GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR_CODE = "APPOINTMENT_GUARDIAN_UNAVAILABLE";
+const guardianUnavailableAppointmentErrorBody = (
+  error = GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR
+) => ({
+  error,
+  errorCode: GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR_CODE,
+});
+const appointmentPatientUsesGuardian = (patient) => {
+  const age = Number(patient?.age);
+  return Boolean(
+    normEmail(patient?.parentEmail) ||
+      patient?.minorKey ||
+      (Number.isFinite(age) && age < 18)
+  );
+};
+const getAppointmentGuardian = async (patient) => {
+  if (!appointmentPatientUsesGuardian(patient)) {
+    return { required: false, guardian: null };
+  }
+
+  const parentEmail = normEmail(patient?.parentEmail);
+  if (!parentEmail) {
+    return { required: true, guardian: null };
+  }
+
+  const guardian = await Patient.findOne({ email: parentEmail }).select("_id isDeceased");
+  return { required: true, guardian };
+};
+const appointmentGuardianIsUnavailable = async (patient) => {
+  const { required, guardian } = await getAppointmentGuardian(patient);
+  return required && (!guardian || guardian.isDeceased === true);
+};
 // -----------------------
 
 
@@ -63,14 +99,14 @@ export const createAppointment = async (req, res) => {
       _id: patientId,
       isDeceased: false,
       $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-    }).select("_id email parentEmail fullname name");
+    }).select(APPOINTMENT_PATIENT_SELECT);
 
     if (!patient) {
       const deceasedPatient = await Patient.findOne({
         _id: patientId,
         isDeceased: true,
         $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-      }).select("_id email parentEmail fullname name");
+      }).select(APPOINTMENT_PATIENT_SELECT);
 
       if (deceasedPatient) {
         return res
@@ -79,6 +115,10 @@ export const createAppointment = async (req, res) => {
       }
 
       return res.status(404).json({ error: "Patient not found or is deceased" });
+    }
+
+    if (await appointmentGuardianIsUnavailable(patient)) {
+      return res.status(409).json(guardianUnavailableAppointmentErrorBody());
     }
 
     // ✅ ANTI-OVERLAP (Backend Check)
@@ -141,16 +181,21 @@ export const getAppointments = async (req, res) => {
       query = { doctor: req.user._id };
     } else {
       const email = normEmail(req.user.email);
+      const guardianProfile = await Patient.findOne({ email }).select("_id isDeceased");
+      const profileConditions = [{ email }];
+      if (guardianProfile && guardianProfile.isDeceased !== true) {
+        profileConditions.push({ parentEmail: email });
+      }
       const myProfiles = await Patient.find({
         isDeceased: { $ne: true },
-        $or: [{ email }, { parentEmail: email }],
+        $or: profileConditions,
       }).select("_id");
       const ids = myProfiles.map((p) => p._id);
       query = { patient: { $in: ids } };
     }
 
     const appts = await Appointment.find(query)
-      .populate("patient", "fullname email parentEmail name isDeceased")
+      .populate("patient", "fullname email parentEmail minorKey age name isDeceased")
       .populate("doctor", "name  email")
       .sort({ start: 1 });
 
@@ -163,7 +208,7 @@ export const getAppointments = async (req, res) => {
 
 export const acceptAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name isDeceased");
+    const appt = await Appointment.findById(req.params.id).populate("patient", APPOINTMENT_PATIENT_POPULATE_SELECT);
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     const email = normEmail(req.user.email);
@@ -172,6 +217,9 @@ export const acceptAppointment = async (req, res) => {
     }
     if (appointmentPatientIsDeceased(appt)) {
       return res.status(409).json(deceasedAppointmentErrorBody());
+    }
+    if (await appointmentGuardianIsUnavailable(appt.patient)) {
+      return res.status(409).json(guardianUnavailableAppointmentErrorBody());
     }
     if (appt.status !== "pending") {
       return res.status(400).json({ error: "Appointment is not pending" });
@@ -215,7 +263,7 @@ export const acceptAppointment = async (req, res) => {
 
 export const deleteAppointment = async (req, res) => {
   try {
-    const appt = await Appointment.findById(req.params.id).populate("patient", "email parentEmail fullname name isDeceased").populate("doctor", "name  email");
+    const appt = await Appointment.findById(req.params.id).populate("patient", APPOINTMENT_PATIENT_POPULATE_SELECT).populate("doctor", "name  email");
     if (!appt) return res.status(404).json({ error: "Not found" });
 
     //const isDoctorOwner = appt.doctor.toString() === req.user._id.toString();
@@ -229,6 +277,9 @@ export const deleteAppointment = async (req, res) => {
     }
     if (appointmentPatientIsDeceased(appt) && !isDoctorOwner) {
       return res.status(409).json(deceasedAppointmentErrorBody());
+    }
+    if (!isDoctorOwner && await appointmentGuardianIsUnavailable(appt.patient)) {
+      return res.status(409).json(guardianUnavailableAppointmentErrorBody());
     }
     const startStrEn = formatDateTime(appt.start, "en-US");
     const startStrEs = formatDateTime(appt.start, "es-MX");

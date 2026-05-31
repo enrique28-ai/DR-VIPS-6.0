@@ -768,7 +768,8 @@
     "overlap": "¡Ese horario ya está ocupado por otra cita!"
   },
   "errors": {
-    "patientDeceased": "No se pueden gestionar citas de un paciente fallecido."
+    "patientDeceased": "No se pueden gestionar citas de un paciente fallecido.",
+    "guardianUnavailable": "El tutor no está disponible. Asigna un nuevo tutor antes de programar citas para este menor."
   },
   "toasts": {
     "loadFailed": "No se pudieron cargar las citas",

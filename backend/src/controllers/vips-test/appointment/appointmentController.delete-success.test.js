@@ -18,6 +18,8 @@ const originalUserMethods = {
   findOne: User.findOne,
 };
 
+const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+
 after(() => {
   restoreModelMethods();
 });
@@ -78,7 +80,7 @@ function mockAppointmentFindByIdForDelete(response) {
     populate: (firstPath, firstSelect) => {
       calls.push({ id, path: firstPath, select: firstSelect });
       assert.equal(firstPath, "patient");
-      assert.equal(firstSelect, "email parentEmail fullname name isDeceased");
+      assert.equal(firstSelect, APPOINTMENT_PATIENT_POPULATE_SELECT);
       return {
         populate: (secondPath, secondSelect) => {
           calls.push({ id, path: secondPath, select: secondSelect });
@@ -155,7 +157,7 @@ test("doctor owner can delete appointment", async () => {
     await deleteAppointment(req, res);
 
     assert.deepEqual(findByIdCalls, [
-      { id: "appointment-id", path: "patient", select: "email parentEmail fullname name isDeceased" },
+      { id: "appointment-id", path: "patient", select: APPOINTMENT_PATIENT_POPULATE_SELECT },
       { id: "appointment-id", path: "doctor", select: "name  email" },
     ]);
     assert.deepEqual(userFindCalls, [

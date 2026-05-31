@@ -6,6 +6,7 @@ import i18n from "../../i18n";
 const appointmentErrorKey = (code) => {
   const map = {
     APPOINTMENT_PATIENT_DECEASED: "calendar.errors.patientDeceased",
+    APPOINTMENT_GUARDIAN_UNAVAILABLE: "calendar.errors.guardianUnavailable",
   };
   return map[code] || null;
 };

@@ -27,6 +27,11 @@ const originalPatientMethods = {
   findOne: Patient.findOne,
 };
 
+const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_LIST_POPULATE_SELECT = "fullname email parentEmail minorKey age name isDeceased";
+const APPOINTMENT_GUARDIAN_SELECT = "_id isDeceased";
+
 after(() => {
   restoreModelMethods();
 });
@@ -89,14 +94,16 @@ function guardAppointmentFindOne() {
   };
 }
 
-function mockPatientFindOne(response) {
+function mockPatientFindOne(response, expectedProjection = APPOINTMENT_PATIENT_SELECT) {
   const calls = [];
 
   Patient.findOne = (query) => {
-    calls.push(query);
+    const call = { query, select: undefined };
+    calls.push(call);
     return {
       select: (projection) => {
-        assert.equal(projection, "_id email parentEmail fullname name");
+        call.select = projection;
+        assert.equal(projection, expectedProjection);
         return response;
       },
     };
@@ -110,16 +117,23 @@ function mockPatientFindOneSequence(responses) {
   let index = 0;
 
   Patient.findOne = (query) => {
-    calls.push(query);
     const response = index < responses.length
       ? responses[index]
       : responses[responses.length - 1];
+    const value = response && Object.hasOwn(response, "value") ? response.value : response;
+    const expectedProjection =
+      response && Object.hasOwn(response, "projection")
+        ? response.projection
+        : APPOINTMENT_PATIENT_SELECT;
+    const call = { query, select: undefined };
+    calls.push(call);
     index += 1;
 
     return {
       select: (projection) => {
-        assert.equal(projection, "_id email parentEmail fullname name");
-        return response;
+        call.select = projection;
+        assert.equal(projection, expectedProjection);
+        return value;
       },
     };
   };
@@ -173,7 +187,7 @@ function mockAppointmentFindByIdForAccept(response) {
     populate: (path, select) => {
       calls.push({ id, path, select });
       assert.equal(path, "patient");
-      assert.equal(select, "email parentEmail fullname name isDeceased");
+      assert.equal(select, APPOINTMENT_PATIENT_POPULATE_SELECT);
       return response;
     },
   });
@@ -188,7 +202,7 @@ function mockAppointmentFindByIdForDelete(response) {
     populate: (firstPath, firstSelect) => {
       calls.push({ id, path: firstPath, select: firstSelect });
       assert.equal(firstPath, "patient");
-      assert.equal(firstSelect, "email parentEmail fullname name isDeceased");
+      assert.equal(firstSelect, APPOINTMENT_PATIENT_POPULATE_SELECT);
       return {
         populate: (secondPath, secondSelect) => {
           calls.push({ id, path: secondPath, select: secondSelect });
@@ -265,7 +279,7 @@ test("getAppointments excludes deceased adult patient appointments for doctors",
       {
         query: { doctor: "doctor-id" },
         populate: [
-          { path: "patient", select: "fullname email parentEmail name isDeceased" },
+          { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
           { path: "doctor", select: "name  email" },
         ],
         sort: { start: 1 },
@@ -289,6 +303,10 @@ test("getAppointments includes child appointments for parent by parentEmail", as
     { _id: "parent-patient-id" },
     { _id: "child-patient-id" },
   ]);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: false },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
   const appointmentFindCalls = mockAppointmentFind(appts);
   const req = makeReq({
     user: {
@@ -304,6 +322,12 @@ test("getAppointments includes child appointments for parent by parentEmail", as
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, appts);
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
     assert.deepEqual(patientFindCalls, [
       {
         query: {
@@ -322,7 +346,7 @@ test("getAppointments includes child appointments for parent by parentEmail", as
           patient: { $in: ["parent-patient-id", "child-patient-id"] },
         },
         populate: [
-          { path: "patient", select: "fullname email parentEmail name isDeceased" },
+          { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
           { path: "doctor", select: "name  email" },
         ],
         sort: { start: 1 },
@@ -353,6 +377,10 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
     },
   };
   const patientFindCalls = mockPatientFind([{ _id: "alive-child-patient-id" }]);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: false },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
   const appointmentFindCalls = mockAppointmentFind([aliveChildAppt, deceasedChildAppt]);
   const req = makeReq({
     user: {
@@ -368,6 +396,12 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, [aliveChildAppt]);
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
     assert.deepEqual(patientFindCalls, [
       {
         query: {
@@ -386,7 +420,62 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
           patient: { $in: ["alive-child-patient-id"] },
         },
         populate: [
-          { path: "patient", select: "fullname email parentEmail name isDeceased" },
+          { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
+          { path: "doctor", select: "name  email" },
+        ],
+        sort: { start: 1 },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getAppointments does not return child appointments to a deceased guardian", async () => {
+  restoreModelMethods();
+
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: true },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
+  const patientFindCalls = mockPatientFind([]);
+  const appointmentFindCalls = mockAppointmentFind([]);
+  const req = makeReq({
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: " Parent@Example.com ",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await getAppointments(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, []);
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
+    assert.deepEqual(patientFindCalls, [
+      {
+        query: {
+          isDeceased: { $ne: true },
+          $or: [{ email: "parent@example.com" }],
+        },
+        select: "_id",
+      },
+    ]);
+    assert.deepEqual(appointmentFindCalls, [
+      {
+        query: {
+          patient: { $in: [] },
+        },
+        populate: [
+          { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
           { path: "doctor", select: "name  email" },
         ],
         sort: { start: 1 },
@@ -467,14 +556,20 @@ test("createAppointment rejects when doctor does not own the patient with 404", 
     assert.deepEqual(res.body, { error: "Patient not found or is deceased" });
     assert.deepEqual(findOneCalls, [
       {
-        _id: "patient-id",
-        isDeceased: false,
-        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        query: {
+          _id: "patient-id",
+          isDeceased: false,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
       },
       {
-        _id: "patient-id",
-        isDeceased: true,
-        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        query: {
+          _id: "patient-id",
+          isDeceased: true,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
       },
     ]);
   } finally {
@@ -515,14 +610,20 @@ test("createAppointment rejects deceased adult patient with stable errorCode", a
     });
     assert.deepEqual(findOneCalls, [
       {
-        _id: "deceased-patient-id",
-        isDeceased: false,
-        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        query: {
+          _id: "deceased-patient-id",
+          isDeceased: false,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
       },
       {
-        _id: "deceased-patient-id",
-        isDeceased: true,
-        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        query: {
+          _id: "deceased-patient-id",
+          isDeceased: true,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
       },
     ]);
   } finally {
@@ -564,14 +665,140 @@ test("createAppointment rejects deceased minor patient with stable errorCode", a
     });
     assert.deepEqual(findOneCalls, [
       {
-        _id: "deceased-minor-patient-id",
-        isDeceased: false,
-        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        query: {
+          _id: "deceased-minor-patient-id",
+          isDeceased: false,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
       },
       {
-        _id: "deceased-minor-patient-id",
-        isDeceased: true,
-        $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        query: {
+          _id: "deceased-minor-patient-id",
+          isDeceased: true,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment rejects alive minor when guardian is deceased", async () => {
+  restoreModelMethods();
+  guardAppointmentCreate();
+  guardNotificationCreate();
+  guardAppointmentFindOne();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    {
+      value: {
+        _id: "alive-minor-patient-id",
+        email: "",
+        parentEmail: " Parent@Example.com ",
+        minorKey: "parent@example.com::minor patient",
+        age: 10,
+        fullname: "Minor Patient",
+      },
+      projection: APPOINTMENT_PATIENT_SELECT,
+    },
+    {
+      value: { _id: "parent-patient-id", isDeceased: true },
+      projection: APPOINTMENT_GUARDIAN_SELECT,
+    },
+  ]);
+  const req = makeReq({
+    body: {
+      patientId: "alive-minor-patient-id",
+      start: "2026-06-01T10:00:00.000Z",
+      end: "2026-06-01T10:30:00.000Z",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error:
+        "The guardian is unavailable. Assign a new guardian before scheduling appointments for this minor.",
+      errorCode: "APPOINTMENT_GUARDIAN_UNAVAILABLE",
+    });
+    assert.deepEqual(findOneCalls, [
+      {
+        query: {
+          _id: "alive-minor-patient-id",
+          isDeceased: false,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
+      },
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment rejects alive minor when guardian is missing", async () => {
+  restoreModelMethods();
+  guardAppointmentCreate();
+  guardNotificationCreate();
+  guardAppointmentFindOne();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    {
+      value: {
+        _id: "alive-minor-patient-id",
+        email: "",
+        parentEmail: " Parent@Example.com ",
+        minorKey: "parent@example.com::minor patient",
+        age: 10,
+        fullname: "Minor Patient",
+      },
+      projection: APPOINTMENT_PATIENT_SELECT,
+    },
+    {
+      value: null,
+      projection: APPOINTMENT_GUARDIAN_SELECT,
+    },
+  ]);
+  const req = makeReq({
+    body: {
+      patientId: "alive-minor-patient-id",
+      start: "2026-06-01T10:00:00.000Z",
+      end: "2026-06-01T10:30:00.000Z",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error:
+        "The guardian is unavailable. Assign a new guardian before scheduling appointments for this minor.",
+      errorCode: "APPOINTMENT_GUARDIAN_UNAVAILABLE",
+    });
+    assert.deepEqual(findOneCalls, [
+      {
+        query: {
+          _id: "alive-minor-patient-id",
+          isDeceased: false,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
+      },
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
       },
     ]);
   } finally {
@@ -599,7 +826,7 @@ test("acceptAppointment rejects when appointment does not exist with 404", async
       {
         id: "missing-appointment-id",
         path: "patient",
-        select: "email parentEmail fullname name isDeceased",
+        select: APPOINTMENT_PATIENT_POPULATE_SELECT,
       },
     ]);
   } finally {
@@ -705,6 +932,10 @@ test("acceptAppointment allows parent tutor for child appointment", async () => 
     },
   };
   mockAppointmentFindByIdForAccept(appt);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: false },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
   const conflictCalls = mockAppointmentFindOne(null);
   const notificationCalls = mockNotificationCreate();
 
@@ -721,6 +952,12 @@ test("acceptAppointment allows parent tutor for child appointment", async () => 
     assert.equal(res.body, appt);
     assert.equal(appt.status, "accepted");
     assert.equal(saveCalled, true);
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
     assert.deepEqual(conflictCalls, [
       {
         query: {
@@ -737,6 +974,60 @@ test("acceptAppointment allows parent tutor for child appointment", async () => 
     assert.equal(notificationCalls[0].recipient, "doctor-id");
     assert.equal(notificationCalls[0].meta.role, "doctor");
     assert.equal(notificationCalls[0].message.en.includes("Minor Patient"), true);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("acceptAppointment blocks deceased guardian from managing child appointment", async () => {
+  restoreModelMethods();
+  guardAppointmentFindOne();
+  guardNotificationCreate();
+
+  let saveCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: "doctor-id",
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+      isDeceased: false,
+    },
+    status: "pending",
+    save: async () => {
+      saveCalled = true;
+      throw new Error("appt.save should not be called when guardian is unavailable");
+    },
+  };
+  mockAppointmentFindByIdForAccept(appt);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: true },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: { _id: "parent-user-id", role: "patient", email: " parent@example.com " },
+  });
+  const res = makeRes();
+
+  try {
+    await acceptAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error:
+        "The guardian is unavailable. Assign a new guardian before scheduling appointments for this minor.",
+      errorCode: "APPOINTMENT_GUARDIAN_UNAVAILABLE",
+    });
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
+    assert.equal(saveCalled, false);
   } finally {
     restoreModelMethods();
   }
@@ -913,6 +1204,110 @@ test("deleteAppointment blocks patient owner from deleting deceased adult appoin
   }
 });
 
+test("deleteAppointment allows doctor owner to delete minor appointment when guardian is deceased", async () => {
+  restoreModelMethods();
+  guardNotificationCreate();
+
+  let deleteCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: { _id: "doctor-id", name: "Dr. Owner", email: "doctor@example.com" },
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+      isDeceased: false,
+    },
+    status: "accepted",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    deleteOne: async () => {
+      deleteCalled = true;
+    },
+  };
+  mockAppointmentFindByIdForDelete(appt);
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called for doctor cleanup");
+  };
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: {
+      _id: "doctor-id",
+      role: "doctor",
+      email: "doctor@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { message: "Appointment deleted" });
+    assert.equal(deleteCalled, true);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("deleteAppointment blocks deceased guardian from managing child appointment", async () => {
+  restoreModelMethods();
+  guardNotificationCreate();
+
+  let deleteCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: { _id: "doctor-id", name: "Dr. Owner", email: "doctor@example.com" },
+    patient: {
+      email: "",
+      parentEmail: "Parent@Example.com ",
+      fullname: "Minor Patient",
+      isDeceased: false,
+    },
+    status: "accepted",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    deleteOne: async () => {
+      deleteCalled = true;
+      throw new Error("appt.deleteOne should not be called when guardian is unavailable");
+    },
+  };
+  mockAppointmentFindByIdForDelete(appt);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: true },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: {
+      _id: "parent-user-id",
+      role: "patient",
+      email: "parent@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error:
+        "The guardian is unavailable. Assign a new guardian before scheduling appointments for this minor.",
+      errorCode: "APPOINTMENT_GUARDIAN_UNAVAILABLE",
+    });
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
+    assert.equal(deleteCalled, false);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("deleteAppointment allows parent tutor to decline child appointment", async () => {
   restoreModelMethods();
 
@@ -932,6 +1327,10 @@ test("deleteAppointment allows parent tutor to decline child appointment", async
     },
   };
   mockAppointmentFindByIdForDelete(appt);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: false },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
   const notificationCalls = mockNotificationCreate();
 
   const req = makeReq({
@@ -949,6 +1348,12 @@ test("deleteAppointment allows parent tutor to decline child appointment", async
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, { message: "Appointment deleted" });
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
     assert.equal(deleteCalled, true);
     assert.equal(notificationCalls.length, 1);
     assert.equal(notificationCalls[0].recipient, "doctor-id");
@@ -980,6 +1385,10 @@ test("deleteAppointment allows parent tutor to cancel accepted child appointment
     },
   };
   mockAppointmentFindByIdForDelete(appt);
+  const guardianFindCalls = mockPatientFindOne(
+    { _id: "parent-patient-id", isDeceased: false },
+    APPOINTMENT_GUARDIAN_SELECT
+  );
   const notificationCalls = mockNotificationCreate();
 
   const req = makeReq({
@@ -997,6 +1406,12 @@ test("deleteAppointment allows parent tutor to cancel accepted child appointment
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, { message: "Appointment deleted" });
+    assert.deepEqual(guardianFindCalls, [
+      {
+        query: { email: "parent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
     assert.equal(deleteCalled, true);
     assert.equal(notificationCalls.length, 1);
     assert.equal(notificationCalls[0].recipient, "doctor-id");
