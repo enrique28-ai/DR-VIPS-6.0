@@ -506,7 +506,8 @@
       "sendIsDeceasedWithDateOfDeath": "You must send isDeceased along with dateOfDeath.",
       "pendingGuardianDecision": "This minor has a pending guardian decision. Wait until the guardian approves or rejects it before editing.",
       "patientDeceasedReadonly": "Deceased patients cannot be edited unless they are changed back to alive.",
-      "deathStatusUpdateOnly": "Death status must be updated separately."
+      "deathStatusUpdateOnly": "Death status must be updated separately.",
+      "guardianUnavailable": "The guardian is unavailable. Assign a new guardian before editing this minor."
     }
 },
 "diagnoses": {

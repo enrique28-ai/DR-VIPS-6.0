@@ -215,6 +215,15 @@ const throwPatientDeceasedReadonly = () => {
   throw err;
 };
 
+const throwGuardianUnavailable = () => {
+  const err = new Error(
+    "The guardian is unavailable. Assign a new guardian before editing this minor."
+  );
+  err.status = 400;
+  err.errorCode = "GUARDIAN_UNAVAILABLE";
+  throw err;
+};
+
 const collectEffectiveChangedFields = ({ current, update, unset }) => {
   const changed = new Set();
 
@@ -314,6 +323,12 @@ const isCurrentAdultWithoutGuardian = (current) => {
   const currentAgeDyn = computeDynamicAge(current);
   const currentlyMinor = Number.isFinite(currentAgeDyn) && currentAgeDyn < 18;
   return !currentlyMinor && !current.parentEmail && !current.minorKey;
+};
+
+const isCurrentMinorOrGuardianLinked = (current) => {
+  const currentAgeDyn = computeDynamicAge(current);
+  const currentlyMinor = Number.isFinite(currentAgeDyn) && currentAgeDyn < 18;
+  return currentlyMinor || !!current.parentEmail || !!current.minorKey;
 };
 
 export const createPatientService = async ({ user, body }) => {
@@ -704,6 +719,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   }
 
   const isCurrentAdult = isCurrentAdultWithoutGuardian(current);
+  const isCurrentMinorLinked = isCurrentMinorOrGuardianLinked(current);
   const update = { lastEditedBy: user._id };
   const unset = {};
 
@@ -719,7 +735,11 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   const effectiveNormalChangedFields =
     collectEffectiveNormalChangedFieldsFromBody({ current, body });
 
-  if (current.isDeceased && effectiveNormalChangedFields.size > 0) {
+  if (
+    current.isDeceased &&
+    effectiveNormalChangedFields.size > 0 &&
+    !isCurrentMinorLinked
+  ) {
     throwPatientDeceasedReadonly();
   }
 
@@ -823,10 +843,101 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   });
 
   const isMinorNext = Number.isFinite(nextAge) && nextAge < 18;
+  const usesMinorGuardianFlow = isMinorNext || isCurrentMinorLinked;
+  let parentEmailEffectiveForMinor = "";
+  let currentMinorNameKey = "";
+  let parentChildrenForMinor = [];
+  let guardianIsDeceased = false;
+  let minorKeyForApproval = "";
 
   if ("birthDate" in body || "dateOfDeath" in body || "isDeceased" in body) {
     update.age = nextAge;
     update.ageCategory = mapAgeToBand(nextAge);
+  }
+
+  if (usesMinorGuardianFlow) {
+    parentEmailEffectiveForMinor = current.parentEmail
+      ? normLower(current.parentEmail)
+      : ("parentEmail" in body ? normLower(parentEmail) : "");
+
+    if (!parentEmailEffectiveForMinor) {
+      const err = new Error("Parent email is required for minors.");
+      err.status = 400;
+      err.errorCode = "PARENT_EMAIL_REQUIRED";
+      throw err;
+    }
+
+    const parentEmailCheck = await verifyEmail(parentEmailEffectiveForMinor);
+    if (!parentEmailCheck.ok) {
+      const err = new Error(parentEmailCheck.error);
+      err.status = 400;
+      throw err;
+    }
+
+    const parentDoc = await Patient.findOne({ email: parentEmailEffectiveForMinor })
+      .select("_id age children approvedAt approvedSnapshot isDeceased")
+      .lean();
+
+    if (!parentDoc) {
+      const err = new Error("Access denied: parent email not found in the system.");
+      err.status = 403;
+      err.errorCode = "PARENT_NOT_FOUND";
+      throw err;
+    }
+
+    if (!(Number(parentDoc.age) >= 18)) {
+      const err = new Error("Access denied: parent record must be an adult.");
+      err.status = 403;
+      err.errorCode = "PARENT_NOT_ADULT";
+      throw err;
+    }
+
+    if (!parentDoc.approvedAt) {
+      const err = new Error(
+        "Access denied: the parent/tutor must approve their profile before registering minors."
+      );
+      err.status = 403;
+      err.errorCode = "PARENT_NOT_APPROVED";
+      throw err;
+    }
+
+    currentMinorNameKey =
+      childNameKeyFromMinorKey(current.minorKey, parentEmailEffectiveForMinor) ||
+      normNameKey(current.fullname);
+    const snap = parentDoc.approvedSnapshot;
+    parentChildrenForMinor =
+      Array.isArray(snap?.set?.children) ? snap.set.children :
+      Array.isArray(snap?.children) ? snap.children :
+      Array.isArray(parentDoc.children) ? parentDoc.children : [];
+
+    const isListed = parentChildrenForMinor.some((c) => {
+      return normNameKey(nameFromChild(c)) === currentMinorNameKey;
+    });
+
+    if (!isListed) {
+      const err = new Error(
+        "Access denied: minor name is not listed in the parent's children list."
+      );
+      err.status = 403;
+      err.errorCode = "MINOR_NOT_LISTED";
+      throw err;
+    }
+
+    guardianIsDeceased = parentDoc.isDeceased === true;
+    minorKeyForApproval =
+      current.minorKey || minorKeyOf(parentEmailEffectiveForMinor, current.fullname);
+
+    if (guardianIsDeceased && effectiveNormalChangedFields.size > 0) {
+      throwGuardianUnavailable();
+    }
+
+    if (
+      current.isDeceased &&
+      effectiveNormalChangedFields.size > 0 &&
+      !guardianIsDeceased
+    ) {
+      throwPatientDeceasedReadonly();
+    }
   }
 
   if (typeof fullname !== "undefined") {
@@ -837,7 +948,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   if (typeof medications !== "undefined") update.medications = normalize(medications);
   if (typeof bloodtype !== "undefined") update.bloodtype = bloodtype;
 
-  if (isMinorNext) {
+  if (usesMinorGuardianFlow) {
     if ("parentEmail" in body && current.parentEmail) {
       const incomingPE = normLower(parentEmail);
       const currentPE = normLower(current.parentEmail);
@@ -915,76 +1026,10 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     }
   }
 
-  if (isMinorNext) {
-    const parentEmailEffective =
-      "parentEmail" in body ? normLower(parentEmail) : normLower(current.parentEmail);
-
-    if (!parentEmailEffective) {
-      const err = new Error("Parent email is required for minors.");
-      err.status = 400;
-      err.errorCode = "PARENT_EMAIL_REQUIRED";
-      throw err;
-    }
-
-    const parentEmailCheck = await verifyEmail(parentEmailEffective);
-    if (!parentEmailCheck.ok) {
-      const err = new Error(parentEmailCheck.error);
-      err.status = 400;
-      throw err;
-    }
-
-    const parentDoc = await Patient.findOne({ email: parentEmailEffective })
-      .select("_id age children approvedAt approvedSnapshot")
-      .lean();
-
-    if (!parentDoc) {
-      const err = new Error("Access denied: parent email not found in the system.");
-      err.status = 403;
-      err.errorCode = "PARENT_NOT_FOUND";
-      throw err;
-    }
-
-    if (!(Number(parentDoc.age) >= 18)) {
-      const err = new Error("Access denied: parent record must be an adult.");
-      err.status = 403;
-      err.errorCode = "PARENT_NOT_ADULT";
-      throw err;
-    }
-
-    if (!parentDoc.approvedAt) {
-      const err = new Error(
-        "Access denied: the parent/tutor must approve their profile before registering minors."
-      );
-      err.status = 403;
-      err.errorCode = "PARENT_NOT_APPROVED";
-      throw err;
-    }
-
-    const currentMinorNameKey =
-      childNameKeyFromMinorKey(current.minorKey, parentEmailEffective) ||
-      normNameKey(current.fullname);
-    const snap = parentDoc.approvedSnapshot;
-    const parentChildren =
-      Array.isArray(snap?.set?.children) ? snap.set.children :
-      Array.isArray(snap?.children) ? snap.children :
-      Array.isArray(parentDoc.children) ? parentDoc.children : [];
-
-    const isListed = parentChildren.some((c) => {
-      return normNameKey(nameFromChild(c)) === currentMinorNameKey;
-    });
-
-    if (!isListed) {
-      const err = new Error(
-        "Access denied: minor name is not listed in the parent's children list."
-      );
-      err.status = 403;
-      err.errorCode = "MINOR_NOT_LISTED";
-      throw err;
-    }
-
+  if (usesMinorGuardianFlow) {
     if ("fullname" in update) {
       const proposedNameKey = normNameKey(update.fullname);
-      const duplicateChild = parentChildren.some((c) => {
+      const duplicateChild = parentChildrenForMinor.some((c) => {
         const childKey = normNameKey(nameFromChild(c));
         return childKey === proposedNameKey && childKey !== currentMinorNameKey;
       });
@@ -998,7 +1043,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     }
 
     if (!current.minorKey) {
-      const newMk = minorKeyOf(parentEmailEffective, current.fullname);
+      const newMk = minorKeyOf(parentEmailEffectiveForMinor, current.fullname);
       if (!newMk) {
         const err = new Error("Invalid minor key");
         err.status = 400;
@@ -1009,7 +1054,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     }
 
     if ("parentEmail" in body || !current.parentEmail) {
-      update.parentEmail = parentEmailEffective;
+      update.parentEmail = parentEmailEffectiveForMinor;
     }
   } else {
     if ("parentEmail" in body) {
@@ -1311,6 +1356,8 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     changedFields.has("dateOfDeath") ||
     changedFields.has("causeOfDeath");
   const shouldAutoConfirmAdultDeathStatus = isCurrentAdult && hasDeathStatusChange;
+  const shouldAutoConfirmMinorDeathStatus =
+    usesMinorGuardianFlow && guardianIsDeceased && hasDeathStatusChange;
 
   if (shouldAutoConfirmAdultDeathStatus) {
     const mixedFields = [...changedFields].filter(
@@ -1322,7 +1369,20 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     }
   }
 
-  if (current.email && !shouldAutoConfirmAdultDeathStatus) {
+  if (shouldAutoConfirmMinorDeathStatus) {
+    const mixedFields = [...changedFields].filter(
+      (field) => !ADULT_DEATH_STATUS_ALLOWED_CHANGED_FIELDS.has(field)
+    );
+
+    if (mixedFields.length > 0) {
+      throwGuardianUnavailable();
+    }
+  }
+
+  const shouldAutoConfirmDeathStatus =
+    shouldAutoConfirmAdultDeathStatus || shouldAutoConfirmMinorDeathStatus;
+
+  if (current.email && !shouldAutoConfirmDeathStatus) {
     const locked = await hasPendingHealthDecisionForEmail(current.email);
     if (locked) {
       const err = new Error(
@@ -1334,15 +1394,14 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     }
   }
 
-  const currentAgeDyn = computeDynamicAge(current);
-  const isCurrentMinor =
-    Number.isFinite(currentAgeDyn) && currentAgeDyn < 18 && current.parentEmail;
-
-  if (isCurrentMinor) {
-    const mk = current.minorKey || minorKeyOf(current.parentEmail, current.fullname);
+  if (usesMinorGuardianFlow && !shouldAutoConfirmMinorDeathStatus) {
+    const mk =
+      current.minorKey ||
+      minorKeyForApproval ||
+      minorKeyOf(parentEmailEffectiveForMinor || current.parentEmail, current.fullname);
     const lockedMinor = await hasPendingGuardianDecisionForMinorKey(
       mk,
-      current.parentEmail
+      parentEmailEffectiveForMinor || current.parentEmail
     );
     if (lockedMinor) {
       const err = new Error("Pending guardian decision");
@@ -1354,9 +1413,9 @@ export const updatePatientService = async ({ user, patientId, body }) => {
 
   update.lastEditedBy = user._id;
 
-  let adultDeathApproval = null;
+  let deathStatusApproval = null;
 
-  if (shouldAutoConfirmAdultDeathStatus) {
+  if (shouldAutoConfirmDeathStatus) {
     const approvedAt = new Date();
     const finalPatientForSnapshot = applyUnsetToObject(
       {
@@ -1372,7 +1431,11 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     update.approvedSnapshot = approvedSnapshot;
     update.updatedAt = approvedAt;
 
-    adultDeathApproval = { approvedAt, approvedSnapshot };
+    deathStatusApproval = {
+      approvedAt,
+      approvedSnapshot,
+      patientKey: shouldAutoConfirmMinorDeathStatus ? minorKeyForApproval : "",
+    };
   }
 
   const updateDoc = {};
@@ -1383,7 +1446,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     new: true,
     runValidators: true,
     context: "query",
-    ...(adultDeathApproval ? { timestamps: false } : {}),
+    ...(deathStatusApproval ? { timestamps: false } : {}),
   };
 
   const updated = await Patient.findOneAndUpdate(
@@ -1398,22 +1461,32 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     throw err;
   }
 
-  if (adultDeathApproval) {
+  if (deathStatusApproval) {
     const email = normLower(updated.email || current.email);
 
-    await PatientHistory.create({
-      patientEmail: email || undefined,
-      patientPhoneDigits: updated.phoneDigits || current.phoneDigits || undefined,
-      approvedFromProfile: updated._id,
-      editedBy: updated.lastEditedBy || updated.createdBy || user._id || null,
-      approvedSnapshot: adultDeathApproval.approvedSnapshot,
-      approvedAt: adultDeathApproval.approvedAt,
-    });
+    if (shouldAutoConfirmMinorDeathStatus) {
+      await PatientHistory.create({
+        patientKey: deathStatusApproval.patientKey || undefined,
+        approvedFromProfile: updated._id,
+        editedBy: updated.lastEditedBy || updated.createdBy || user._id || null,
+        approvedSnapshot: deathStatusApproval.approvedSnapshot,
+        approvedAt: deathStatusApproval.approvedAt,
+      });
+    } else {
+      await PatientHistory.create({
+        patientEmail: email || undefined,
+        patientPhoneDigits: updated.phoneDigits || current.phoneDigits || undefined,
+        approvedFromProfile: updated._id,
+        editedBy: updated.lastEditedBy || updated.createdBy || user._id || null,
+        approvedSnapshot: deathStatusApproval.approvedSnapshot,
+        approvedAt: deathStatusApproval.approvedAt,
+      });
+    }
 
-    if (email) {
+    if (shouldAutoConfirmAdultDeathStatus && email) {
       await User.findOneAndUpdate(
         { email, role: "patient" },
-        { $set: { lastHealthDecisionAt: adultDeathApproval.approvedAt } },
+        { $set: { lastHealthDecisionAt: deathStatusApproval.approvedAt } },
         { new: false }
       );
     }

@@ -493,7 +493,8 @@
       "sendIsDeceasedWithDateOfDeath": "Debes enviar isDeceased junto con dateOfDeath.",
       "pendingGuardianDecision": "Este menor tiene una decisión de tutor pendiente. Espera a que el tutor apruebe o rechace antes de editar.",
       "patientDeceasedReadonly": "No se pueden editar pacientes fallecidos a menos que se cambien nuevamente a vivos.",
-      "deathStatusUpdateOnly": "El estado de fallecimiento debe actualizarse por separado."
+      "deathStatusUpdateOnly": "El estado de fallecimiento debe actualizarse por separado.",
+      "guardianUnavailable": "El tutor no está disponible. Asigna un nuevo tutor antes de editar a este menor."
     }
   },
 

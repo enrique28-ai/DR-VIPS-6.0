@@ -23,6 +23,7 @@ const patientErrorKey = (code) => {
     PENDING_GUARDIAN_DECISION: "patients.errors.pendingGuardianDecision",
     PATIENT_DECEASED_READONLY: "patients.errors.patientDeceasedReadonly",
     DEATH_STATUS_UPDATE_ONLY: "patients.errors.deathStatusUpdateOnly",
+    GUARDIAN_UNAVAILABLE: "patients.errors.guardianUnavailable",
   };
   return map[code] || null;
 };
