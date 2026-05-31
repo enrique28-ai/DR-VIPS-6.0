@@ -565,6 +565,61 @@ test("updatePatientService keeps minor death-status changes under guardian appro
   }
 });
 
+test("updatePatientService keeps missing guardian as parent not found", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: false,
+    dateOfDeath: null,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: null,
+      projection: UPDATE_PARENT_PROJECTION,
+    },
+  ]);
+
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called when guardian is missing");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called when guardian is missing");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called when guardian is missing");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: current._id,
+          body: {
+            isDeceased: true,
+            dateOfDeath: "2026-01-15",
+            causeOfDeath: "Accident",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 403);
+        assert.equal(err.errorCode, "PARENT_NOT_FOUND");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 2);
+    assert.deepEqual(findOneCalls[1].query, { email: "parent@example.com" });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService blocks normal edits for already deceased minors", async () => {
   restorePatientMethods();
 
