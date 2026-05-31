@@ -867,6 +867,52 @@ test("deleteAppointment blocks parent tutor from deleting deceased child appoint
   }
 });
 
+test("deleteAppointment blocks patient owner from deleting deceased adult appointment", async () => {
+  restoreModelMethods();
+  guardNotificationCreate();
+
+  let deleteCalled = false;
+  const appt = {
+    _id: "appointment-id",
+    doctor: { _id: "doctor-id", name: "Dr. Owner", email: "doctor@example.com" },
+    patient: {
+      email: "Patient@Example.com ",
+      fullname: "Patient Owner",
+      isDeceased: true,
+    },
+    status: "accepted",
+    start: new Date("2026-06-01T10:00:00.000Z"),
+    deleteOne: async () => {
+      deleteCalled = true;
+      throw new Error("appt.deleteOne should not be called for deceased patient owner actions");
+    },
+  };
+  mockAppointmentFindByIdForDelete(appt);
+
+  const req = makeReq({
+    params: { id: "appointment-id" },
+    user: {
+      _id: "patient-user-id",
+      role: "patient",
+      email: "patient@example.com",
+    },
+  });
+  const res = makeRes();
+
+  try {
+    await deleteAppointment(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.body, {
+      error: "Cannot manage appointments for a deceased patient.",
+      errorCode: "APPOINTMENT_PATIENT_DECEASED",
+    });
+    assert.equal(deleteCalled, false);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("deleteAppointment allows parent tutor to decline child appointment", async () => {
   restoreModelMethods();
 
