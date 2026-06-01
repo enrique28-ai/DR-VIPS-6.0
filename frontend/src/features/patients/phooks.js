@@ -27,6 +27,15 @@ const patientErrorKey = (code) => {
   };
   return map[code] || null;
 };
+
+const hasDeathStatusPayload = (payload) =>
+  Boolean(
+    payload &&
+      ("isDeceased" in payload ||
+        "dateOfDeath" in payload ||
+        "causeOfDeath" in payload)
+  );
+
 // Build a stable params object (omit "All"/empty so cache keys are clean)
 export const buildPatientParams = ({ q = "", category = "All", bloodtype = "All", gender = "All", organDonor = "All", bloodDonor = "All",
    bmiCategory = "All", status = "All", country = "All", hasDiseases = "All", hasAllergies = "All", hasMedications = "All", page = 1 }) => ({
@@ -237,7 +246,7 @@ export function useUpdatePatient(id) {
       }
     },
 
-    onSuccess: (updated) => {
+    onSuccess: (updated, payload) => {
       toast.success(i18n.t("patients.toasts.updateSuccess"));
       // asegura caches con la versión del server
       qc.setQueryData(["patient", id], updated);
@@ -254,6 +263,9 @@ export function useUpdatePatient(id) {
         else items[idx] = updated;
         qc.setQueryData(key, { ...data, items });
       });
+      if (hasDeathStatusPayload(payload)) {
+        qc.invalidateQueries({ queryKey: ["appointments"] });
+      }
       // Revalida suave, en segundo plano
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["patients"], refetchType: "inactive" });
@@ -571,6 +583,7 @@ export function useApproveChildProfile() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-children-health-info"] });
       qc.invalidateQueries({ queryKey: ["child-history"] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
       toast.success(i18n.t("myChildren.toasts.approveOk"));
     },
     onError: () => {
