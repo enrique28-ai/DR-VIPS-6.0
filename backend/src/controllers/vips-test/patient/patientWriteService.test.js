@@ -161,6 +161,31 @@ function guardPendingPortalLookup() {
   };
 }
 
+function guardPendingPortalUserLookup() {
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for adult death-status auto-confirm");
+  };
+}
+
+function mockGuardianChildFind(children = []) {
+  const calls = [];
+
+  Patient.find = (query) => {
+    const call = { query, select: undefined };
+    calls.push(call);
+    return {
+      select: (projection) => {
+        call.select = projection;
+        return {
+          lean: async () => children,
+        };
+      },
+    };
+  };
+
+  return calls;
+}
+
 function mockAppointmentDeathArchive() {
   const calls = [];
 
@@ -432,8 +457,12 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
   const historyCalls = [];
   const userDecisionCalls = [];
   const appointmentArchiveCalls = mockAppointmentDeathArchive();
+  const guardianChildFindCalls = mockGuardianChildFind([
+    { _id: "minor-child-id" },
+    { _id: "second-minor-child-id" },
+  ]);
 
-  guardPendingPortalLookup();
+  guardPendingPortalUserLookup();
 
   Patient.findOneAndUpdate = (query, updateDoc, options) => {
     updateCalls.push({ query, updateDoc, options });
@@ -533,6 +562,15 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
         options: { new: false },
       },
     ]);
+    assert.deepEqual(guardianChildFindCalls, [
+      {
+        query: {
+          parentEmail: current.email,
+          isDeceased: { $ne: true },
+        },
+        select: "_id",
+      },
+    ]);
     assert.deepEqual(appointmentArchiveCalls, [
       {
         query: {
@@ -541,6 +579,16 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
           start: { $gte: updateCalls[0].updateDoc.$set.approvedAt },
         },
         updateDoc: { $set: { status: "cancelled_due_to_death" } },
+      },
+      {
+        query: {
+          patient: { $in: ["minor-child-id", "second-minor-child-id"] },
+          status: { $in: ["pending", "accepted"] },
+          start: { $gte: updateCalls[0].updateDoc.$set.approvedAt },
+        },
+        updateDoc: {
+          $set: { status: "cancelled_due_to_guardian_unavailable" },
+        },
       },
     ]);
   } finally {

@@ -1,7 +1,10 @@
 import Patient from "../../models/Patient.js";
 import PatientHistory from "../../models/PatientHistory.js";
 import User from "../../models/User.js";
-import { cancelFutureActiveAppointmentsDueToDeath } from "../appointments/appointmentLifecycleService.js";
+import {
+  cancelFutureActiveAppointmentsDueToDeath,
+  cancelFutureActiveChildAppointmentsDueToGuardianUnavailable,
+} from "../appointments/appointmentLifecycleService.js";
 import {
   normPhoneWithCountry,
   normalize,
@@ -1497,6 +1500,13 @@ export const updatePatientService = async ({ user, patientId, body }) => {
         updated._id,
         deathStatusApproval.approvedAt
       );
+
+      if (shouldAutoConfirmAdultDeathStatus) {
+        await cancelFutureActiveChildAppointmentsDueToGuardianUnavailable(
+          email,
+          deathStatusApproval.approvedAt
+        );
+      }
     }
   }
 

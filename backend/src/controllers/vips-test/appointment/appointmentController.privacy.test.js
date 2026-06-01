@@ -245,7 +245,7 @@ function mockNotificationCreate() {
   return calls;
 }
 
-test("getAppointments excludes deceased and death-cancelled adult patient appointments for doctors", async () => {
+test("getAppointments excludes deceased and inactive lifecycle appointments for doctors", async () => {
   restoreModelMethods();
 
   Patient.find = () => {
@@ -267,10 +267,16 @@ test("getAppointments excludes deceased and death-cancelled adult patient appoin
     status: "cancelled_due_to_death",
     patient: { _id: "adult-patient-id", isDeceased: false },
   };
+  const cancelledDueToGuardianUnavailableAppt = {
+    _id: "guardian-unavailable-cancelled-child-appointment-id",
+    status: "cancelled_due_to_guardian_unavailable",
+    patient: { _id: "child-patient-id", isDeceased: false },
+  };
   const appointmentFindCalls = mockAppointmentFind([
     aliveAppt,
     deceasedAppt,
     cancelledDueToDeathAppt,
+    cancelledDueToGuardianUnavailableAppt,
   ]);
   const req = makeReq({
     user: {

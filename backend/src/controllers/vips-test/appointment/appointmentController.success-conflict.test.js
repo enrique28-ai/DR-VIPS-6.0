@@ -329,7 +329,7 @@ test("createAppointment rejects overlapping patient appointment with 409", async
   }
 });
 
-test("createAppointment overlap ignores death-cancelled appointments", async () => {
+test("createAppointment overlap ignores inactive lifecycle appointments", async () => {
   restoreModelMethods();
 
   mockPatientFindOne(makePatient({ email: "" }));
