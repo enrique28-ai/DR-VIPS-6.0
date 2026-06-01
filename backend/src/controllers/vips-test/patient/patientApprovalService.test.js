@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import Patient from "../../../models/Patient.js";
 import PatientHistory from "../../../models/PatientHistory.js";
 import User from "../../../models/User.js";
+import Appointment from "../../../models/Appointment.js";
 import {
   approveChildProfileService,
   approvePatientProfileService,
@@ -26,6 +27,10 @@ const originalUserMethods = {
   findByIdAndUpdate: User.findByIdAndUpdate,
 };
 
+const originalAppointmentMethods = {
+  updateMany: Appointment.updateMany,
+};
+
 after(() => {
   restoreModelMethods();
 });
@@ -37,6 +42,7 @@ function restoreModelMethods() {
   Patient.updateOne = originalPatientMethods.updateOne;
   PatientHistory.create = originalPatientHistoryMethods.create;
   User.findByIdAndUpdate = originalUserMethods.findByIdAndUpdate;
+  Appointment.updateMany = originalAppointmentMethods.updateMany;
 }
 
 function makePatient(overrides = {}) {
@@ -244,6 +250,23 @@ function mockPatientHistoryCreate() {
   };
 
   return calls;
+}
+
+function mockAppointmentDeathArchive() {
+  const calls = [];
+
+  Appointment.updateMany = async (query, updateDoc) => {
+    calls.push({ query, updateDoc });
+    return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
+  };
+
+  return calls;
+}
+
+function guardAppointmentDeathArchive() {
+  Appointment.updateMany = async () => {
+    throw new Error("Appointment.updateMany should not be called");
+  };
 }
 
 function mockUserDecisionUpdate() {
@@ -488,6 +511,7 @@ test("approveChildProfileService updates minor fullname and minorKey on parent a
   const updateManyCalls = mockPatientUpdateMany();
   const updateOneCalls = mockPatientUpdateOne();
   const historyCalls = mockPatientHistoryCreate();
+  guardAppointmentDeathArchive();
 
   try {
     const result = await approveChildProfileService({
@@ -517,6 +541,82 @@ test("approveChildProfileService updates minor fullname and minorKey on parent a
     assert.equal(historyCalls[0].patientKey, "parent@example.com::corrected minor");
     assert.equal(findCalls[0].select, "_id children childrenCount approvedSnapshot");
     assert.deepEqual(findCalls[1].populate, { path: "createdBy", select: "name email role" });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("approveChildProfileService archives future active appointments when guardian approves minor death", async () => {
+  restoreModelMethods();
+
+  const target = makeChildPatient({
+    fullname: "Minor Patient",
+    isDeceased: true,
+    dateOfDeath: new Date("2026-01-15T12:00:00.000Z"),
+    causeOfDeath: "Accident",
+    approvedSnapshot: {
+      set: {
+        fullname: "Minor Patient",
+        age: 10,
+        ageCategory: "0-12",
+        bloodtype: "O+",
+        gender: "female",
+        organDonor: false,
+        bloodDonor: false,
+        measurementSystem: "metric",
+        heightM: 1.35,
+        weightKg: 32,
+        country: "United States",
+        state: "California",
+        city: "San Diego",
+        diseases: [],
+        allergies: [],
+        medications: [],
+        children: [],
+        birthDate: new Date("2016-01-01T12:00:00.000Z"),
+        isDeceased: false,
+      },
+      unset: { dateOfDeath: 1, causeOfDeath: 1 },
+    },
+  });
+
+  mockPatientFindOne(target);
+  mockFlexiblePatientFindSequence([
+    {
+      kind: "sortPopulateLean",
+      value: [target],
+    },
+  ]);
+  const updateManyCalls = mockPatientUpdateMany();
+  const updateOneCalls = mockPatientUpdateOne();
+  const historyCalls = mockPatientHistoryCreate();
+  const appointmentArchiveCalls = mockAppointmentDeathArchive();
+
+  try {
+    const result = await approveChildProfileService({
+      user: makePatientUser({ email: "Parent@Example.com" }),
+      profileId: "child-profile-id",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pendingDecision, false);
+    assert.equal(updateManyCalls.length, 1);
+    assert.equal(updateManyCalls[0].updateDoc.$set.isDeceased, true);
+    assert.equal(updateManyCalls[0].updateDoc.$set.causeOfDeath, "Accident");
+    assert.equal(updateManyCalls[0].updateDoc.$set.dateOfDeath.toISOString().slice(0, 10), "2026-01-15");
+    assert.equal(updateOneCalls.length, 0);
+    assert.equal(historyCalls.length, 1);
+    assert.equal(historyCalls[0].patientKey, "parent@example.com::minor patient");
+    assert.deepEqual(appointmentArchiveCalls, [
+      {
+        query: {
+          patient: target._id,
+          status: { $in: ["pending", "accepted"] },
+          start: { $gte: updateManyCalls[0].updateDoc.$set.approvedAt },
+        },
+        updateDoc: { $set: { status: "cancelled_due_to_death" } },
+      },
+    ]);
   } finally {
     restoreModelMethods();
   }

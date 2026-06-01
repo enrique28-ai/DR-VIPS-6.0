@@ -2,6 +2,7 @@ import Patient from "../../models/Patient.js";
 import User from "../../models/User.js";
 import PatientHistory from "../../models/PatientHistory.js";
 import Diagnosis from "../../models/Diagnosis.js";
+import { cancelFutureActiveAppointmentsDueToDeath } from "../appointments/appointmentLifecycleService.js";
 import {
   computeHealthSnapshotByEmail,
   buildHealthSnapshotFromPatients,
@@ -394,6 +395,9 @@ export const approveChildProfileService = async ({ user, profileId }) => {
   }
 
   const previousApprovedFullname = approvedFullnameFromSnapshot(doc.approvedSnapshot);
+  const previousApprovedState = snapshotSetOf(doc.approvedSnapshot);
+  const shouldCancelAppointmentsDueToDeath =
+    doc.isDeceased === true && previousApprovedState?.isDeceased !== true;
   const approvedFullname = String(doc.fullname ?? "").trim();
   const oldKey = oldMinorKeyForDoc(parentEmail, doc);
   const newKey = minorKeyOf(parentEmail, approvedFullname);
@@ -468,6 +472,10 @@ export const approveChildProfileService = async ({ user, profileId }) => {
     approvedFromProfile: profileId,
     editedBy: doc.lastEditedBy || doc.createdBy || null,
   });
+
+  if (shouldCancelAppointmentsDueToDeath) {
+    await cancelFutureActiveAppointmentsDueToDeath(doc._id, approvedAt);
+  }
 
   const { hasRecords, snapshot } = await computeHealthSnapshotByMinorKey(newKey, parentEmail);
 

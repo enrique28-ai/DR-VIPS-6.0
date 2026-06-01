@@ -2,6 +2,7 @@ import Appointment from "../models/Appointment.js";
 import Patient from "../models/Patient.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
+import { ACTIVE_APPOINTMENT_STATUSES } from "../services/appointments/appointmentLifecycleService.js";
 
 const normEmail = (v) => (v || "").toLowerCase().trim();
 
@@ -124,7 +125,7 @@ export const createAppointment = async (req, res) => {
     // ✅ ANTI-OVERLAP (Backend Check)
     // Buscamos si el doctor o paciente ya tiene algo 'pending' o 'accepted' en ese rango
     const conflict = await Appointment.findOne({
-      status: { $in: ["pending", "accepted"] },
+      status: { $in: ACTIVE_APPOINTMENT_STATUSES },
       $or: [{ doctor: req.user._id }, { patient: patientId }],
       start: { $lt: e }, // Empieza antes de que yo termine
       end: { $gt: s },   // Termina después de que yo empiece
@@ -194,12 +195,20 @@ export const getAppointments = async (req, res) => {
       query = { patient: { $in: ids } };
     }
 
+    query = { ...query, status: { $in: ACTIVE_APPOINTMENT_STATUSES } };
+
     const appts = await Appointment.find(query)
       .populate("patient", "fullname email parentEmail minorKey age name isDeceased")
       .populate("doctor", "name  email")
       .sort({ start: 1 });
 
-    return res.json(appts.filter((appt) => !appointmentPatientIsDeceased(appt)));
+    return res.json(
+      appts.filter(
+        (appt) =>
+          ACTIVE_APPOINTMENT_STATUSES.includes(appt.status) &&
+          !appointmentPatientIsDeceased(appt)
+      )
+    );
   } catch (err) {
     console.error("getAppointments error:", err);
     return res.status(500).json({ error: "Server error" });

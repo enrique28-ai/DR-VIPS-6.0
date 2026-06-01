@@ -1,6 +1,7 @@
 import Patient from "../../models/Patient.js";
 import PatientHistory from "../../models/PatientHistory.js";
 import User from "../../models/User.js";
+import { cancelFutureActiveAppointmentsDueToDeath } from "../appointments/appointmentLifecycleService.js";
 import {
   normPhoneWithCountry,
   normalize,
@@ -1488,6 +1489,13 @@ export const updatePatientService = async ({ user, patientId, body }) => {
         { email, role: "patient" },
         { $set: { lastHealthDecisionAt: deathStatusApproval.approvedAt } },
         { new: false }
+      );
+    }
+
+    if (current.isDeceased !== true && updated.isDeceased === true) {
+      await cancelFutureActiveAppointmentsDueToDeath(
+        updated._id,
+        deathStatusApproval.approvedAt
       );
     }
   }

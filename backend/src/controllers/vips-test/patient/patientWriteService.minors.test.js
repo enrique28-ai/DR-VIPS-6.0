@@ -15,6 +15,7 @@ syncBuiltinESMExports();
 const { default: Patient } = await import("../../../models/Patient.js");
 const { default: PatientHistory } = await import("../../../models/PatientHistory.js");
 const { default: User } = await import("../../../models/User.js");
+const { default: Appointment } = await import("../../../models/Appointment.js");
 const { createPatientService, updatePatientService } = await import(
   "../../../services/patients/patientWriteService.js"
 );
@@ -32,6 +33,10 @@ const originalPatientHistoryMethods = {
 
 const originalUserMethods = {
   findOneAndUpdate: User.findOneAndUpdate,
+};
+
+const originalAppointmentMethods = {
+  updateMany: Appointment.updateMany,
 };
 
 const UPDATE_PARENT_PROJECTION = "_id age children approvedAt approvedSnapshot isDeceased";
@@ -113,6 +118,7 @@ function restorePatientMethods() {
   Patient.findOneAndUpdate = originalPatientMethods.findOneAndUpdate;
   PatientHistory.create = originalPatientHistoryMethods.create;
   User.findOneAndUpdate = originalUserMethods.findOneAndUpdate;
+  Appointment.updateMany = originalAppointmentMethods.updateMany;
 }
 
 function mockParentFindOne(parentDoc) {
@@ -188,6 +194,23 @@ function applyUpdateForTest(current, updateDoc) {
     delete next[field];
   }
   return next;
+}
+
+function mockAppointmentDeathArchive() {
+  const calls = [];
+
+  Appointment.updateMany = async (query, updateDoc) => {
+    calls.push({ query, updateDoc });
+    return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
+  };
+
+  return calls;
+}
+
+function guardAppointmentDeathArchive() {
+  Appointment.updateMany = async () => {
+    throw new Error("Appointment.updateMany should not be called");
+  };
 }
 
 function rejectCreate() {
@@ -877,7 +900,7 @@ test("updatePatientService does not treat unchanged full-form deceased minor pay
   }
 });
 
-test("updatePatientService immediately approves minor alive-to-deceased when guardian is deceased", async () => {
+test("updatePatientService immediately approves minor alive-to-deceased when guardian is deceased and archives future active appointments", async () => {
   restorePatientMethods();
 
   const current = makeMinorPatient({
@@ -899,6 +922,7 @@ test("updatePatientService immediately approves minor alive-to-deceased when gua
   ]);
   const updateCalls = [];
   const historyCalls = [];
+  const appointmentArchiveCalls = mockAppointmentDeathArchive();
 
   Patient.findOneAndUpdate = (query, updateDoc, options) => {
     updateCalls.push({ query, updateDoc, options });
@@ -957,6 +981,16 @@ test("updatePatientService immediately approves minor alive-to-deceased when gua
       historyCalls[0].approvedSnapshot,
       updateCalls[0].updateDoc.$set.approvedSnapshot
     );
+    assert.deepEqual(appointmentArchiveCalls, [
+      {
+        query: {
+          patient: current._id,
+          status: { $in: ["pending", "accepted"] },
+          start: { $gte: updateCalls[0].updateDoc.$set.approvedAt },
+        },
+        updateDoc: { $set: { status: "cancelled_due_to_death" } },
+      },
+    ]);
   } finally {
     restorePatientMethods();
   }
@@ -999,6 +1033,7 @@ test("updatePatientService immediately approves minor deceased-to-alive when gua
   User.findOneAndUpdate = async () => {
     throw new Error("User.findOneAndUpdate should not be called for minor immediate edits");
   };
+  guardAppointmentDeathArchive();
 
   try {
     const result = await updatePatientService({
@@ -1073,6 +1108,7 @@ test("updatePatientService immediately approves minor death-field corrections wh
   User.findOneAndUpdate = async () => {
     throw new Error("User.findOneAndUpdate should not be called for minor immediate edits");
   };
+  guardAppointmentDeathArchive();
 
   try {
     const result = await updatePatientService({

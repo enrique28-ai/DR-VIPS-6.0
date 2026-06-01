@@ -329,6 +329,44 @@ test("createAppointment rejects overlapping patient appointment with 409", async
   }
 });
 
+test("createAppointment overlap ignores death-cancelled appointments", async () => {
+  restoreModelMethods();
+
+  mockPatientFindOne(makePatient({ email: "" }));
+  const conflictCalls = mockAppointmentFindOne(null);
+  const appt = makeAppointment({ patient: "patient-id" });
+  const createCalls = mockAppointmentCreate(appt);
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called when patient has no email");
+  };
+  guardNotificationCreate();
+
+  const req = makeReq({ body: makeCreateBody() });
+  const res = makeRes();
+  const startDate = new Date(req.body.start);
+  const endDate = new Date(req.body.end);
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(createCalls.length, 1);
+    assert.deepEqual(conflictCalls, [
+      {
+        query: {
+          status: { $in: ["pending", "accepted"] },
+          $or: [{ doctor: "doctor-id" }, { patient: "patient-id" }],
+          start: { $lt: endDate },
+          end: { $gt: startDate },
+        },
+        select: "_id",
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("createAppointment creates pending appointment when no conflict", async () => {
   restoreModelMethods();
 

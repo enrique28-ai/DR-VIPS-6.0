@@ -245,7 +245,7 @@ function mockNotificationCreate() {
   return calls;
 }
 
-test("getAppointments excludes deceased adult patient appointments for doctors", async () => {
+test("getAppointments excludes deceased and death-cancelled adult patient appointments for doctors", async () => {
   restoreModelMethods();
 
   Patient.find = () => {
@@ -254,13 +254,24 @@ test("getAppointments excludes deceased adult patient appointments for doctors",
 
   const aliveAppt = {
     _id: "alive-adult-appointment-id",
+    status: "pending",
     patient: { _id: "adult-patient-id", isDeceased: false },
   };
   const deceasedAppt = {
     _id: "deceased-adult-appointment-id",
+    status: "accepted",
     patient: { _id: "deceased-patient-id", isDeceased: true },
   };
-  const appointmentFindCalls = mockAppointmentFind([aliveAppt, deceasedAppt]);
+  const cancelledDueToDeathAppt = {
+    _id: "death-cancelled-adult-appointment-id",
+    status: "cancelled_due_to_death",
+    patient: { _id: "adult-patient-id", isDeceased: false },
+  };
+  const appointmentFindCalls = mockAppointmentFind([
+    aliveAppt,
+    deceasedAppt,
+    cancelledDueToDeathAppt,
+  ]);
   const req = makeReq({
     user: {
       _id: "doctor-id",
@@ -277,7 +288,10 @@ test("getAppointments excludes deceased adult patient appointments for doctors",
     assert.deepEqual(res.body, [aliveAppt]);
     assert.deepEqual(appointmentFindCalls, [
       {
-        query: { doctor: "doctor-id" },
+        query: {
+          doctor: "doctor-id",
+          status: { $in: ["pending", "accepted"] },
+        },
         populate: [
           { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
           { path: "doctor", select: "name  email" },
@@ -296,6 +310,7 @@ test("getAppointments includes child appointments for parent by parentEmail", as
   const appts = [
     {
       _id: "child-appointment-id",
+      status: "pending",
       patient: { _id: "child-patient-id", isDeceased: false },
     },
   ];
@@ -344,6 +359,7 @@ test("getAppointments includes child appointments for parent by parentEmail", as
       {
         query: {
           patient: { $in: ["parent-patient-id", "child-patient-id"] },
+          status: { $in: ["pending", "accepted"] },
         },
         populate: [
           { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
@@ -362,6 +378,7 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
 
   const aliveChildAppt = {
     _id: "alive-child-appointment-id",
+    status: "accepted",
     patient: {
       _id: "alive-child-patient-id",
       parentEmail: "parent@example.com",
@@ -370,6 +387,7 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
   };
   const deceasedChildAppt = {
     _id: "deceased-child-appointment-id",
+    status: "pending",
     patient: {
       _id: "deceased-child-patient-id",
       parentEmail: "parent@example.com",
@@ -418,6 +436,7 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
       {
         query: {
           patient: { $in: ["alive-child-patient-id"] },
+          status: { $in: ["pending", "accepted"] },
         },
         populate: [
           { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },
@@ -473,6 +492,7 @@ test("getAppointments does not return child appointments to a deceased guardian"
       {
         query: {
           patient: { $in: [] },
+          status: { $in: ["pending", "accepted"] },
         },
         populate: [
           { path: "patient", select: APPOINTMENT_PATIENT_LIST_POPULATE_SELECT },

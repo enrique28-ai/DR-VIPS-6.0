@@ -15,6 +15,7 @@ syncBuiltinESMExports();
 const { default: Patient } = await import("../../../models/Patient.js");
 const { default: PatientHistory } = await import("../../../models/PatientHistory.js");
 const { default: User } = await import("../../../models/User.js");
+const { default: Appointment } = await import("../../../models/Appointment.js");
 const { createPatientService, updatePatientService } = await import(
   "../../../services/patients/patientWriteService.js"
 );
@@ -33,6 +34,10 @@ const originalPatientHistoryMethods = {
 const originalUserMethods = {
   findOne: User.findOne,
   findOneAndUpdate: User.findOneAndUpdate,
+};
+
+const originalAppointmentMethods = {
+  updateMany: Appointment.updateMany,
 };
 
 after(() => {
@@ -105,6 +110,7 @@ function restorePatientMethods() {
   PatientHistory.create = originalPatientHistoryMethods.create;
   User.findOne = originalUserMethods.findOne;
   User.findOneAndUpdate = originalUserMethods.findOneAndUpdate;
+  Appointment.updateMany = originalAppointmentMethods.updateMany;
 }
 
 function mockPatientFindOneSequence(responses) {
@@ -152,6 +158,23 @@ function guardPendingPortalLookup() {
   };
   User.findOne = () => {
     throw new Error("User.findOne should not be called for adult death-status auto-confirm");
+  };
+}
+
+function mockAppointmentDeathArchive() {
+  const calls = [];
+
+  Appointment.updateMany = async (query, updateDoc) => {
+    calls.push({ query, updateDoc });
+    return { acknowledged: true, matchedCount: 2, modifiedCount: 2 };
+  };
+
+  return calls;
+}
+
+function guardAppointmentDeathArchive() {
+  Appointment.updateMany = async () => {
+    throw new Error("Appointment.updateMany should not be called");
   };
 }
 
@@ -391,7 +414,7 @@ test("updatePatientService rejects changing an existing email", async () => {
   }
 });
 
-test("updatePatientService immediately approves adult alive-to-deceased status-only changes", async () => {
+test("updatePatientService immediately approves adult alive-to-deceased changes and archives future active appointments", async () => {
   restorePatientMethods();
 
   const user = { _id: "doctor-id" };
@@ -408,6 +431,7 @@ test("updatePatientService immediately approves adult alive-to-deceased status-o
   const updateCalls = [];
   const historyCalls = [];
   const userDecisionCalls = [];
+  const appointmentArchiveCalls = mockAppointmentDeathArchive();
 
   guardPendingPortalLookup();
 
@@ -509,6 +533,16 @@ test("updatePatientService immediately approves adult alive-to-deceased status-o
         options: { new: false },
       },
     ]);
+    assert.deepEqual(appointmentArchiveCalls, [
+      {
+        query: {
+          patient: current._id,
+          status: { $in: ["pending", "accepted"] },
+          start: { $gte: updateCalls[0].updateDoc.$set.approvedAt },
+        },
+        updateDoc: { $set: { status: "cancelled_due_to_death" } },
+      },
+    ]);
   } finally {
     restorePatientMethods();
   }
@@ -593,6 +627,7 @@ test("updatePatientService immediately approves adult deceased-to-alive correcti
     userDecisionCalls.push({ query, updateDoc, options });
     return null;
   };
+  guardAppointmentDeathArchive();
 
   try {
     const result = await updatePatientService({
@@ -711,6 +746,7 @@ test("updatePatientService immediately approves adult deceased death-field corre
     userDecisionCalls.push({ query, updateDoc, options });
     return null;
   };
+  guardAppointmentDeathArchive();
 
   try {
     const result = await updatePatientService({
