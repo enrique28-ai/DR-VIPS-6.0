@@ -615,7 +615,8 @@
   "deleteFailed": "Error al eliminar diagnóstico",
   "loadMineFailed": "Error al cargar sus diagnósticos",
   "loadHistoryFailed": "Error al cargar historial del diagnóstico",
-  "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar."
+  "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar.",
+  "patientDeceased": "No se pueden crear ni editar diagnósticos para un paciente fallecido."
 }
 
 },

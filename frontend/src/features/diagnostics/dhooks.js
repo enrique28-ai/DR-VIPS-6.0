@@ -3,6 +3,15 @@ import api from "../../lib/axios.js";
 import { toast } from "react-hot-toast";
 import i18n from "../../i18n"; 
 
+const DIAGNOSIS_ERROR_TO_TOAST_KEY = {
+  DIAGNOSIS_PATIENT_DECEASED: "diagnoses.toasts.patientDeceased",
+};
+
+const getDiagnosisErrorToastKey = (error, fallbackKey) => {
+  const code = error?.response?.data?.errorCode;
+  return DIAGNOSIS_ERROR_TO_TOAST_KEY[code] ?? fallbackKey;
+};
+
 
 // Normaliza los params para la query-string (texto y fecha)
 export const buildDiagnosisParams = ({ q = "", hasMedicines = "All", hasTreatments = "All",  hasOperations = "All", date = "" , page = 1}) => ({
@@ -119,7 +128,9 @@ export function useDiagnosesByPatient(patientId, params) {
     // 2) Si falla → rollback
     onError: (e, _vars, ctx) => {
       ctx?.snaps?.forEach(([key, prev]) => qc.setQueryData(key, prev));
-       if (e?.response?.status !== 429) toast.error(i18n.t("diagnoses.toasts.createFailed"));
+       if (e?.response?.status !== 429) {
+         toast.error(i18n.t(getDiagnosisErrorToastKey(e, "diagnoses.toasts.createFailed")));
+       }
     },
 
     // 3) Si ok → sustituye el optimistic por el real
@@ -158,7 +169,9 @@ export function useUpdateDiagnosis(diagnosisId, patientId) {
         toast.error(i18n.t("diagnoses.toasts.noChanges"));
         return;
       }
-      if (status !== 429) toast.error(i18n.t("diagnoses.toasts.updateFailed"));
+      if (status !== 429) {
+        toast.error(i18n.t(getDiagnosisErrorToastKey(e, "diagnoses.toasts.updateFailed")));
+      }
     },
   });
 }

@@ -67,6 +67,17 @@ function mockPatientFind(response) {
   return calls;
 }
 
+function mockPatientExists(response) {
+  const calls = [];
+
+  Patient.exists = async (query) => {
+    calls.push(query);
+    return response;
+  };
+
+  return calls;
+}
+
 function mockDiagnosisFindById(response) {
   const calls = [];
 
@@ -228,6 +239,62 @@ test("getMyDiagnosesPortal scopes diagnosis list to the patient's own profiles",
   }
 });
 
+test("getMyDiagnosesPortal still lists historical diagnoses for deceased patient profiles", async () => {
+  restoreModelMethods();
+
+  const patientIds = [{ _id: "deceased-patient-id", isDeceased: true }];
+  const findPatientCalls = mockPatientFind(patientIds);
+  const items = [
+    {
+      _id: "diagnosis-id",
+      patient: "deceased-patient-id",
+      title: "Historical diagnosis",
+    },
+  ];
+  const findDiagnosisCalls = mockDiagnosisFind(items);
+  const countCalls = [];
+
+  Diagnosis.countDocuments = async (query) => {
+    countCalls.push(query);
+    return 1;
+  };
+
+  const req = makeReq();
+  const res = makeRes();
+
+  try {
+    await getMyDiagnosesPortal(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, {
+      items,
+      total: 1,
+      page: 1,
+      pages: 1,
+    });
+    assert.deepEqual(findPatientCalls, [
+      {
+        query: { email: "patient@example.com" },
+        projection: { _id: 1 },
+      },
+    ]);
+    assert.deepEqual(findDiagnosisCalls, [
+      {
+        query: { patient: { $in: ["deceased-patient-id"] } },
+        sort: { createdAt: -1 },
+        skip: 0,
+        limit: 20,
+        populate: { path: "createdBy", select: "name email" },
+      },
+    ]);
+    assert.deepEqual(countCalls, [
+      { patient: { $in: ["deceased-patient-id"] } },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("getMyDiagnosisPortalById rejects non-patient role with 403", async () => {
   restoreModelMethods();
 
@@ -259,6 +326,39 @@ test("getMyDiagnosisPortalById returns 404 when diagnosis does not exist", async
     assert.equal(res.statusCode, 404);
     assert.deepEqual(res.body, { error: "Diagnostic not found" });
     assert.deepEqual(findByIdCalls, ["missing-diagnosis-id"]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getMyDiagnosisPortalById still returns historical detail for deceased patients", async () => {
+  restoreModelMethods();
+
+  const diagnosis = {
+    _id: "diagnosis-id",
+    patient: "deceased-patient-id",
+    title: "Historical diagnosis",
+  };
+  const findByIdCalls = mockDiagnosisFindById(diagnosis);
+  const existsCalls = mockPatientExists({
+    _id: "deceased-patient-id",
+    isDeceased: true,
+  });
+
+  const req = makeReq({
+    params: { id: "diagnosis-id" },
+  });
+  const res = makeRes();
+
+  try {
+    await getMyDiagnosisPortalById(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, diagnosis);
+    assert.deepEqual(findByIdCalls, ["diagnosis-id"]);
+    assert.deepEqual(existsCalls, [
+      { _id: "deceased-patient-id", email: "patient@example.com" },
+    ]);
   } finally {
     restoreModelMethods();
   }

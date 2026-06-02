@@ -4,11 +4,27 @@ import Patient from "../models/Patient.js";
 import DiagnosisHistory from "../models/DiagnosisHistory.js";
 import { translateDiagnosisDoc, translateDiagnosisTitles } from "../utils/deeplTranslate.js";
 
+const DIAGNOSIS_PATIENT_DECEASED = "DIAGNOSIS_PATIENT_DECEASED";
+const DIAGNOSIS_PATIENT_DECEASED_ERROR =
+  "Cannot create or edit diagnoses for a deceased patient.";
+
+const diagnosisPatientDeceasedBody = () => ({
+  errorCode: DIAGNOSIS_PATIENT_DECEASED,
+  error: DIAGNOSIS_PATIENT_DECEASED_ERROR,
+});
+
 
 
 // Helper: confirmar que el paciente pertenece al usuario autenticado
 const ownsPatient = async (patientId, userId) =>
   !!(await Patient.exists({ _id: patientId, $or: [{ owners: userId }, { createdBy: userId }] }));
+
+const patientIsDeceased = async (patientId) => {
+  const patient = await Patient.findOne({ _id: patientId })
+    .select("isDeceased")
+    .lean();
+  return patient?.isDeceased === true;
+};
 
 const normalize = (v) => {
   if (Array.isArray(v)) return v.map(s => String(s).trim()).filter(Boolean);
@@ -35,6 +51,10 @@ export const createDiagnosis = async (req, res, next) => {
     
     if (!(await ownsPatient(patient, req.user._id))) {
       return res.status(403).json({ error: "Not authorized for this patient" });
+    }
+
+    if (await patientIsDeceased(patient)) {
+      return res.status(409).json(diagnosisPatientDeceasedBody());
     }
 
     const doc = await Diagnosis.create({
@@ -236,7 +256,10 @@ export const updateDiagnosis = async (req, res, next) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    
+    if (await patientIsDeceased(d.patient)) {
+      return res.status(409).json(diagnosisPatientDeceasedBody());
+    }
+
    // --- DETECT CHANGES ---
     // Evita guardar si el doctor no cambió nada (para mostrar toast de "No changes").
     const nextTitle =
