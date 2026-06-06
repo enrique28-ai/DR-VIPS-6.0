@@ -335,6 +335,26 @@ const isCurrentMinorOrGuardianLinked = (current) => {
   return currentlyMinor || !!current.parentEmail || !!current.minorKey;
 };
 
+const parentEmailFromMinorKey = (minorKey) => {
+  const mk = normLower(minorKey);
+  const separator = mk.indexOf("::");
+  return separator > 0 ? mk.slice(0, separator) : "";
+};
+
+const guardianReassignmentError = (errorCode, message, status = 400) => {
+  const err = new Error(message);
+  err.status = status;
+  err.errorCode = errorCode;
+  return err;
+};
+
+const approvedChildrenFromGuardian = (guardian) => {
+  const snap = guardian?.approvedSnapshot;
+  if (Array.isArray(snap?.set?.children)) return snap.set.children;
+  if (Array.isArray(snap?.children)) return snap.children;
+  return Array.isArray(guardian?.children) ? guardian.children : [];
+};
+
 export const createPatientService = async ({ user, body }) => {
   const {
     fullname,
@@ -1511,4 +1531,189 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   }
 
   return applyDynamicAgeToPatient(updated);
+};
+
+export const reassignMinorGuardianService = async ({ user, patientId, body }) => {
+  const current = await Patient.findOne({
+    _id: patientId,
+    $or: [{ owners: user._id }, { createdBy: user._id }],
+  }).lean();
+
+  if (!current) {
+    const err = new Error("Paciente no encontrado");
+    err.status = 404;
+    throw err;
+  }
+
+  const targetAge = computeDynamicAge(current);
+  const isTargetMinorOrLinked =
+    (Number.isFinite(targetAge) && targetAge < 18) ||
+    !!current.parentEmail ||
+    !!current.minorKey;
+
+  if (current.isDeceased === true || !isTargetMinorOrLinked) {
+    throw guardianReassignmentError(
+      "GUARDIAN_REASSIGNMENT_NOT_MINOR",
+      "Guardian reassignment is only available for living minors.",
+      400
+    );
+  }
+
+  const oldParentEmail =
+    normLower(current.parentEmail) || parentEmailFromMinorKey(current.minorKey);
+  const oldMinorKey =
+    normLower(current.minorKey) || minorKeyOf(oldParentEmail, current.fullname);
+
+  if (!oldParentEmail || !oldMinorKey || !normStr(current.fullname)) {
+    throw guardianReassignmentError(
+      "GUARDIAN_REASSIGNMENT_NOT_MINOR",
+      "Guardian reassignment is only available for guardian-linked minors.",
+      400
+    );
+  }
+
+  const newParentEmail = normLower(body?.newParentEmail);
+
+  if (newParentEmail && newParentEmail === oldParentEmail) {
+    throw guardianReassignmentError(
+      "GUARDIAN_REASSIGNMENT_NO_CHANGES",
+      "The new guardian email must be different from the current guardian email.",
+      400
+    );
+  }
+
+  const currentGuardian = await Patient.findOne({ email: oldParentEmail })
+    .select("_id isDeceased")
+    .lean();
+
+  if (!currentGuardian || currentGuardian.isDeceased !== true) {
+    throw guardianReassignmentError(
+      "CURRENT_GUARDIAN_NOT_UNAVAILABLE",
+      "Current guardian must exist and be deceased before reassignment.",
+      409
+    );
+  }
+
+  if (!newParentEmail) {
+    throw guardianReassignmentError(
+      "NEW_GUARDIAN_NOT_FOUND",
+      "New guardian was not found.",
+      404
+    );
+  }
+
+  const newGuardian = await Patient.findOne({ email: newParentEmail })
+    .select("_id email age birthDate dateOfDeath isDeceased approvedAt approvedSnapshot children")
+    .lean();
+
+  if (!newGuardian) {
+    throw guardianReassignmentError(
+      "NEW_GUARDIAN_NOT_FOUND",
+      "New guardian was not found.",
+      404
+    );
+  }
+
+  if (newGuardian.isDeceased === true) {
+    throw guardianReassignmentError(
+      "NEW_GUARDIAN_DECEASED",
+      "New guardian must be alive.",
+      409
+    );
+  }
+
+  const newGuardianAge = computeDynamicAge(newGuardian);
+  if (!(Number.isFinite(newGuardianAge) && newGuardianAge >= 18)) {
+    throw guardianReassignmentError(
+      "NEW_GUARDIAN_NOT_ADULT",
+      "New guardian must be an adult.",
+      409
+    );
+  }
+
+  if (!newGuardian.approvedAt) {
+    throw guardianReassignmentError(
+      "NEW_GUARDIAN_NOT_APPROVED",
+      "New guardian profile must be approved.",
+      409
+    );
+  }
+
+  const minorNameKey = normNameKey(current.fullname);
+  const isListedUnderNewGuardian = approvedChildrenFromGuardian(newGuardian).some((child) => {
+    return normNameKey(nameFromChild(child)) === minorNameKey;
+  });
+
+  if (!isListedUnderNewGuardian) {
+    throw guardianReassignmentError(
+      "MINOR_NOT_LISTED_UNDER_NEW_GUARDIAN",
+      "Minor is not listed under the new guardian.",
+      409
+    );
+  }
+
+  const newMinorKey = minorKeyOf(newParentEmail, current.fullname);
+  const approvedAt = new Date();
+  const finalPatientForSnapshot = {
+    ...current,
+    parentEmail: newParentEmail,
+    minorKey: newMinorKey,
+    approvedAt,
+    updatedAt: approvedAt,
+    lastEditedBy: user._id,
+  };
+  const approvedSnapshot = buildApprovedSnapshotFromPatient(finalPatientForSnapshot);
+
+  approvedSnapshot.set.parentEmail = newParentEmail;
+  approvedSnapshot.set.minorKey = newMinorKey;
+  delete approvedSnapshot.unset.parentEmail;
+  delete approvedSnapshot.unset.minorKey;
+
+  const groupQuery = {
+    $or: [
+      { minorKey: oldMinorKey },
+      { _id: current._id },
+      { parentEmail: oldParentEmail, fullname: current.fullname },
+    ],
+  };
+  const update = {
+    $set: {
+      parentEmail: newParentEmail,
+      minorKey: newMinorKey,
+      approvedAt,
+      approvedSnapshot,
+      updatedAt: approvedAt,
+      lastEditedBy: user._id,
+    },
+  };
+
+  const updateResult = await Patient.updateMany(groupQuery, update, {
+    runValidators: true,
+    context: "query",
+    timestamps: false,
+  });
+
+  await PatientHistory.create({
+    patientKey: newMinorKey,
+    patientId: current._id,
+    approvedFromProfile: current._id,
+    editedBy: user._id || null,
+    approvedSnapshot,
+    approvedAt,
+    oldParentEmail,
+    newParentEmail,
+    oldMinorKey,
+    newMinorKey,
+  });
+
+  const patient = applyDynamicAgeToPatient({
+    ...current,
+    ...update.$set,
+  });
+
+  return {
+    message: "Guardian reassigned successfully.",
+    patient,
+    updatedCount: updateResult?.modifiedCount ?? updateResult?.matchedCount ?? 0,
+  };
 };

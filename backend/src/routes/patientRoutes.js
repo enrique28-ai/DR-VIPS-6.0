@@ -6,6 +6,7 @@ import {
   createPatient,
   getMyPatients,
   getPatientById,
+  reassignPatientGuardian,
   updatePatient,
   getMyHealthInfo,
   approvePatientProfile,
@@ -50,6 +51,7 @@ router.get("/me/children/:childId/history", protect, requireVerified, requireRol
 router.get("/me/children/:childId/history/:historyId", protect, requireVerified, requireRole("patient"), readLimiter, getChildHistoryOne);
 
 
+router.patch("/:id/guardian", protect, requireVerified, requireRole("doctor"), writeLimiter, reassignPatientGuardian);
 router.get("/:id",protect, requireVerified, requireRole("doctor"), readLimiter, getPatientById);
 router.put("/:id",protect, requireVerified, requireRole("doctor"), writeLimiter, updatePatient);
 

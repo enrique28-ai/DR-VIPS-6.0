@@ -466,6 +466,70 @@ test("createAppointment allows alive minor when guardian is alive", async () => 
   }
 });
 
+test("createAppointment allows a reassigned minor when the new guardian is alive", async () => {
+  restoreModelMethods();
+
+  const patientFindCalls = mockPatientFindOneSequence([
+    {
+      value: makePatient({
+        _id: "minor-patient-id",
+        email: "",
+        parentEmail: " NewParent@Example.com ",
+        minorKey: "newparent@example.com::minor patient",
+        age: 10,
+        fullname: "Minor Patient",
+      }),
+      projection: APPOINTMENT_PATIENT_SELECT,
+    },
+    {
+      value: { _id: "new-parent-patient-id", isDeceased: false },
+      projection: APPOINTMENT_GUARDIAN_SELECT,
+    },
+  ]);
+  const conflictCalls = mockAppointmentFindOne(null);
+  const appt = makeAppointment({ patient: "minor-patient-id" });
+  const createCalls = mockAppointmentCreate(appt);
+  const userFindCalls = mockUserFindOne(null);
+  guardNotificationCreate();
+
+  const req = makeReq({
+    body: makeCreateBody({ patientId: "minor-patient-id" }),
+  });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body, appt);
+    assert.deepEqual(patientFindCalls, [
+      {
+        query: {
+          _id: "minor-patient-id",
+          isDeceased: false,
+          $or: [{ createdBy: "doctor-id" }, { owners: "doctor-id" }],
+        },
+        select: APPOINTMENT_PATIENT_SELECT,
+      },
+      {
+        query: { email: "newparent@example.com" },
+        select: APPOINTMENT_GUARDIAN_SELECT,
+      },
+    ]);
+    assert.equal(conflictCalls.length, 1);
+    assert.equal(createCalls.length, 1);
+    assert.equal(createCalls[0].patient, "minor-patient-id");
+    assert.deepEqual(userFindCalls, [
+      {
+        query: { email: "newparent@example.com" },
+        select: "_id",
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("createAppointment allows same time for different doctor and different patient", async () => {
   restoreModelMethods();
 

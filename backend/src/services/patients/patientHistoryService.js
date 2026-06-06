@@ -10,6 +10,38 @@ import {
 } from "../../controllers/helpers/patienthelpers.js";
 import { translatePatientDoc } from "../../utils/deeplTranslate.js";
 
+const lineageKeyQuery = (keys) => {
+  const uniqueKeys = [...new Set(keys.map((key) => normLower(key)).filter(Boolean))];
+  return uniqueKeys.length > 1
+    ? { patientKey: { $in: uniqueKeys } }
+    : { patientKey: uniqueKeys[0] || "" };
+};
+
+const resolveMinorLineageKeys = async (rootKey) => {
+  const initialKey = normLower(rootKey);
+  if (!initialKey) return [];
+
+  const seen = new Set([initialKey]);
+  let pending = [initialKey];
+
+  for (let i = 0; i < 10 && pending.length; i += 1) {
+    const rows = await PatientHistory.find(lineageKeyQuery(pending))
+      .select("oldMinorKey")
+      .lean();
+
+    pending = [];
+
+    for (const row of rows) {
+      const oldKey = normLower(row?.oldMinorKey);
+      if (oldKey && !seen.has(oldKey)) {
+        seen.add(oldKey);
+        pending.push(oldKey);
+      }
+    }
+  }
+
+  return [...seen];
+};
 
 export const getMyHistoryService = async ({ user }) => {
   if (user.role !== "patient") {
@@ -90,7 +122,7 @@ export const getPatientHistoryService = async ({ user, patientId }) => {
     p?.minorKey || (p?.parentEmail ? minorKeyOf(p.parentEmail, p.fullname) : "");
 
   const ident = childKey
-    ? { patientKey: childKey }
+    ? lineageKeyQuery(await resolveMinorLineageKeys(childKey))
     : identityQueryFromPatient(p);
   if (!ident) return [];
 
@@ -161,7 +193,7 @@ export const getPatientHistoryOneService = async ({ user, patientId, historyId, 
     p?.minorKey || (p?.parentEmail ? minorKeyOf(p.parentEmail, p.fullname) : "");
 
   const ident = childKey
-    ? { patientKey: childKey }
+    ? lineageKeyQuery(await resolveMinorLineageKeys(childKey))
     : identityQueryFromPatient(p);
   if (!ident) {
     const err = new Error("History not found");
@@ -269,8 +301,9 @@ export const getChildHistoryService = async ({ user, childId }) => {
   }
 
   const key = child.minorKey || minorKeyOf(parentEmail, child.fullname);
+  const ident = lineageKeyQuery(await resolveMinorLineageKeys(key));
 
-  const history = await PatientHistory.find({ patientKey: key })
+  const history = await PatientHistory.find(ident)
     .sort({ approvedAt: -1 })
     .populate("editedBy", "name email role")
     .lean();
@@ -308,8 +341,9 @@ export const getChildHistoryOneService = async ({ user, childId, historyId, req 
   }
 
   const key = child.minorKey || minorKeyOf(parentEmail, child.fullname);
+  const ident = lineageKeyQuery(await resolveMinorLineageKeys(key));
 
-  const ver = await PatientHistory.findOne({ _id: historyId, patientKey: key })
+  const ver = await PatientHistory.findOne({ _id: historyId, ...ident })
     .populate("editedBy", "name email role")
     .lean();
 

@@ -9,8 +9,14 @@ const patientHistorySchema = new mongoose.Schema(
     patientPhoneDigits: { type: String, trim: true, index: true },
 
     // Auditoría
+    patientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient", index: true },
     approvedFromProfile: { type: mongoose.Schema.Types.ObjectId, ref: "Patient" },
     editedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+
+    oldParentEmail: { type: String, lowercase: true, trim: true },
+    newParentEmail: { type: String, lowercase: true, trim: true },
+    oldMinorKey: { type: String, lowercase: true, trim: true, index: true },
+    newMinorKey: { type: String, lowercase: true, trim: true, index: true },
 
     // Guardamos EXACTAMENTE el mismo formato que ya usas en Patient.approvedSnapshot
     approvedSnapshot: { type: mongoose.Schema.Types.Mixed, required: true }, // { set, unset }

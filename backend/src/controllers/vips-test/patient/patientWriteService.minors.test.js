@@ -450,6 +450,53 @@ test("createPatientService rejects minors declaring children", async () => {
   }
 });
 
+test("updatePatientService rejects normal parentEmail changes for linked minors", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient();
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: makeApprovedAdultParent({ isDeceased: false }),
+      projection: UPDATE_PARENT_PROJECTION,
+    },
+  ]);
+  Patient.findOneAndUpdate = () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for immutable parentEmail");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for immutable parentEmail");
+  };
+  guardAppointmentDeathArchive();
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: "minor-patient-id",
+          body: { parentEmail: "newparent@example.com" },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "PARENT_EMAIL_IMMUTABLE");
+        return true;
+      }
+    );
+
+    assert.deepEqual(findOneCalls.map((call) => call.query), [
+      {
+        _id: "minor-patient-id",
+        $or: [{ owners: "doctor-id" }, { createdBy: "doctor-id" }],
+      },
+      { email: "parent@example.com" },
+    ]);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService lets doctors propose minor fullname rename without changing minorKey", async () => {
   restorePatientMethods();
 

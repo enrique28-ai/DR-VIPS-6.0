@@ -26,6 +26,7 @@ import {
 } from "../services/patients/patientApprovalService.js";
 import {
   createPatientService,
+  reassignMinorGuardianService,
   updatePatientService,
 } from "../services/patients/patientWriteService.js";
 /**
@@ -191,6 +192,24 @@ export const updatePatient = async (req, res) => {
     }
 
     console.error("updatePatient error:", err);
+    return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      patientId: err.patientId,
+      error: err.message || "Server error",
+    });
+  }
+};
+
+export const reassignPatientGuardian = async (req, res) => {
+  try {
+    const data = await reassignMinorGuardianService({
+      user: req.user,
+      patientId: req.params.id,
+      body: req.body,
+    });
+    return res.json(data);
+  } catch (err) {
+    console.error("reassignPatientGuardian error:", err);
     return res.status(err.status || 500).json({
       errorCode: err.errorCode,
       patientId: err.patientId,

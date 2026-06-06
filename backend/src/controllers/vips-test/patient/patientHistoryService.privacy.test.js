@@ -74,9 +74,47 @@ function mockPatientHistoryFind(response) {
   const calls = [];
 
   PatientHistory.find = (query) => {
-    const call = { query, sort: undefined, populate: undefined };
+    const call = { query };
     calls.push(call);
     return {
+      select: (projection) => {
+        call.select = projection;
+        return {
+          lean: async () => response,
+        };
+      },
+      sort: (sort) => {
+        call.sort = sort;
+        return {
+          populate: (path, select) => {
+            call.populate = { path, select };
+            return {
+              lean: async () => response,
+            };
+          },
+        };
+      },
+    };
+  };
+
+  return calls;
+}
+
+function mockPatientHistoryFindSequence(responses) {
+  const calls = [];
+
+  PatientHistory.find = (query) => {
+    const response = responses[calls.length] ?? [];
+    const call = { query };
+    calls.push(call);
+
+    return {
+      select: (projection) => {
+        call.select = projection;
+        return {
+          lean: async () => response,
+        };
+      },
       sort: (sort) => {
         call.sort = sort;
         return {
@@ -327,6 +365,7 @@ test("getChildHistoryOneService scopes single child history lookup to the parent
     parentEmail: "patient@example.com",
     minorKey: "patient@example.com::minor-patient",
   });
+  mockPatientHistoryFind([]);
   const historyFindOneCalls = mockPatientHistoryFindOne({
     _id: "history-id",
     approvedSnapshot: null,
@@ -347,6 +386,205 @@ test("getChildHistoryOneService scopes single child history lookup to the parent
         query: {
           _id: "history-id",
           patientKey: "patient@example.com::minor-patient",
+        },
+        populate: { path: "editedBy", select: "name email role" },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getPatientHistoryService returns old and new minor-key lineage for a doctor", async () => {
+  restoreModelMethods();
+
+  const newMinorKey = "newparent@example.com::minor patient";
+  const oldMinorKey = "oldparent@example.com::minor patient";
+  mockPatientFindOne({
+    _id: "child-profile-id",
+    fullname: "Minor Patient",
+    parentEmail: "newparent@example.com",
+    minorKey: newMinorKey,
+  });
+  const historyFindCalls = mockPatientHistoryFindSequence([
+    [{ oldMinorKey }],
+    [],
+    [
+      {
+        _id: "reassignment-baseline-id",
+        patientKey: newMinorKey,
+        oldMinorKey,
+        newMinorKey,
+        approvedSnapshot: null,
+      },
+      {
+        _id: "old-history-id",
+        patientKey: oldMinorKey,
+        approvedSnapshot: null,
+      },
+    ],
+  ]);
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called when lineage history exists");
+  };
+
+  try {
+    const result = await getPatientHistoryService({
+      user: makeDoctor(),
+      patientId: "child-profile-id",
+    });
+
+    assert.deepEqual(result.map((row) => row.patientKey), [newMinorKey, oldMinorKey]);
+    assert.deepEqual(historyFindCalls, [
+      {
+        query: { patientKey: newMinorKey },
+        select: "oldMinorKey",
+      },
+      {
+        query: { patientKey: oldMinorKey },
+        select: "oldMinorKey",
+      },
+      {
+        query: { patientKey: { $in: [newMinorKey, oldMinorKey] } },
+        sort: { approvedAt: -1 },
+        populate: { path: "editedBy", select: "name email" },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getPatientHistoryOneService allows doctor detail reads across minor-key lineage", async () => {
+  restoreModelMethods();
+
+  const newMinorKey = "newparent@example.com::minor patient";
+  const oldMinorKey = "oldparent@example.com::minor patient";
+  mockPatientFindOne({
+    _id: "child-profile-id",
+    fullname: "Minor Patient",
+    parentEmail: "newparent@example.com",
+    minorKey: newMinorKey,
+  });
+  mockPatientHistoryFindSequence([[{ oldMinorKey }], []]);
+  const historyFindOneCalls = mockPatientHistoryFindOne({
+    _id: "old-history-id",
+    patientKey: oldMinorKey,
+    approvedSnapshot: null,
+  });
+
+  try {
+    const result = await getPatientHistoryOneService({
+      user: makeDoctor(),
+      patientId: "child-profile-id",
+      historyId: "old-history-id",
+      req: { query: { lang: "en" } },
+    });
+
+    assert.equal(result._id, "old-history-id");
+    assert.deepEqual(historyFindOneCalls, [
+      {
+        query: {
+          _id: "old-history-id",
+          patientKey: { $in: [newMinorKey, oldMinorKey] },
+        },
+        populate: { path: "editedBy", select: "name email" },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getChildHistoryService returns old and new minor-key lineage for the new guardian", async () => {
+  restoreModelMethods();
+
+  const newMinorKey = "newparent@example.com::minor patient";
+  const oldMinorKey = "oldparent@example.com::minor patient";
+  mockPatientFindOne({
+    _id: "child-profile-id",
+    fullname: "Minor Patient",
+    parentEmail: "newparent@example.com",
+    minorKey: newMinorKey,
+  });
+  const historyFindCalls = mockPatientHistoryFindSequence([
+    [{ oldMinorKey }],
+    [],
+    [
+      {
+        _id: "reassignment-baseline-id",
+        patientKey: newMinorKey,
+        oldMinorKey,
+        newMinorKey,
+        approvedSnapshot: null,
+      },
+      {
+        _id: "old-history-id",
+        patientKey: oldMinorKey,
+        approvedSnapshot: null,
+      },
+    ],
+  ]);
+
+  try {
+    const result = await getChildHistoryService({
+      user: makePatientUser({ email: "NewParent@Example.com " }),
+      childId: "child-profile-id",
+    });
+
+    assert.deepEqual(result.map((row) => row.patientKey), [newMinorKey, oldMinorKey]);
+    assert.deepEqual(historyFindCalls, [
+      {
+        query: { patientKey: newMinorKey },
+        select: "oldMinorKey",
+      },
+      {
+        query: { patientKey: oldMinorKey },
+        select: "oldMinorKey",
+      },
+      {
+        query: { patientKey: { $in: [newMinorKey, oldMinorKey] } },
+        sort: { approvedAt: -1 },
+        populate: { path: "editedBy", select: "name email role" },
+      },
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("getChildHistoryOneService allows new guardian detail reads across minor-key lineage", async () => {
+  restoreModelMethods();
+
+  const newMinorKey = "newparent@example.com::minor patient";
+  const oldMinorKey = "oldparent@example.com::minor patient";
+  mockPatientFindOne({
+    _id: "child-profile-id",
+    fullname: "Minor Patient",
+    parentEmail: "newparent@example.com",
+    minorKey: newMinorKey,
+  });
+  mockPatientHistoryFindSequence([[{ oldMinorKey }], []]);
+  const historyFindOneCalls = mockPatientHistoryFindOne({
+    _id: "old-history-id",
+    patientKey: oldMinorKey,
+    approvedSnapshot: null,
+  });
+
+  try {
+    const result = await getChildHistoryOneService({
+      user: makePatientUser({ email: "NewParent@Example.com " }),
+      childId: "child-profile-id",
+      historyId: "old-history-id",
+      req: { query: { lang: "en" } },
+    });
+
+    assert.equal(result._id, "old-history-id");
+    assert.deepEqual(historyFindOneCalls, [
+      {
+        query: {
+          _id: "old-history-id",
+          patientKey: { $in: [newMinorKey, oldMinorKey] },
         },
         populate: { path: "editedBy", select: "name email role" },
       },
