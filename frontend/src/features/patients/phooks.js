@@ -24,6 +24,14 @@ const patientErrorKey = (code) => {
     PATIENT_DECEASED_READONLY: "patients.errors.patientDeceasedReadonly",
     DEATH_STATUS_UPDATE_ONLY: "patients.errors.deathStatusUpdateOnly",
     GUARDIAN_UNAVAILABLE: "patients.errors.guardianUnavailable",
+    GUARDIAN_REASSIGNMENT_NOT_MINOR: "patients.errors.guardianReassignmentNotMinor",
+    CURRENT_GUARDIAN_NOT_UNAVAILABLE: "patients.errors.currentGuardianNotUnavailable",
+    NEW_GUARDIAN_NOT_FOUND: "patients.errors.newGuardianNotFound",
+    NEW_GUARDIAN_NOT_ADULT: "patients.errors.newGuardianNotAdult",
+    NEW_GUARDIAN_DECEASED: "patients.errors.newGuardianDeceased",
+    NEW_GUARDIAN_NOT_APPROVED: "patients.errors.newGuardianNotApproved",
+    MINOR_NOT_LISTED_UNDER_NEW_GUARDIAN: "patients.errors.minorNotListedUnderNewGuardian",
+    GUARDIAN_REASSIGNMENT_NO_CHANGES: "patients.errors.guardianReassignmentNoChanges",
   };
   return map[code] || null;
 };
@@ -273,6 +281,45 @@ export function useUpdatePatient(id) {
     },
    });
  }
+
+export function useReassignGuardian(id) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ newParentEmail }) =>
+      (await api.patch(`/patients/${id}/guardian`, { newParentEmail })).data,
+    onSuccess: (data) => {
+      const updated = data?.patient;
+      const patientId = updated?._id || id;
+
+      if (updated?._id) {
+        qc.setQueryData(["patient", updated._id], updated);
+      }
+
+      qc.invalidateQueries({ queryKey: ["patients"] });
+      qc.invalidateQueries({ queryKey: ["patient", patientId] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["my-children-health-info"] });
+      qc.invalidateQueries({ queryKey: ["child-history"] });
+
+      toast.success(i18n.t("patients.toasts.guardianReassignSuccess"));
+    },
+    onError: (e) => {
+      const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
+      const key = patientErrorKey(code);
+
+      if ((status === 400 || status === 403 || status === 404 || status === 409) && key) {
+        toast.error(i18n.t(key));
+        return;
+      }
+
+      if (status !== 429) {
+        toast.error(i18n.t("patients.toasts.guardianReassignFailed"));
+      }
+    },
+  });
+}
 
 
 /*export function useDeletePatient() {

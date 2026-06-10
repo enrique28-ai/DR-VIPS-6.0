@@ -429,7 +429,10 @@
     "viewDiagnoses": "View diagnoses",
     "backButton": "Back",
     "delete": "Delete",
-    "children": "Children"
+    "children": "Children",
+    "reassignGuardian": "Reassign Guardian",
+    "newGuardianEmail": "New guardian email",
+    "newGuardianEmailPlaceholder": "new.guardian@example.com"
   },
   "searchGlobal": {
     "title": "Add Patient",
@@ -482,7 +485,9 @@
     "rejectHealthInfoFailed": "We couldn't reject this information.",
     "importSuccess": "Patient imported successfully.",
     "importFailed": "Failed to import patient.",
-    "noChanges": "No changes detected. Please modify at least one field before saving."
+    "noChanges": "No changes detected. Please modify at least one field before saving.",
+    "guardianReassignSuccess": "Guardian reassigned successfully.",
+    "guardianReassignFailed": "Failed to reassign guardian."
   },
   "errors": {
       "parentEmailRequired": "Parent email is required for minor patients.",
@@ -507,7 +512,15 @@
       "pendingGuardianDecision": "This minor has a pending guardian decision. Wait until the guardian approves or rejects it before editing.",
       "patientDeceasedReadonly": "Deceased patients cannot be edited unless they are changed back to alive.",
       "deathStatusUpdateOnly": "Death status must be updated separately.",
-      "guardianUnavailable": "The guardian is unavailable. Assign a new guardian before editing this minor."
+      "guardianUnavailable": "The guardian is unavailable. Assign a new guardian before editing this minor.",
+      "guardianReassignmentNotMinor": "Guardian reassignment is only available for living minors.",
+      "currentGuardianNotUnavailable": "Current guardian must exist and be deceased before reassignment.",
+      "newGuardianNotFound": "New guardian was not found.",
+      "newGuardianNotAdult": "New guardian must be an adult.",
+      "newGuardianDeceased": "New guardian must be alive.",
+      "newGuardianNotApproved": "New guardian profile must be approved.",
+      "minorNotListedUnderNewGuardian": "Minor is not listed under the new guardian.",
+      "guardianReassignmentNoChanges": "The new guardian email must be different from the current guardian email."
     }
 },
 "diagnoses": {

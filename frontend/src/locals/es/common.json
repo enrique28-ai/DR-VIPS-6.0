@@ -417,7 +417,10 @@
       "viewDiagnoses": "Ver diagnósticos",
       "backButton": "Volver",
       "delete": "Borrar",
-      "children": "Hijos"
+      "children": "Hijos",
+      "reassignGuardian": "Reasignar tutor",
+      "newGuardianEmail": "Correo del nuevo tutor",
+      "newGuardianEmailPlaceholder": "nuevo.tutor@ejemplo.com"
     },
     "history": {
       "title": "Historial del Paciente",
@@ -469,7 +472,9 @@
       "rejectHealthInfoFailed": "No podíamos rechazar esta información.",
       "importSuccess": "Paciente importado correctamente.",
       "importFailed": "Error al importar el paciente.",
-      "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar."
+      "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar.",
+      "guardianReassignSuccess": "Tutor reasignado correctamente.",
+      "guardianReassignFailed": "No se pudo reasignar el tutor."
     },
     "errors": {
       "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
@@ -494,7 +499,15 @@
       "pendingGuardianDecision": "Este menor tiene una decisión de tutor pendiente. Espera a que el tutor apruebe o rechace antes de editar.",
       "patientDeceasedReadonly": "No se pueden editar pacientes fallecidos a menos que se cambien nuevamente a vivos.",
       "deathStatusUpdateOnly": "El estado de fallecimiento debe actualizarse por separado.",
-      "guardianUnavailable": "El tutor no está disponible. Asigna un nuevo tutor antes de editar a este menor."
+      "guardianUnavailable": "El tutor no está disponible. Asigna un nuevo tutor antes de editar a este menor.",
+      "guardianReassignmentNotMinor": "La reasignacion de tutor solo esta disponible para menores vivos.",
+      "currentGuardianNotUnavailable": "El tutor actual debe existir y estar fallecido antes de reasignar.",
+      "newGuardianNotFound": "No se encontro el nuevo tutor.",
+      "newGuardianNotAdult": "El nuevo tutor debe ser adulto.",
+      "newGuardianDeceased": "El nuevo tutor debe estar vivo.",
+      "newGuardianNotApproved": "El perfil del nuevo tutor debe estar aprobado.",
+      "minorNotListedUnderNewGuardian": "El menor no esta listado bajo el nuevo tutor.",
+      "guardianReassignmentNoChanges": "El correo del nuevo tutor debe ser diferente al correo del tutor actual."
     }
   },
 

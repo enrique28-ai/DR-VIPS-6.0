@@ -1,9 +1,9 @@
 import { useMemo, useState,  useEffect  } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
-import { usePatient, useTranslatePatient } from "../../features/patients/phooks.js";
+import { usePatient, useReassignGuardian, useTranslatePatient } from "../../features/patients/phooks.js";
 import PatientHistoryModal from "../../components/patient/PatientHistoryModal.jsx";
-import { Droplet, Globe, User2, Users, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle, Languages, Loader2 } from "lucide-react";
+import { Droplet, Globe, User2, Users, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle, Languages, Loader2, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName } from "../../utilsfront/geoLabels.js";
 
@@ -51,18 +51,23 @@ const Chip = ({ icon: Icon, label, value }) => (
 export default function PatientDetailPage() {
   const { t, i18n } = useTranslation();
   const [showHistory, setShowHistory] = useState(false);
+  const [showGuardianForm, setShowGuardianForm] = useState(false);
+  const [newParentEmail, setNewParentEmail] = useState("");
 
 
   const { id } = useParams();
   const navigate = useNavigate();
 
   const { data: patient, isLoading, isError } = usePatient(id);
+  const reassignGuardian = useReassignGuardian(id);
   const { mutate: translatePatient, isPending: translatingPatient } = useTranslatePatient();
 const [translated, setTranslated] = useState({ lang: null, data: null });
 
 useEffect(() => {
   // si cambias de paciente, resetea traducción
   setTranslated({ lang: null, data: null });
+  setShowGuardianForm(false);
+  setNewParentEmail("");
 }, [id]);
 
 const isTranslatedActive = !!translated.data && translated.lang === i18n.language;
@@ -160,6 +165,38 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
   const bmiLabel = bmiKey
     ? t(`patients.detail.bmiCategories.${bmiKey}`)
     : patientView?.bmiCategory; // fallback: muestra el texto crudo si no se reconoce
+
+  const patientAge = Number(patient?.age);
+  const isMinorOrGuardianLinked =
+    (Number.isFinite(patientAge) && patientAge < 18) ||
+    Boolean(patient?.parentEmail || patient?.minorKey);
+  const canReassignGuardian =
+    !patient?.isDeceased &&
+    isMinorOrGuardianLinked &&
+    Boolean(patient?.parentEmail || patient?.minorKey);
+
+  const closeGuardianForm = () => {
+    if (reassignGuardian.isPending) return;
+    setShowGuardianForm(false);
+    setNewParentEmail("");
+  };
+
+  const handleGuardianSubmit = (e) => {
+    e.preventDefault();
+    const email = newParentEmail.trim().toLowerCase();
+    if (!email) return;
+
+    reassignGuardian.mutate(
+      { newParentEmail: email },
+      {
+        onSuccess: () => {
+          setShowGuardianForm(false);
+          setNewParentEmail("");
+          setTranslated({ lang: null, data: null });
+        },
+      }
+    );
+  };
 
  
 
@@ -302,6 +339,19 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
           <Button full={false} variant="secondary" onClick={() => navigate(`/diagnosis/patient/${id}`)}>
             {t("patients.detail.viewDiagnoses")}
           </Button>
+          {canReassignGuardian && (
+            <Button
+              full={false}
+              variant="secondary"
+              onClick={() => setShowGuardianForm(true)}
+              disabled={reassignGuardian.isPending}
+            >
+              <span className="inline-flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                {t("patients.detail.reassignGuardian")}
+              </span>
+            </Button>
+          )}
           <Button
   full={false}
   variant="secondary"
@@ -342,6 +392,65 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
     onClose={() => setShowHistory(false)}
   />
 )}
+
+      {showGuardianForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t("patients.detail.reassignGuardian")}
+              </h2>
+              <button
+                type="button"
+                onClick={closeGuardianForm}
+                disabled={reassignGuardian.isPending}
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+                aria-label={t("common.close")}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardianSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  {t("patients.detail.newGuardianEmail")}
+                </label>
+                <input
+                  type="email"
+                  value={newParentEmail}
+                  onChange={(e) => setNewParentEmail(e.target.value)}
+                  onBlur={() => setNewParentEmail((value) => value.trim().toLowerCase())}
+                  placeholder={t("patients.detail.newGuardianEmailPlaceholder")}
+                  required
+                  disabled={reassignGuardian.isPending}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  full={false}
+                  variant="secondary"
+                  onClick={closeGuardianForm}
+                  disabled={reassignGuardian.isPending}
+                >
+                  {t("patients.edit.cancel")}
+                </Button>
+                <Button
+                  type="submit"
+                  full={false}
+                  loading={reassignGuardian.isPending}
+                  disabled={!newParentEmail.trim() || reassignGuardian.isPending}
+                >
+                  {t("patients.detail.reassignGuardian")}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
 
     </main>
