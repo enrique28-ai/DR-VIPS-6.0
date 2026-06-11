@@ -419,6 +419,43 @@ test("createPatientService rejects invalid phone for selected country", async ()
   }
 });
 
+test("createPatientService rejects E.164 phone when it does not match selected country", async () => {
+  restorePatientMethods();
+
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called for country-mismatched phone");
+  };
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for country-mismatched phone");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for country-mismatched phone");
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called for country-mismatched phone");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body: makeValidCreateBody({
+            phone: "+442079460056",
+            country: "United States",
+          }),
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Invalid phone number for selected country");
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("createPatientService blocks duplicate phoneDigits on create", async () => {
   restorePatientMethods();
 
