@@ -45,6 +45,13 @@ const normStr = (value) => String(value ?? "").trim();
 const normLower = (value) => normStr(value).toLowerCase();
 const normNameKey = (value) =>
   normStr(value).replace(/\s+/g, " ").toLowerCase();
+const localYmd = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 const ymdFromValue = (value) => {
   if (!value) return "";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -214,7 +221,7 @@ useEffect(() => {
   const [height, setHeight] = useState("");          // m o ft según system
   const [weight, setWeight] = useState("");          // kg o lb según system
   const [cause, setCause] = useState("");            // cause of death
-  const todayYmd = new Date().toISOString().slice(0,10);
+  const todayYmd = localYmd();
   const isDeathDateInvalid =
     life === "deceased" &&
     (!form.dateOfDeath ||
