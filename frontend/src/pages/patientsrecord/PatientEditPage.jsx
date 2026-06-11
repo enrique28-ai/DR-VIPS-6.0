@@ -16,6 +16,7 @@ import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx"
 
 
  import { useTranslation } from "react-i18next";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 function calcAgeFromYmd(birthYmd, refYmd) {
   if (!birthYmd) return NaN;
 
@@ -45,6 +46,23 @@ const normStr = (value) => String(value ?? "").trim();
 const normLower = (value) => normStr(value).toLowerCase();
 const normNameKey = (value) =>
   normStr(value).replace(/\s+/g, " ").toLowerCase();
+const digitsOnly = (value) => String(value || "").replace(/\D/g, "");
+const parsePhoneForCountry = (value, countryIso) => {
+  const digits = digitsOnly(value);
+  if (!digits || !countryIso) return null;
+  return parsePhoneNumberFromString(digits, countryIso);
+};
+const phoneDigitsForComparison = (value, countryIso) => {
+  const raw = normStr(value);
+  if (!raw) return "";
+
+  const parsed = raw.startsWith("+")
+    ? parsePhoneNumberFromString(raw)
+    : parsePhoneForCountry(raw, countryIso);
+
+  if (parsed?.isValid()) return parsed.number.replace(/\D/g, "");
+  return digitsOnly(raw);
+};
 const localYmd = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -72,7 +90,7 @@ const childKey = (children) =>
     .filter(Boolean)
     .join("||");
 
-function isDeathStatusOnlyEdit(patient, payload) {
+function isDeathStatusOnlyEdit(patient, payload, countryIso) {
   if (!patient || !payload || !("isDeceased" in payload)) return false;
 
   const nextIsDeceased = Boolean(payload.isDeceased);
@@ -90,8 +108,10 @@ function isDeathStatusOnlyEdit(patient, payload) {
     sys === "imperial" ? Number(payload.height) * FT_TO_M : Number(payload.height);
   const nextWeightKg =
     sys === "imperial" ? Number(payload.weight) * LB_TO_KG : Number(payload.weight);
-  const currentPhoneDigits = String(patient.phoneDigits || patient.phone || "").replace(/\D/g, "");
-  const incomingPhoneDigits = String(payload.phone || "").replace(/\D/g, "");
+  const currentPhoneDigits =
+    phoneDigitsForComparison(patient.phone, countryIso) ||
+    digitsOnly(patient.phoneDigits);
+  const incomingPhoneDigits = phoneDigitsForComparison(payload.phone, countryIso);
   const phoneChanged =
     "phone" in payload &&
     (incomingPhoneDigits && currentPhoneDigits
@@ -263,6 +283,16 @@ const dialCode = useMemo(
   () => getDialCodeByCountryIso(countryIso),
   [countryIso]
 );
+const phoneDigits = useMemo(() => digitsOnly(form.phone), [form.phone]);
+const parsedPhone = useMemo(
+  () => parsePhoneForCountry(phoneDigits, countryIso),
+  [phoneDigits, countryIso]
+);
+const isPhoneValidForCountry = Boolean(parsedPhone?.isValid());
+const isAdultPhoneInvalid =
+  !isMinor && (!countryIso || !phoneDigits || !isPhoneValidForCountry);
+const isMinorPhoneInvalid =
+  isMinor && !!phoneDigits && (!countryIso || !isPhoneValidForCountry);
 
 const onCountryChange = (e) => {
   const iso = e.target.value;
@@ -283,10 +313,9 @@ const onStateChange = (e) => {
 const onCityChange = (e) => setCityName(e.target.value);
 
   // Teléfono: solo dígitos (máx 10)
- const maxRest = 10;
  const onPhoneChange = (e) => {
    const digits = e.target.value.replace(/\D/g, "");
-   setForm((f) => ({ ...f, phone: digits.slice(0, maxRest) }));
+   setForm((f) => ({ ...f, phone: digits }));
  };
  const allowDigitKeys = (e) => {
    const k = e.key;
@@ -296,13 +325,13 @@ const onCityChange = (e) => setCityName(e.target.value);
  };
  const onPasteDigits = (e) => {
    const txt = (e.clipboardData || window.clipboardData).getData("text");
-   const digits = String(txt).replace(/\D/g, "").slice(0, maxRest);
+   const digits = String(txt).replace(/\D/g, "");
    e.preventDefault();
    setForm((f) => ({ ...f, phone: digits }));
  };
 
  useEffect(() => {
-    setForm((f) => ({ ...f, phone: (f.phone || "").replace(/\D/g, "").slice(0, maxRest) }));
+    setForm((f) => ({ ...f, phone: digitsOnly(f.phone) }));
   }, [countryIso]);
 
 
@@ -498,7 +527,10 @@ if (cRec) {
 // Separar teléfono (remover código de país real)
 const digitsFull = String(patient.phone || "").replace(/\D/g, "");
 const ccTxt = String(cRec?.phonecode || "").replace(/\D/g, "");
-const restPhone = ccTxt && digitsFull.startsWith(ccTxt) ? digitsFull.slice(ccTxt.length) : digitsFull;
+const parsedStoredPhone = parsePhoneNumberFromString(patient.phone || "");
+const restPhone = parsedStoredPhone
+  ? parsedStoredPhone.formatNational().replace(/\D/g, "")
+  : (ccTxt && digitsFull.startsWith(ccTxt) ? digitsFull.slice(ccTxt.length) : digitsFull);
 setForm((f) => ({ ...f, phone: restPhone }));
 
   }, [patient]);
@@ -622,14 +654,13 @@ if (isMinor) {
     return;
   }
     // Teléfono: validar total=10 y normalizar
-  const rest = String(form.phone || "").replace(/\D/g, "");
-  const totalDigits = rest.length;
+  const rest = phoneDigits;
  if (!isMinor) {
-    if (!countryIso|| totalDigits !== 10) {
+    if (isAdultPhoneInvalid) {
       toast.error(t("patients.create.phoneInvalidAdult"));
       return;
     }
-  } else if (totalDigits !== 0 && totalDigits !== 10) {
+  } else if (isMinorPhoneInvalid) {
     toast.error(t("patients.create.phoneInvalidMinor"));
     return;
   }
@@ -701,7 +732,7 @@ if (isMinor) {
       payload.phone = rest;
     }
 
-    const mutationPayload = isDeathStatusOnlyEdit(patient, payload)
+    const mutationPayload = isDeathStatusOnlyEdit(patient, payload, countryIso)
       ? buildDeathStatusPayload(payload)
       : payload;
 
@@ -807,7 +838,7 @@ if (isMinor) {
       </div>
 
       <p className="text-xs mt-1">
-        {t("patients.create.phoneDigitsCounter")}: {(form.phone || "").length}/10
+        {t("patients.create.phoneDigitsCounter")}: {phoneDigits.length}
       </p>
     </div>
   )}
@@ -1246,11 +1277,11 @@ if (isMinor) {
           <div className="flex flex-wrap gap-3 justify-end">
             <Button variant="secondary" type="button" onClick={handleBack}>{t("patients.edit.cancel")}</Button>
             <Button type="submit" loading={updatePatient.isPending} disabled={(!isMinor && !isEmailFormatValid) ||
-              (!isMinor && (form.phone || "").length !== 10) ||
+              isAdultPhoneInvalid ||
               (isMinor && form.email && !isEmailFormatValid) ||
               (isMinor && !isParentEmailFormatValid) ||
               (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
-              (isMinor && (form.phone || "").length !== 0 && (form.phone || "").length !== 10) || !gender || !organDonor || !bloodDonor ||  !system 
+              isMinorPhoneInvalid || !gender || !organDonor || !bloodDonor ||  !system
               || !height || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim()) 
               || (hasDiseases === "yes" && form.diseases.trim() === "") || (hasAllergies === "yes" && form.allergies.trim() === "") 
               || (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 

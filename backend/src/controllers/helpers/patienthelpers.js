@@ -1,5 +1,6 @@
 import * as dns from "node:dns/promises";
 import { Country } from "country-state-city";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import Patient from "../../models/Patient.js";
 import User from "../../models/User.js";
 import { AGE_BANDS } from "../../models/Patient.js";
@@ -17,13 +18,22 @@ const findCountry = (nameOrIso = "") => {
 
   export const normPhoneWithCountry = (country, phoneRaw) => {
    const countryRec = findCountry(country);
-   const cc = countryRec?.phonecode?.replace(/\D/g, "") || "";
-   const digits = String(phoneRaw || "").replace(/\D/g, "");
-   if (!cc) return { ok:false, error:"Invalid country" };
-   if (digits.length !== 10) {
-     return { ok:false, error:"Phone must have exactly 10 digits excluding country code" };
+   const iso = countryRec?.isoCode?.toUpperCase();
+   const raw = String(phoneRaw || "").trim();
+   const nationalDigits = raw.replace(/\D/g, "");
+   if (!iso) return { ok:false, error:"Invalid country" };
+   if (!nationalDigits) return { ok:false, error:"Invalid phone number for selected country" };
+
+   const parsed = raw.startsWith("+")
+     ? parsePhoneNumberFromString(raw)
+     : parsePhoneNumberFromString(nationalDigits, iso);
+
+   if (!parsed?.isValid() || parsed.country !== iso) {
+     return { ok:false, error:"Invalid phone number for selected country" };
    }
-   return { ok:true, phone: `+${cc}${digits}`, digits: `${cc}${digits}` };
+
+   const phone = parsed.number;
+   return { ok:true, phone, digits: phone.replace(/\D/g, "") };
  };
 
 export const normalize = (v) => {

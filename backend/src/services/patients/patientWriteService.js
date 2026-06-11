@@ -155,7 +155,7 @@ const collectEffectiveNormalChangedFieldsFromBody = ({ current, body }) => {
     } else {
       const effectiveCountry = "country" in body ? body.country : current.country;
       const normalized = effectiveCountry
-        ? normPhoneWithCountry(effectiveCountry, rawDigits)
+        ? normPhoneWithCountry(effectiveCountry, body.phone)
         : { ok: false };
 
       if (normalized.ok) {
@@ -1153,7 +1153,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
         err.status = 400;
         throw err;
       }
-      const ph = normPhoneWithCountry(effectiveCountry, rawDigits);
+      const ph = normPhoneWithCountry(effectiveCountry, body.phone);
       if (!ph.ok) {
         const err = new Error(ph.error);
         err.status = 400;

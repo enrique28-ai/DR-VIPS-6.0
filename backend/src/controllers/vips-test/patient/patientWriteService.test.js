@@ -241,6 +241,68 @@ function mockNoPendingPortalDecision(current) {
   return { patientFindCalls, userFindCalls };
 }
 
+function mockNoPendingCreateEmailLookup(expectedEmail) {
+  const patientFindCalls = [];
+
+  Patient.find = (query) => {
+    patientFindCalls.push(query);
+    assert.deepEqual(query, { email: expectedEmail });
+    return {
+      sort: (sort) => {
+        assert.deepEqual(sort, { updatedAt: -1 });
+        return {
+          select: (projection) => {
+            assert.equal(projection, "_id updatedAt");
+            return {
+              lean: async () => [],
+            };
+          },
+        };
+      },
+    };
+  };
+
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called when there are no patient records");
+  };
+
+  return patientFindCalls;
+}
+
+async function assertCreateNormalizesPhone({ body, expectedPhone, expectedPhoneDigits }) {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "selectLean", value: null },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+  const patientFindCalls = mockNoPendingCreateEmailLookup(body.email.toLowerCase());
+  const createCalls = [];
+
+  Patient.create = async (payload) => {
+    createCalls.push(payload);
+    return {
+      toObject: () => ({ _id: "created-patient-id", ...payload }),
+    };
+  };
+
+  try {
+    const result = await createPatientService({ user, body });
+
+    assert.equal(findOneCalls.length, 2);
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(findOneCalls[1].phoneDigits, expectedPhoneDigits);
+    assert.equal(createCalls.length, 1);
+    assert.equal(createCalls[0].phone, expectedPhone);
+    assert.equal(createCalls[0].phoneDigits, expectedPhoneDigits);
+    assert.equal(result.phone, expectedPhone);
+    assert.equal(result.phoneDigits, expectedPhoneDigits);
+  } finally {
+    restorePatientMethods();
+  }
+}
+
 test("createPatientService blocks duplicate email on create", async () => {
   restorePatientMethods();
 
@@ -271,6 +333,87 @@ test("createPatientService blocks duplicate email on create", async () => {
 
     assert.equal(findOneCalls.length, 1);
     assert.deepEqual(findOneCalls[0], { email: "new@example.com" });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("createPatientService normalizes valid US phone to E.164", async () => {
+  await assertCreateNormalizesPhone({
+    body: makeValidCreateBody({ phone: "6195550102", country: "United States" }),
+    expectedPhone: "+16195550102",
+    expectedPhoneDigits: "16195550102",
+  });
+});
+
+test("createPatientService normalizes valid MX phone to E.164", async () => {
+  await assertCreateNormalizesPhone({
+    body: makeValidCreateBody({
+      phone: "5512345678",
+      country: "Mexico",
+      state: "Ciudad de Mexico",
+      city: "Mexico City",
+    }),
+    expectedPhone: "+525512345678",
+    expectedPhoneDigits: "525512345678",
+  });
+});
+
+test("createPatientService normalizes valid GB phone preserving national trunk input", async () => {
+  await assertCreateNormalizesPhone({
+    body: makeValidCreateBody({
+      phone: "02079460056",
+      country: "United Kingdom",
+      state: "England",
+      city: "London",
+    }),
+    expectedPhone: "+442079460056",
+    expectedPhoneDigits: "442079460056",
+  });
+});
+
+test("createPatientService accepts E.164 phone input with selected country", async () => {
+  await assertCreateNormalizesPhone({
+    body: makeValidCreateBody({
+      phone: "+442079460056",
+      country: "United Kingdom",
+      state: "England",
+      city: "London",
+    }),
+    expectedPhone: "+442079460056",
+    expectedPhoneDigits: "442079460056",
+  });
+});
+
+test("createPatientService rejects invalid phone for selected country", async () => {
+  restorePatientMethods();
+
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called for invalid phone");
+  };
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for invalid phone");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for invalid phone");
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called for invalid phone");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body: makeValidCreateBody({ phone: "02079460056", country: "United States" }),
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Invalid phone number for selected country");
+        return true;
+      }
+    );
   } finally {
     restorePatientMethods();
   }
@@ -344,7 +487,7 @@ test("updatePatientService blocks duplicate phoneDigits on update", async () => 
           user,
           patientId: current._id,
           body: {
-            phone: "6195550102",
+            phone: "+16195550102",
           },
         }),
       (err) => {

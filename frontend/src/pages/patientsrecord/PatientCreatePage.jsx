@@ -15,6 +15,7 @@ import {
  } from "../../utilsfront/geoLabels.js";
  import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx";
 import { useTranslation } from "react-i18next";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 function calcAgeFromYmd(birthYmd, refYmd) {
   if (!birthYmd) return NaN;
@@ -34,6 +35,14 @@ function calcAgeFromYmd(birthYmd, refYmd) {
 
   return Math.max(0, age);
 }
+
+const digitsOnly = (value) => String(value || "").replace(/\D/g, "");
+
+const parsePhoneForCountry = (value, countryIso) => {
+  const digits = digitsOnly(value);
+  if (!digits || !countryIso) return null;
+  return parsePhoneNumberFromString(digits, countryIso);
+};
 
 export default function PatientCreatePage() {
   const { t, i18n } = useTranslation();
@@ -146,6 +155,16 @@ const dialCode = useMemo(
   () => getDialCodeByCountryIso(countryIso),
   [countryIso]
 );
+const phoneDigits = useMemo(() => digitsOnly(form.phone), [form.phone]);
+const parsedPhone = useMemo(
+  () => parsePhoneForCountry(phoneDigits, countryIso),
+  [phoneDigits, countryIso]
+);
+const isPhoneValidForCountry = Boolean(parsedPhone?.isValid());
+const isAdultPhoneInvalid =
+  !isMinor && (!countryIso || !phoneDigits || !isPhoneValidForCountry);
+const isMinorPhoneInvalid =
+  isMinor && !!phoneDigits && (!countryIso || !isPhoneValidForCountry);
 
 const onCountryChange = (e) => {
   const iso = e.target.value;
@@ -166,10 +185,9 @@ const onStateChange = (e) => {
 const onCityChange = (e) => setCityName(e.target.value);
 
  // Teléfono: solo dígitos (máx 10)
- const maxRest = 10;
  const onPhoneChange = (e) => {
    const digits = e.target.value.replace(/\D/g, "");
-   setForm((f) => ({ ...f, phone: digits.slice(0, maxRest) }));
+   setForm((f) => ({ ...f, phone: digits }));
  };
  const allowDigitKeys = (e) => {
    const k = e.key;
@@ -179,14 +197,14 @@ const onCityChange = (e) => setCityName(e.target.value);
  };
  const onPasteDigits = (e) => {
    const txt = (e.clipboardData || window.clipboardData).getData("text");
-   const digits = String(txt).replace(/\D/g, "").slice(0, maxRest);
+   const digits = String(txt).replace(/\D/g, "");
    e.preventDefault();
    setForm((f) => ({ ...f, phone: digits }));
  };
 
  // al cambiar de país, recorta automáticamente el largo permitido
   useEffect(() => {
-    setForm((f) => ({ ...f, phone: (f.phone || "").replace(/\D/g, "").slice(0, maxRest) }));
+    setForm((f) => ({ ...f, phone: digitsOnly(f.phone) }));
   }, [countryIso]);
 
 
@@ -321,15 +339,14 @@ if (isMinor) {
     if (!gender || !organDonor || !bloodDonor) return; // front-guard simple
      if (!country) return;
      if (!system || !height || !weight) return;
-     const rest = String(form.phone || "").replace(/\D/g, "");
-    const totalDigits = rest.length;
-     // Phone: adultos obligatorio 10 dígitos; menores opcional pero si se escribe debe tener 10
+     const rest = phoneDigits;
+     // Phone: adultos obligatorio y válido para el país; menores opcional
     if (!isMinor) {
-      if (!countryIso || totalDigits !== 10) {
+      if (isAdultPhoneInvalid) {
         toast.error(t("patients.create.phoneInvalidAdult"));
         return;
       }
-    } else if (totalDigits !== 0 && totalDigits !== 10) {
+    } else if (isMinorPhoneInvalid) {
       toast.error(t("patients.create.phoneInvalidMinor"));
       return;
     }
@@ -444,7 +461,7 @@ if (isMinor) {
       </div>
 
       <p className="text-xs mt-1">
-        {t("patients.create.phoneDigitsCounter")}: {(form.phone || "").length}/10
+        {t("patients.create.phoneDigitsCounter")}: {phoneDigits.length}
       </p>
     </div>
   )}
@@ -822,11 +839,11 @@ if (isMinor) {
             <Button type="submit" loading={createPatient.isPending}
             disabled={
               (!isMinor && !isEmailFormatValid) ||
-              (!isMinor && (form.phone || "").length !== 10) ||
+              isAdultPhoneInvalid ||
               (isMinor && form.email && !isEmailFormatValid) ||
               (isMinor && !isParentEmailFormatValid) ||
               (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
-              (isMinor && (form.phone || "").length !== 0 && (form.phone || "").length !== 10) ||!gender || !organDonor || (hasDiseases === "yes" && form.diseases.trim() === "")||
+              isMinorPhoneInvalid ||!gender || !organDonor || (hasDiseases === "yes" && form.diseases.trim() === "")||
                !bloodDonor || (hasAllergies === "yes" && form.allergies.trim() === "") || !system || !height 
                || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim()) 
                ||  (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 

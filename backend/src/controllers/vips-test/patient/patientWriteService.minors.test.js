@@ -435,6 +435,56 @@ test("createPatientService creates a minor with parentEmail without saving it as
   }
 });
 
+test("createPatientService rejects invalid optional minor phone", async () => {
+  restorePatientMethods();
+
+  const parentFindOneCalls = mockParentFindOne(makeApprovedAdultParent());
+  const parentFindOne = Patient.findOne;
+  const guardianDecisionCalls = [];
+
+  Patient.findOne = (query) => {
+    if (query.email) return parentFindOne(query);
+
+    guardianDecisionCalls.push(query);
+    return {
+      sort: (sort) => {
+        assert.deepEqual(sort, { updatedAt: -1 });
+        return {
+          select: (projection) => {
+            assert.equal(projection, "updatedAt approvedAt");
+            return {
+              lean: async () => null,
+            };
+          },
+        };
+      },
+    };
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called for invalid minor phone");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body: makeMinorCreateBody({ phone: "123" }),
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Invalid phone number for selected country");
+        return true;
+      }
+    );
+
+    assert.equal(parentFindOneCalls.length, 1);
+    assert.equal(guardianDecisionCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("createPatientService rejects minors declaring children", async () => {
   restorePatientMethods();
   rejectCreate();
