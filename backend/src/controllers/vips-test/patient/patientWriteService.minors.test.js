@@ -54,6 +54,20 @@ function minorBirthDate() {
   return `${year}-01-01`;
 }
 
+function ymdFromDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function todayYmd() {
+  return ymdFromDate(new Date());
+}
+
+function daysFromTodayYmd(days) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return ymdFromDate(date);
+}
+
 function makeMinorCreateBody(overrides = {}) {
   return {
     fullname: "Minor Patient",
@@ -1038,6 +1052,250 @@ test("updatePatientService immediately approves minor alive-to-deceased when gua
         updateDoc: { $set: { status: "cancelled_due_to_death" } },
       },
     ]);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService immediately approves minor deceased-guardian full-form death update with past date", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    birthDate: new Date("2010-01-01T12:00:00.000Z"),
+    age: 16,
+    ageCategory: "13-17",
+    isDeceased: false,
+    dateOfDeath: null,
+    diseases: [],
+    allergies: [],
+    medications: [],
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  const parent = makeApprovedAdultParent({ isDeceased: true });
+
+  mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: UPDATE_PARENT_PROJECTION,
+    },
+  ]);
+  const updateCalls = [];
+  const historyCalls = [];
+  const appointmentArchiveCalls = mockAppointmentDeathArchive();
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async (payload) => {
+    historyCalls.push(payload);
+    return payload;
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for minor immediate edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: {
+        fullname: current.fullname,
+        parentEmail: current.parentEmail,
+        birthDate: "2010-01-01",
+        diseases: [],
+        allergies: [],
+        medications: [],
+        bloodtype: current.bloodtype,
+        gender: current.gender,
+        country: current.country,
+        state: current.state,
+        city: current.city,
+        organDonor: current.organDonor,
+        bloodDonor: current.bloodDonor,
+        measurementSystem: current.measurementSystem,
+        height: current.heightM,
+        weight: current.weightKg,
+        isDeceased: true,
+        dateOfDeath: "2020-01-01",
+        causeOfDeath: "Accident",
+      },
+    });
+
+    assert.equal(result.isDeceased, true);
+    assert.equal(result.dateOfDeath.toISOString().slice(0, 10), "2020-01-01");
+    assert.equal(result.age, 10);
+    assert.equal(result.ageCategory, "0-12");
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.dateOfDeath.toISOString().slice(0, 10), "2020-01-01");
+    assert.equal(updateCalls[0].updateDoc.$set.age, 10);
+    assert.equal(updateCalls[0].updateDoc.$set.ageCategory, "0-12");
+    assert.equal(historyCalls.length, 1);
+    assert.deepEqual(appointmentArchiveCalls, [
+      {
+        query: {
+          patient: current._id,
+          status: { $in: ["pending", "accepted"] },
+          start: { $gte: updateCalls[0].updateDoc.$set.approvedAt },
+        },
+        updateDoc: { $set: { status: "cancelled_due_to_death" } },
+      },
+    ]);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService immediately approves minor deceased-guardian death update with today's date", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: false,
+    dateOfDeath: null,
+    ageCategory: "0-12",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  const parent = makeApprovedAdultParent({ isDeceased: true });
+  const dateOfDeath = todayYmd();
+
+  mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: UPDATE_PARENT_PROJECTION,
+    },
+  ]);
+  const updateCalls = [];
+  const historyCalls = [];
+  mockAppointmentDeathArchive();
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async (payload) => {
+    historyCalls.push(payload);
+    return payload;
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for minor immediate edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: {
+        isDeceased: true,
+        dateOfDeath,
+        causeOfDeath: "Accident",
+      },
+    });
+
+    assert.equal(result.isDeceased, true);
+    assert.equal(result.dateOfDeath.toISOString().slice(0, 10), dateOfDeath);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(historyCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService rejects minor deceased-guardian future dateOfDeath", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    isDeceased: false,
+    dateOfDeath: null,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for invalid dateOfDeath");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for invalid dateOfDeath");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for invalid dateOfDeath");
+  };
+  guardAppointmentDeathArchive();
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: current._id,
+          body: {
+            isDeceased: true,
+            dateOfDeath: daysFromTodayYmd(1),
+            causeOfDeath: "Accident",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "DATE_OF_DEATH_IN_FUTURE");
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService rejects minor deceased-guardian dateOfDeath before birthDate", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    birthDate: new Date("2016-01-01T12:00:00.000Z"),
+    isDeceased: false,
+    dateOfDeath: null,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for invalid dateOfDeath");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for invalid dateOfDeath");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for invalid dateOfDeath");
+  };
+  guardAppointmentDeathArchive();
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user: { _id: "doctor-id" },
+          patientId: current._id,
+          body: {
+            isDeceased: true,
+            dateOfDeath: "2015-12-31",
+            causeOfDeath: "Accident",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "DATE_OF_DEATH_BEFORE_BIRTHDATE");
+        return true;
+      }
+    );
   } finally {
     restorePatientMethods();
   }

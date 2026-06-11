@@ -38,6 +38,94 @@ function calcAgeFromYmd(birthYmd, refYmd) {
   return age;
 }
 
+const FT_TO_M = 0.3048;
+const LB_TO_KG = 0.45359237;
+
+const normStr = (value) => String(value ?? "").trim();
+const normLower = (value) => normStr(value).toLowerCase();
+const normNameKey = (value) =>
+  normStr(value).replace(/\s+/g, " ").toLowerCase();
+const ymdFromValue = (value) => {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+};
+const arrKey = (value) =>
+  (Array.isArray(value) ? value : [])
+    .map((item) => normStr(item))
+    .filter(Boolean)
+    .sort()
+    .join("||");
+const near = (a, b, eps = 0.005) =>
+  Math.abs(Number(a) - Number(b)) <= eps;
+const childKey = (children) =>
+  (Array.isArray(children) ? children : [])
+    .map((child) => normNameKey(typeof child === "string" ? child : child?.name))
+    .filter(Boolean)
+    .join("||");
+
+function isDeathStatusOnlyEdit(patient, payload) {
+  if (!patient || !payload || !("isDeceased" in payload)) return false;
+
+  const nextIsDeceased = Boolean(payload.isDeceased);
+  const deathChanged =
+    nextIsDeceased !== Boolean(patient.isDeceased) ||
+    (nextIsDeceased &&
+      ymdFromValue(payload.dateOfDeath) !== ymdFromValue(patient.dateOfDeath)) ||
+    (nextIsDeceased &&
+      normStr(payload.causeOfDeath) !== normStr(patient.causeOfDeath));
+
+  if (!deathChanged) return false;
+
+  const sys = normLower(payload.measurementSystem || patient.measurementSystem || "metric");
+  const nextHeightM =
+    sys === "imperial" ? Number(payload.height) * FT_TO_M : Number(payload.height);
+  const nextWeightKg =
+    sys === "imperial" ? Number(payload.weight) * LB_TO_KG : Number(payload.weight);
+  const currentPhoneDigits = String(patient.phoneDigits || patient.phone || "").replace(/\D/g, "");
+  const incomingPhoneDigits = String(payload.phone || "").replace(/\D/g, "");
+  const phoneChanged =
+    "phone" in payload &&
+    (incomingPhoneDigits && currentPhoneDigits
+      ? !currentPhoneDigits.endsWith(incomingPhoneDigits)
+      : incomingPhoneDigits !== currentPhoneDigits);
+
+  return !(
+    normStr(payload.fullname) !== normStr(patient.fullname) ||
+    ymdFromValue(payload.birthDate) !== ymdFromValue(patient.birthDate) ||
+    arrKey(payload.diseases) !== arrKey(patient.diseases) ||
+    arrKey(payload.allergies) !== arrKey(patient.allergies) ||
+    arrKey(payload.medications) !== arrKey(patient.medications) ||
+    normStr(payload.bloodtype).toUpperCase() !== normStr(patient.bloodtype).toUpperCase() ||
+    normLower(payload.gender) !== normLower(patient.gender) ||
+    normStr(payload.country) !== normStr(patient.country) ||
+    normStr(payload.state) !== normStr(patient.state) ||
+    normStr(payload.city) !== normStr(patient.city) ||
+    Boolean(payload.organDonor) !== Boolean(patient.organDonor) ||
+    Boolean(payload.bloodDonor) !== Boolean(patient.bloodDonor) ||
+    normLower(payload.parentEmail) !== normLower(patient.parentEmail) ||
+    ("email" in payload && normLower(payload.email) !== normLower(patient.email)) ||
+    phoneChanged ||
+    ("childrenCount" in payload &&
+      Number(payload.childrenCount) !== Number(patient.childrenCount || 0)) ||
+    ("children" in payload && childKey(payload.children) !== childKey(patient.children)) ||
+    sys !== normLower(patient.measurementSystem || "metric") ||
+    !near(nextHeightM, patient.heightM) ||
+    !near(nextWeightKg, patient.weightKg)
+  );
+}
+
+const buildDeathStatusPayload = (payload) => ({
+  isDeceased: Boolean(payload.isDeceased),
+  ...(payload.isDeceased
+    ? {
+        dateOfDeath: payload.dateOfDeath,
+        causeOfDeath: payload.causeOfDeath,
+      }
+    : {}),
+});
+
 
 export default function PatientEditPage() {
   const { t, i18n } = useTranslation();
@@ -75,7 +163,7 @@ const [childrenNames, setChildrenNames] = useState([]);
 const [initialChildrenCount, setInitialChildrenCount] = useState(0);
 const [initialChildrenNames, setInitialChildrenNames] = useState([]);
 
-const normNameKey = (v) =>
+const normChildNameKey = (v) =>
   String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
 
 
@@ -126,6 +214,13 @@ useEffect(() => {
   const [height, setHeight] = useState("");          // m o ft según system
   const [weight, setWeight] = useState("");          // kg o lb según system
   const [cause, setCause] = useState("");            // cause of death
+  const todayYmd = new Date().toISOString().slice(0,10);
+  const isDeathDateInvalid =
+    life === "deceased" &&
+    (!form.dateOfDeath ||
+      form.dateOfDeath > todayYmd ||
+      (form.birthDate && form.dateOfDeath < form.birthDate));
+  const isDeathCauseInvalid = life === "deceased" && !cause.trim();
   const [hasDiseases, setHasDiseases] = useState("no"); // "yes" | "no"
   const [hasAllergies, setHasAllergies] = useState("no"); // "yes" | "no"
   const [hasMedications, setHasMedications] = useState("no"); // "yes" | "no"
@@ -411,7 +506,6 @@ setForm((f) => ({ ...f, phone: restPhone }));
 
   const onSubmit = (e) => {
     e.preventDefault();
-    const today = new Date().toISOString().slice(0,10);
 
 if (!form.birthDate) {
   toast.error(t("patients.errors.birthDateRequired"));
@@ -423,7 +517,7 @@ if (life === "deceased") {
     toast.error(t("patients.errors.dateOfDeathRequired"));
     return;
   }
-  if (form.dateOfDeath > today) {
+  if (form.dateOfDeath > todayYmd) {
     toast.error(t("patients.errors.dateOfDeathInFuture"));
     return;
   }
@@ -474,7 +568,7 @@ if (needsChildren) {
 
   // 🔒 existentes no cambian
   for (let i = 0; i < minChildren; i++) {
-    if (normNameKey(names[i]) !== normNameKey(initialChildrenNames[i] || "")) {
+    if (normChildNameKey(names[i]) !== normChildNameKey(initialChildrenNames[i] || "")) {
       toast.error(t("patients.edit.childrenNamesImmutable"));
       return;
     }
@@ -491,7 +585,7 @@ if (needsChildren) {
   // ✅ no duplicados
   const seen = new Set();
   for (const nm of names) {
-    const k = normNameKey(nm);
+    const k = normChildNameKey(nm);
     if (k && seen.has(k)) {
       toast.error(t("patients.edit.childrenNamesDuplicate"));
       return;
@@ -511,7 +605,7 @@ if (isMinor) {
 }
 
 
-    if (life === "deceased" && !cause.trim()) {
+    if (isDeathCauseInvalid) {
     toast.error(t("patients.edit.causeRequired"));
     return;
    }
@@ -600,7 +694,11 @@ if (isMinor) {
       payload.phone = rest;
     }
 
-    updatePatient.mutate(payload,
+    const mutationPayload = isDeathStatusOnlyEdit(patient, payload)
+      ? buildDeathStatusPayload(payload)
+      : payload;
+
+    updatePatient.mutate(mutationPayload,
       {
         onSuccess: () => {
           if (location.state?.from === "detail") navigate(`/patients/${id}`, { replace: true });
@@ -1149,7 +1247,7 @@ if (isMinor) {
               || !height || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim()) 
               || (hasDiseases === "yes" && form.diseases.trim() === "") || (hasAllergies === "yes" && form.allergies.trim() === "") 
               || (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 
-              || isHeightInvalidForBtn || isWeightInvalidForBtn || updatePatient.isPending}>
+              || isDeathDateInvalid || isDeathCauseInvalid || isHeightInvalidForBtn || isWeightInvalidForBtn || updatePatient.isPending}>
               {updatePatient.isPending ? t("patients.edit.saving") : t("patients.edit.save")}
             </Button>
           </div>
