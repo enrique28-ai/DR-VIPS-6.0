@@ -453,8 +453,7 @@ if (isMinor) {
           onPaste={onPasteDigits}
           inputMode="numeric"
           pattern="[0-9]*"
-          disabled={!countryIso}
-          placeholder={country ? t("patients.create.phoneAreaDigitsPlaceholder") : t("patients.create.selectCountryFirst")}
+          placeholder={t("patients.create.phoneAreaDigitsPlaceholder")}
           className="flex-1 rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
           required
         />
