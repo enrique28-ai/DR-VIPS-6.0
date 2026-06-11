@@ -165,6 +165,13 @@ const isAdultPhoneInvalid =
   !isMinor && (!countryIso || !phoneDigits || !isPhoneValidForCountry);
 const isMinorPhoneInvalid =
   isMinor && !!phoneDigits && (!countryIso || !isPhoneValidForCountry);
+const phoneHelperKey = !countryIso && !!phoneDigits
+  ? "patients.create.phoneSelectCountryToValidate"
+  : countryIso && !isMinor && !phoneDigits
+    ? "patients.create.phoneRequiredAdult"
+    : countryIso && !!phoneDigits && !isPhoneValidForCountry
+      ? "patients.create.phoneInvalidAdult"
+      : null;
 
 const onCountryChange = (e) => {
   const iso = e.target.value;
@@ -459,8 +466,10 @@ if (isMinor) {
         />
       </div>
 
-      <p className="text-xs mt-1">
-        {t("patients.create.phoneDigitsCounter")}: {phoneDigits.length}
+      <p className={`text-xs mt-1 ${phoneHelperKey ? "text-red-600" : "text-gray-500"}`}>
+        {phoneHelperKey
+          ? t(phoneHelperKey)
+          : `${t("patients.create.phoneDigitsCounter")}: ${phoneDigits.length}`}
       </p>
     </div>
   )}

@@ -342,6 +342,8 @@
       "phoneAreaDigitsPlaceholder": "Número nacional de teléfono",
       "selectCountryFirst": "Seleccione primero un país",
       "phoneDigitsCounter": "Dígitos introducidos",
+      "phoneSelectCountryToValidate": "Seleccione un país para validar este número de teléfono.",
+      "phoneRequiredAdult": "El teléfono es obligatorio para adultos.",
       "selectCountryOption": "Seleccione un país…",
       "selectStateOption": "Seleccione un estado…",
       "selectCityOption": "Seleccione una ciudad…",
