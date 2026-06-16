@@ -615,6 +615,70 @@ test("updatePatientService rejects country-only update when stored E.164 phone b
   }
 });
 
+test("updatePatientService accepts country update when valid phone for new country is submitted", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        country: "United Kingdom",
+        state: "England",
+        city: "London",
+        phone: "02079460056",
+      },
+    });
+
+    assert.equal(findOneCalls.length, 2);
+    assert.equal(findOneCalls[1].phoneDigits, "442079460056");
+    assert.deepEqual(findOneCalls[1]._id, { $ne: current._id });
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.country, "United Kingdom");
+    assert.equal(updateCalls[0].updateDoc.$set.state, "England");
+    assert.equal(updateCalls[0].updateDoc.$set.city, "London");
+    assert.equal(updateCalls[0].updateDoc.$set.phone, "+442079460056");
+    assert.equal(updateCalls[0].updateDoc.$set.phoneDigits, "442079460056");
+    assert.equal(result.country, "United Kingdom");
+    assert.equal(result.phone, "+442079460056");
+    assert.equal(result.phoneDigits, "442079460056");
+    assert.deepEqual(updateCalls[0].options, {
+      new: true,
+      runValidators: true,
+      context: "query",
+    });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService blocks duplicate email on update when current patient has no email", async () => {
   restorePatientMethods();
 
