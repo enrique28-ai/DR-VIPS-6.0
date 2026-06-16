@@ -355,6 +355,7 @@
     "phoneAreaDigitsPlaceholder": "National phone number",
     "selectCountryFirst": "Select country first",
     "phoneDigitsCounter": "Digits entered",
+    "phoneCountryAndNumberRequired": "Select a country and enter a phone number to continue.",
     "phoneSelectCountryToValidate": "Select a country to validate this phone number.",
     "phoneRequiredAdult": "Phone is required for adults.",
     "selectCountryOption": "Select a country…",

@@ -99,7 +99,6 @@ useEffect(() => {
     setForm((f) => ({
       ...f,
       email: "",
-      phone: "",
     }));
   } else {
     setParentEmail("");
@@ -161,17 +160,25 @@ const parsedPhone = useMemo(
   [phoneDigits, countryIso]
 );
 const isPhoneValidForCountry = Boolean(parsedPhone?.isValid());
-const isAdultPhoneInvalid =
-  !isMinor && (!countryIso || !phoneDigits || !isPhoneValidForCountry);
-const isMinorPhoneInvalid =
-  isMinor && !!phoneDigits && (!countryIso || !isPhoneValidForCountry);
-const phoneHelperKey = !countryIso && !!phoneDigits
-  ? "patients.create.phoneSelectCountryToValidate"
-  : countryIso && !isMinor && !phoneDigits
-    ? "patients.create.phoneRequiredAdult"
-    : countryIso && !!phoneDigits && !isPhoneValidForCountry
-      ? "patients.create.phoneInvalidAdult"
-      : null;
+const phoneIssueKey = !isMinor
+  ? !countryIso && !phoneDigits
+    ? "patients.create.phoneCountryAndNumberRequired"
+    : !countryIso
+      ? "patients.create.phoneSelectCountryToValidate"
+      : !phoneDigits
+        ? "patients.create.phoneRequiredAdult"
+        : !isPhoneValidForCountry
+          ? "patients.create.phoneInvalidAdult"
+          : null
+  : !phoneDigits
+    ? null
+    : !countryIso
+      ? "patients.create.phoneSelectCountryToValidate"
+      : !isPhoneValidForCountry
+        ? "patients.create.phoneInvalidMinor"
+        : null;
+const isAdultPhoneInvalid = !isMinor && Boolean(phoneIssueKey);
+const isMinorPhoneInvalid = isMinor && Boolean(phoneIssueKey);
 
 const onCountryChange = (e) => {
   const iso = e.target.value;
@@ -191,7 +198,7 @@ const onStateChange = (e) => {
 
 const onCityChange = (e) => setCityName(e.target.value);
 
- // Teléfono: solo dígitos (máx 10)
+ // Telefono: solo digitos
  const onPhoneChange = (e) => {
    const digits = e.target.value.replace(/\D/g, "");
    setForm((f) => ({ ...f, phone: digits }));
@@ -209,7 +216,7 @@ const onCityChange = (e) => setCityName(e.target.value);
    setForm((f) => ({ ...f, phone: digits }));
  };
 
- // al cambiar de país, recorta automáticamente el largo permitido
+ // Al cambiar de pais, conserva solo digitos.
   useEffect(() => {
     setForm((f) => ({ ...f, phone: digitsOnly(f.phone) }));
   }, [countryIso]);
@@ -344,19 +351,14 @@ if (isMinor) {
     }
 
     if (!gender || !organDonor || !bloodDonor) return; // front-guard simple
-     if (!country) return;
-     if (!system || !height || !weight) return;
      const rest = phoneDigits;
-     // Phone: adultos obligatorio y válido para el país; menores opcional
-    if (!isMinor) {
-      if (isAdultPhoneInvalid) {
-        toast.error(t("patients.create.phoneInvalidAdult"));
-        return;
-      }
-    } else if (isMinorPhoneInvalid) {
-      toast.error(t("patients.create.phoneInvalidMinor"));
+     // Phone: frontend UX only; backend remains authoritative.
+    if (phoneIssueKey) {
+      toast.error(t(phoneIssueKey));
       return;
     }
+     if (!country) return;
+     if (!system || !height || !weight) return;
     // Email: adultos obligatorio formato; menores: si se escribe, validar formato
     if ((!isMinor && !isEmailFormatValid) || (isMinor && form.email && !isEmailFormatValid)) {
       toast.error(t("patients.create.invalidEmail"));
@@ -379,7 +381,7 @@ if (isMinor) {
       {
         fullname: form.fullname.trim(),
         ...(!isMinor ? { email: normalizedEmail } : {}),
-        ...(!isMinor ? { phone: rest } : {}),
+        ...(phoneDigits ? { phone: rest } : {}),
         birthDate: form.birthDate,
         age: ageNum,
         diseases: diseasesArr,
@@ -440,10 +442,9 @@ if (isMinor) {
 )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-  {!isMinor && (
     <div>
       <label className="block text-sm font-medium text-gray-700">
-        {t("patients.create.phone")}<span className="text-red-500">*</span>
+        {t("patients.create.phone")}{!isMinor && <span className="text-red-500">*</span>}
       </label>
 
       <div className="flex gap-2">
@@ -462,19 +463,18 @@ if (isMinor) {
           pattern="[0-9]*"
           placeholder={t("patients.create.phoneAreaDigitsPlaceholder")}
           className="flex-1 rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-          required
+          required={!isMinor}
         />
       </div>
 
-      <p className={`text-xs mt-1 ${phoneHelperKey ? "text-red-600" : "text-gray-500"}`}>
-        {phoneHelperKey
-          ? t(phoneHelperKey)
+      <p className={`text-xs mt-1 ${phoneIssueKey ? "text-red-600" : "text-gray-500"}`}>
+        {phoneIssueKey
+          ? t(phoneIssueKey)
           : `${t("patients.create.phoneDigitsCounter")}: ${phoneDigits.length}`}
       </p>
     </div>
-  )}
 
-  <div className={!isMinor ? "" : "sm:col-span-2"}>
+  <div>
     <div>
   <label className="block text-sm font-medium text-gray-700 mb-1">
     {t("patients.create.birthDate")} <span className="text-red-500">*</span>
