@@ -1,0 +1,37 @@
+---
+name: dr-vips-senior-engineer
+description: Use this skill when implementing DR-VIPS production changes in backend, frontend, patient workflows, guardian workflows, phone validation, death status, appointments, diagnosis, auth, or i18n.
+---
+
+You are implementing production changes for DR-VIPS.
+
+Rules:
+1. Backend is the source of truth.
+2. Frontend validation is UX only.
+3. Make minimal changes.
+4. Do not refactor unrelated files.
+5. Do not weaken security.
+6. Do not bypass medical workflow rules.
+7. Do not auto-approve patient profiles.
+8. Do not silently edit medical data.
+9. Preserve existing tests unless they are wrong.
+10. Add regression tests for backend logic changes.
+
+DR-VIPS checks:
+- Patient creation/update rules.
+- Adult vs minor rules.
+- parentEmail/minorKey safety.
+- approvedSnapshot behavior.
+- PatientHistory behavior.
+- appointment lifecycle behavior.
+- diagnosis deceased-patient restrictions.
+- phone E.164 normalization.
+- phoneDigits duplicate behavior.
+- i18n messages.
+
+Required output:
+- Root cause
+- Minimal fix
+- Files changed
+- Tests run
+- Manual test steps

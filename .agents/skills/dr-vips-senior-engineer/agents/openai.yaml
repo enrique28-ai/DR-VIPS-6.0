@@ -1,0 +1,4 @@
+interface:
+  display_name: "DR-VIPS Senior Engineer"
+  short_description: "Senior DR-VIPS bug diagnosis and safe patching."
+  default_prompt: "Use this skill to inspect DR-VIPS 6.0, diagnose reported bugs, propose the smallest safe fix, and patch only when asked."
