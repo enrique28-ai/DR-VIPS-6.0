@@ -556,6 +556,65 @@ test("updatePatientService blocks duplicate phoneDigits on update", async () => 
   }
 });
 
+test("updatePatientService rejects country-only update when stored E.164 phone belongs to another country", async () => {
+  await assertCreateNormalizesPhone({
+    body: makeValidCreateBody({
+      phone: "02079460056",
+      country: "United Kingdom",
+      state: "England",
+      city: "London",
+    }),
+    expectedPhone: "+442079460056",
+    expectedPhoneDigits: "442079460056",
+  });
+
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    phone: "+442079460056",
+    phoneDigits: "442079460056",
+    country: "United Kingdom",
+    state: "England",
+    city: "London",
+    owners: [user._id],
+    createdBy: user._id,
+  });
+  const findOneCalls = mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for phone-country mismatch");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for phone-country mismatch");
+  };
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not save mismatched country and phone");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            country: "United States",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Invalid phone number for selected country");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService blocks duplicate email on update when current patient has no email", async () => {
   restorePatientMethods();
 

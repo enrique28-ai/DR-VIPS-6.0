@@ -1176,6 +1176,13 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       update.phone = ph.phone;
       update.phoneDigits = ph.digits;
     }
+  } else if ("country" in body && current.phone) {
+    const ph = normPhoneWithCountry(country, current.phone);
+    if (!ph.ok) {
+      const err = new Error(ph.error);
+      err.status = 400;
+      throw err;
+    }
   }
 
   if (!isMinorNext) {
