@@ -372,6 +372,19 @@ test("createPatientService normalizes valid GB phone preserving national trunk i
   });
 });
 
+test("createPatientService normalizes valid IT phone preserving leading zero", async () => {
+  await assertCreateNormalizesPhone({
+    body: makeValidCreateBody({
+      phone: "0212345678",
+      country: "Italy",
+      state: "Lombardy",
+      city: "Milan",
+    }),
+    expectedPhone: "+390212345678",
+    expectedPhoneDigits: "390212345678",
+  });
+});
+
 test("createPatientService accepts E.164 phone input with selected country", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
