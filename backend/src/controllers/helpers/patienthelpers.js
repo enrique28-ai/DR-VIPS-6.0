@@ -419,6 +419,8 @@ const hasNumericConflict = (field) => {
     state: pickScalar("state"),
     city: pickScalar("city"),
     phone: pickScalar("phone"),
+    phoneCountry: pickScalar("phoneCountry"),
+    phoneCountryIso: pickScalar("phoneCountryIso"),
     bloodtype: pickScalar("bloodtype"),
     organDonor: pickScalar("organDonor"),
     bloodDonor: pickScalar("bloodDonor"),

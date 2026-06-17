@@ -337,6 +337,14 @@ export const rejectPatientProfileService = async ({ user, profileId }) => {
     canonical.phoneDigits = String(phoneVal).replace(/\D/g, "");
   }
 
+  const phoneCountryVal = sv(snapshot.phoneCountry);
+  if (phoneCountryVal !== undefined) canonical.phoneCountry = String(phoneCountryVal).trim();
+
+  const phoneCountryIsoVal = sv(snapshot.phoneCountryIso);
+  if (phoneCountryIsoVal !== undefined) {
+    canonical.phoneCountryIso = String(phoneCountryIsoVal).trim().toUpperCase();
+  }
+
   if (snapshot.measurementSystem) canonical.measurementSystem = snapshot.measurementSystem;
   if (typeof snapshot.heightM === "number") canonical.heightM = snapshot.heightM;
   if (typeof snapshot.weightKg === "number") canonical.weightKg = snapshot.weightKg;
@@ -613,6 +621,20 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
 
   const cityVal = sv(snapshot.city);
   if (cityVal !== undefined) canonical.city = cityVal;
+
+  const phoneVal = sv(snapshot.phone);
+  if (phoneVal !== undefined) {
+    canonical.phone = phoneVal;
+    canonical.phoneDigits = String(phoneVal).replace(/\D/g, "");
+  }
+
+  const phoneCountryVal = sv(snapshot.phoneCountry);
+  if (phoneCountryVal !== undefined) canonical.phoneCountry = String(phoneCountryVal).trim();
+
+  const phoneCountryIsoVal = sv(snapshot.phoneCountryIso);
+  if (phoneCountryIsoVal !== undefined) {
+    canonical.phoneCountryIso = String(phoneCountryIsoVal).trim().toUpperCase();
+  }
 
   if (snapshot.measurementSystem) canonical.measurementSystem = snapshot.measurementSystem;
   if (typeof snapshot.heightM === "number") canonical.heightM = snapshot.heightM;

@@ -448,6 +448,58 @@ test("rejectPatientProfileService restores approvedSnapshot when available", asy
   }
 });
 
+test("rejectPatientProfileService restores phone country from previous profile", async () => {
+  restoreModelMethods();
+
+  const target = makePatient({
+    _id: "profile-id",
+    phone: "+16195550101",
+    phoneDigits: "16195550101",
+    phoneCountry: "United States",
+    phoneCountryIso: "US",
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    updatedAt: new Date("2026-01-03T12:00:00.000Z"),
+  });
+  const previous = makePatient({
+    _id: "previous-profile-id",
+    fullname: "Previous Patient",
+    phone: "+442079460056",
+    phoneDigits: "442079460056",
+    phoneCountry: "United Kingdom",
+    phoneCountryIso: "GB",
+    country: "Mexico",
+    state: "Ciudad de Mexico",
+    city: "Mexico City",
+    updatedAt: new Date("2026-01-01T12:00:00.000Z"),
+  });
+
+  mockPatientFindSequence([[target, previous], [previous]]);
+  const updateManyCalls = mockPatientUpdateMany();
+  const userUpdateCalls = mockUserDecisionUpdate();
+
+  try {
+    const result = await rejectPatientProfileService({
+      user: makePatientUser(),
+      profileId: "profile-id",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(updateManyCalls.length, 1);
+    assert.equal(updateManyCalls[0].updateDoc.$set.country, "Mexico");
+    assert.equal(updateManyCalls[0].updateDoc.$set.state, "Ciudad de Mexico");
+    assert.equal(updateManyCalls[0].updateDoc.$set.city, "Mexico City");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phone, "+442079460056");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phoneDigits, "442079460056");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phoneCountry, "United Kingdom");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phoneCountryIso, "GB");
+    assert.equal(userUpdateCalls.length, 1);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("approvePatientProfileService marks the target profile as approved", async () => {
   restoreModelMethods();
 
@@ -723,6 +775,65 @@ test("rejectChildProfileService restores previous approved fullname and old mino
     assert.equal(updateManyCalls[0].updateDoc.$set.fullname, "Minor Patient");
     assert.equal(updateManyCalls[0].updateDoc.$set.minorKey, "parent@example.com::minor patient");
     assert.deepEqual(updateManyCalls[0].options, { timestamps: false });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("rejectChildProfileService restores optional minor phone country from previous profile", async () => {
+  restoreModelMethods();
+
+  const target = makeChildPatient({
+    _id: "child-profile-id",
+    fullname: "Pending Minor",
+    phone: "+16195550101",
+    phoneDigits: "16195550101",
+    phoneCountry: "United States",
+    phoneCountryIso: "US",
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    updatedAt: new Date("2026-01-03T12:00:00.000Z"),
+  });
+  const previous = makeChildPatient({
+    _id: "previous-child-profile-id",
+    fullname: "Minor Patient",
+    phone: "+442079460056",
+    phoneDigits: "442079460056",
+    phoneCountry: "United Kingdom",
+    phoneCountryIso: "GB",
+    country: "Mexico",
+    state: "Ciudad de Mexico",
+    city: "Mexico City",
+    updatedAt: new Date("2026-01-01T12:00:00.000Z"),
+  });
+
+  mockPatientFindOne(target);
+  mockFlexiblePatientFindSequence([
+    { kind: "sortLean", value: [target, previous] },
+    { kind: "sortPopulateLean", value: [previous] },
+  ]);
+  const updateManyCalls = mockPatientUpdateMany();
+
+  Patient.updateOne = async () => {
+    throw new Error("Parent children should not be updated when rejecting a child phone change");
+  };
+
+  try {
+    const result = await rejectChildProfileService({
+      user: makePatientUser({ email: "Parent@Example.com" }),
+      profileId: "child-profile-id",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(updateManyCalls.length, 1);
+    assert.equal(updateManyCalls[0].updateDoc.$set.country, "Mexico");
+    assert.equal(updateManyCalls[0].updateDoc.$set.state, "Ciudad de Mexico");
+    assert.equal(updateManyCalls[0].updateDoc.$set.city, "Mexico City");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phone, "+442079460056");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phoneDigits, "442079460056");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phoneCountry, "United Kingdom");
+    assert.equal(updateManyCalls[0].updateDoc.$set.phoneCountryIso, "GB");
   } finally {
     restoreModelMethods();
   }
