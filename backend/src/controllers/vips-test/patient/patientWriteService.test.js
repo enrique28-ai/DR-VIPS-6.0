@@ -55,6 +55,8 @@ function makeAdultPatient(overrides = {}) {
     email: "current@example.com",
     phone: "+16195550101",
     phoneDigits: "16195550101",
+    phoneCountry: "United States",
+    phoneCountryIso: "US",
     country: "United States",
     state: "California",
     city: "San Diego",
@@ -87,6 +89,8 @@ function makeValidCreateBody(overrides = {}) {
     fullname: "New Patient",
     email: "new@example.com",
     phone: "6195550102",
+    phoneCountry: "United States",
+    phoneCountryIso: "US",
     birthDate: "1990-01-01",
     bloodtype: "O+",
     gender: "male",
@@ -269,7 +273,13 @@ function mockNoPendingCreateEmailLookup(expectedEmail) {
   return patientFindCalls;
 }
 
-async function assertCreateNormalizesPhone({ body, expectedPhone, expectedPhoneDigits }) {
+async function assertCreateNormalizesPhone({
+  body,
+  expectedPhone,
+  expectedPhoneDigits,
+  expectedPhoneCountry,
+  expectedPhoneCountryIso,
+}) {
   restorePatientMethods();
 
   const user = { _id: "doctor-id" };
@@ -296,8 +306,12 @@ async function assertCreateNormalizesPhone({ body, expectedPhone, expectedPhoneD
     assert.equal(createCalls.length, 1);
     assert.equal(createCalls[0].phone, expectedPhone);
     assert.equal(createCalls[0].phoneDigits, expectedPhoneDigits);
+    assert.equal(createCalls[0].phoneCountry, expectedPhoneCountry);
+    assert.equal(createCalls[0].phoneCountryIso, expectedPhoneCountryIso);
     assert.equal(result.phone, expectedPhone);
     assert.equal(result.phoneDigits, expectedPhoneDigits);
+    assert.equal(result.phoneCountry, expectedPhoneCountry);
+    assert.equal(result.phoneCountryIso, expectedPhoneCountryIso);
   } finally {
     restorePatientMethods();
   }
@@ -343,6 +357,8 @@ test("createPatientService normalizes valid US phone to E.164", async () => {
     body: makeValidCreateBody({ phone: "6195550102", country: "United States" }),
     expectedPhone: "+16195550102",
     expectedPhoneDigits: "16195550102",
+    expectedPhoneCountry: "United States",
+    expectedPhoneCountryIso: "US",
   });
 });
 
@@ -350,25 +366,33 @@ test("createPatientService normalizes valid MX phone to E.164", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
       phone: "5512345678",
+      phoneCountry: "Mexico",
+      phoneCountryIso: "MX",
       country: "Mexico",
       state: "Ciudad de Mexico",
       city: "Mexico City",
     }),
     expectedPhone: "+525512345678",
     expectedPhoneDigits: "525512345678",
+    expectedPhoneCountry: "Mexico",
+    expectedPhoneCountryIso: "MX",
   });
 });
 
-test("createPatientService normalizes valid GB phone preserving national trunk input", async () => {
+test("createPatientService normalizes valid GB phone using phone country independent of residence", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
       phone: "02079460056",
-      country: "United Kingdom",
-      state: "England",
-      city: "London",
+      phoneCountry: "United Kingdom",
+      phoneCountryIso: "GB",
+      country: "United States",
+      state: "California",
+      city: "San Diego",
     }),
     expectedPhone: "+442079460056",
     expectedPhoneDigits: "442079460056",
+    expectedPhoneCountry: "United Kingdom",
+    expectedPhoneCountryIso: "GB",
   });
 });
 
@@ -376,25 +400,30 @@ test("createPatientService normalizes valid IT phone preserving leading zero", a
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
       phone: "0212345678",
+      phoneCountry: "Italy",
+      phoneCountryIso: "IT",
       country: "Italy",
       state: "Lombardy",
       city: "Milan",
     }),
     expectedPhone: "+390212345678",
     expectedPhoneDigits: "390212345678",
+    expectedPhoneCountry: "Italy",
+    expectedPhoneCountryIso: "IT",
   });
 });
 
-test("createPatientService accepts E.164 phone input with selected country", async () => {
+test("createPatientService accepts E.164 phone input with selected phone country", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
       phone: "+442079460056",
-      country: "United Kingdom",
-      state: "England",
-      city: "London",
+      phoneCountry: undefined,
+      phoneCountryIso: "GB",
     }),
     expectedPhone: "+442079460056",
     expectedPhoneDigits: "442079460056",
+    expectedPhoneCountry: "United Kingdom",
+    expectedPhoneCountryIso: "GB",
   });
 });
 
@@ -461,6 +490,44 @@ test("createPatientService rejects E.164 phone when it does not match selected c
       (err) => {
         assert.equal(err.status, 400);
         assert.equal(err.message, "Invalid phone number for selected country");
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("createPatientService rejects phone without phone country", async () => {
+  restorePatientMethods();
+
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called when phone country is missing");
+  };
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called when phone country is missing");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called when phone country is missing");
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called when phone country is missing");
+  };
+
+  const body = makeValidCreateBody();
+  delete body.phoneCountry;
+  delete body.phoneCountryIso;
+
+  try {
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body,
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Phone country is required");
         return true;
       }
     );
@@ -538,6 +605,7 @@ test("updatePatientService blocks duplicate phoneDigits on update", async () => 
           patientId: current._id,
           body: {
             phone: "+16195550102",
+            phoneCountryIso: "US",
           },
         }),
       (err) => {
@@ -556,16 +624,60 @@ test("updatePatientService blocks duplicate phoneDigits on update", async () => 
   }
 });
 
-test("updatePatientService rejects country-only update when stored E.164 phone belongs to another country", async () => {
+test("updatePatientService rejects phone without phone country", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({ owners: [user._id], createdBy: user._id });
+  const findOneCalls = mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called when phone country is missing");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called when phone country is missing");
+  };
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called when phone country is missing");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            phone: "+16195550102",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Phone country is required");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService accepts residence country-only update when stored phone belongs to another country", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
       phone: "02079460056",
-      country: "United Kingdom",
-      state: "England",
-      city: "London",
+      phoneCountry: "United Kingdom",
+      phoneCountryIso: "GB",
+      country: "United States",
+      state: "California",
+      city: "San Diego",
     }),
     expectedPhone: "+442079460056",
     expectedPhoneDigits: "442079460056",
+    expectedPhoneCountry: "United Kingdom",
+    expectedPhoneCountryIso: "GB",
   });
 
   restorePatientMethods();
@@ -574,9 +686,62 @@ test("updatePatientService rejects country-only update when stored E.164 phone b
   const current = makeAdultPatient({
     phone: "+442079460056",
     phoneDigits: "442079460056",
+    phoneCountry: "United Kingdom",
+    phoneCountryIso: "GB",
     country: "United Kingdom",
     state: "England",
     city: "London",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+    owners: [user._id],
+    createdBy: user._id,
+  });
+  const findOneCalls = mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        country: "United States",
+      },
+    });
+
+    assert.equal(findOneCalls.length, 1);
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.country, "United States");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phone"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phoneCountry"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phoneCountryIso"), false);
+    assert.equal(result.country, "United States");
+    assert.equal(result.phone, "+442079460056");
+    assert.equal(result.phoneCountryIso, "GB");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService rejects phone-country-only update when stored E.164 phone belongs to another country", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    phone: "+442079460056",
+    phoneDigits: "442079460056",
+    phoneCountry: "United Kingdom",
+    phoneCountryIso: "GB",
+    country: "United States",
     owners: [user._id],
     createdBy: user._id,
   });
@@ -589,7 +754,7 @@ test("updatePatientService rejects country-only update when stored E.164 phone b
     throw new Error("User.findOne should not be called for phone-country mismatch");
   };
   Patient.findOneAndUpdate = async () => {
-    throw new Error("Patient.findOneAndUpdate should not save mismatched country and phone");
+    throw new Error("Patient.findOneAndUpdate should not save mismatched phone country");
   };
 
   try {
@@ -599,7 +764,7 @@ test("updatePatientService rejects country-only update when stored E.164 phone b
           user,
           patientId: current._id,
           body: {
-            country: "United States",
+            phoneCountryIso: "US",
           },
         }),
       (err) => {
@@ -615,7 +780,7 @@ test("updatePatientService rejects country-only update when stored E.164 phone b
   }
 });
 
-test("updatePatientService accepts country update when valid phone for new country is submitted", async () => {
+test("updatePatientService accepts residence update when valid phone and phone country are submitted", async () => {
   restorePatientMethods();
 
   const user = { _id: "doctor-id" };
@@ -652,6 +817,7 @@ test("updatePatientService accepts country update when valid phone for new count
         state: "England",
         city: "London",
         phone: "02079460056",
+        phoneCountry: "United Kingdom",
       },
     });
 
@@ -666,9 +832,13 @@ test("updatePatientService accepts country update when valid phone for new count
     assert.equal(updateCalls[0].updateDoc.$set.city, "London");
     assert.equal(updateCalls[0].updateDoc.$set.phone, "+442079460056");
     assert.equal(updateCalls[0].updateDoc.$set.phoneDigits, "442079460056");
+    assert.equal(updateCalls[0].updateDoc.$set.phoneCountry, "United Kingdom");
+    assert.equal(updateCalls[0].updateDoc.$set.phoneCountryIso, "GB");
     assert.equal(result.country, "United Kingdom");
     assert.equal(result.phone, "+442079460056");
     assert.equal(result.phoneDigits, "442079460056");
+    assert.equal(result.phoneCountry, "United Kingdom");
+    assert.equal(result.phoneCountryIso, "GB");
     assert.deepEqual(updateCalls[0].options, {
       new: true,
       runValidators: true,
@@ -803,6 +973,7 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
       fullname: current.fullname,
       email: current.email,
       phone: "6195550101",
+      phoneCountryIso: "US",
       birthDate: "1990-01-01",
       diseases: [],
       allergies: [],
@@ -1183,6 +1354,7 @@ test("updatePatientService does not treat unchanged full-form deceased adult pay
             fullname: current.fullname,
             email: current.email,
             phone: "6195550101",
+            phoneCountryIso: "US",
             birthDate: "1990-01-01",
             diseases: [],
             allergies: [],

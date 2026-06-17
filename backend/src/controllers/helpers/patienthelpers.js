@@ -16,25 +16,64 @@ const findCountry = (nameOrIso = "") => {
    );
  };
 
-  export const normPhoneWithCountry = (country, phoneRaw) => {
-   const countryRec = findCountry(country);
-   const iso = countryRec?.isoCode?.toUpperCase();
-   const raw = String(phoneRaw || "").trim();
-   const nationalDigits = raw.replace(/\D/g, "");
-   if (!iso) return { ok:false, error:"Invalid country" };
-   if (!nationalDigits) return { ok:false, error:"Invalid phone number for selected country" };
+export const normPhoneCountry = (input = {}) => {
+  const phoneCountry = typeof input === "object" ? input.phoneCountry : input;
+  const phoneCountryIso = typeof input === "object" ? input.phoneCountryIso : undefined;
+  const countryRaw = String(phoneCountry ?? "").trim();
+  const isoRaw = String(phoneCountryIso ?? "").trim();
+  const countryRec = countryRaw ? findCountry(countryRaw) : undefined;
+  const isoRec = isoRaw ? findCountry(isoRaw) : undefined;
 
-   const parsed = raw.startsWith("+")
-     ? parsePhoneNumberFromString(raw)
-     : parsePhoneNumberFromString(nationalDigits, iso);
+  if (!countryRaw && !isoRaw) {
+    return { ok:false, error:"Phone country is required" };
+  }
+  if (countryRaw && !countryRec) {
+    return { ok:false, error:"Invalid phone country" };
+  }
+  if (isoRaw && !isoRec) {
+    return { ok:false, error:"Invalid phone country" };
+  }
+  if (
+    countryRec &&
+    isoRec &&
+    countryRec.isoCode.toUpperCase() !== isoRec.isoCode.toUpperCase()
+  ) {
+    return { ok:false, error:"Phone country and ISO do not match" };
+  }
 
-   if (!parsed?.isValid() || parsed.country !== iso) {
-     return { ok:false, error:"Invalid phone number for selected country" };
-   }
+  const resolved = isoRec || countryRec;
+  return {
+    ok:true,
+    phoneCountry: resolved.name,
+    phoneCountryIso: resolved.isoCode.toUpperCase(),
+  };
+};
 
-   const phone = parsed.number;
-   return { ok:true, phone, digits: phone.replace(/\D/g, "") };
- };
+export const normPhoneWithCountry = (country, phoneRaw) => {
+  const phoneCountry = normPhoneCountry(country);
+  const iso = phoneCountry.ok ? phoneCountry.phoneCountryIso : undefined;
+  const raw = String(phoneRaw || "").trim();
+  const nationalDigits = raw.replace(/\D/g, "");
+  if (!phoneCountry.ok) return phoneCountry;
+  if (!nationalDigits) return { ok:false, error:"Invalid phone number for selected country" };
+
+  const parsed = raw.startsWith("+")
+    ? parsePhoneNumberFromString(raw)
+    : parsePhoneNumberFromString(nationalDigits, iso);
+
+  if (!parsed?.isValid() || parsed.country !== iso) {
+    return { ok:false, error:"Invalid phone number for selected country" };
+  }
+
+  const phone = parsed.number;
+  return {
+    ok:true,
+    phone,
+    digits: phone.replace(/\D/g, ""),
+    phoneCountry: phoneCountry.phoneCountry,
+    phoneCountryIso: phoneCountry.phoneCountryIso,
+  };
+};
 
 export const normalize = (v) => {
   if (Array.isArray(v)) return v.map(s=>String(s).trim()).filter(Boolean);

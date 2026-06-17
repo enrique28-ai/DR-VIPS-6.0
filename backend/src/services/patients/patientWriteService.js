@@ -54,6 +54,8 @@ const APPROVAL_SYNC_FIELDS_SCALAR = [
   "city",
   "phone",
   "phoneDigits",
+  "phoneCountry",
+  "phoneCountryIso",
   "childrenCount",
   "birthDate",
   "dateOfDeath",
@@ -68,6 +70,20 @@ const ADULT_DEATH_STATUS_ALLOWED_CHANGED_FIELDS = new Set([
   "age",
   "ageCategory",
 ]);
+
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+const hasPhoneCountryInput = (obj) =>
+  hasOwn(obj, "phoneCountry") || hasOwn(obj, "phoneCountryIso");
+const phoneCountryInputFrom = (obj) => ({
+  phoneCountry: obj?.phoneCountry,
+  phoneCountryIso: obj?.phoneCountryIso,
+});
+
+const throwPhoneCountryRequiresPhone = () => {
+  const err = new Error("Phone country requires phone");
+  err.status = 400;
+  throw err;
+};
 
 const childNameKeyFromMinorKey = (minorKey, parentEmail) => {
   const mk = normLower(minorKey);
@@ -145,6 +161,8 @@ const collectEffectiveNormalChangedFieldsFromBody = ({ current, body }) => {
   if ("country" in body && normStr(body.country) !== normStr(current.country)) changed.add("country");
   if ("state" in body && normStr(body.state) !== normStr(current.state)) changed.add("state");
   if ("city" in body && normStr(body.city) !== normStr(current.city)) changed.add("city");
+  if ("phoneCountry" in body && normStr(body.phoneCountry) !== normStr(current.phoneCountry)) changed.add("phoneCountry");
+  if ("phoneCountryIso" in body && normUpper(body.phoneCountryIso) !== normUpper(current.phoneCountryIso)) changed.add("phoneCountryIso");
   if ("parentEmail" in body && normLower(body.parentEmail) !== normLower(current.parentEmail)) changed.add("parentEmail");
 
   if ("phone" in body) {
@@ -153,9 +171,8 @@ const collectEffectiveNormalChangedFieldsFromBody = ({ current, body }) => {
     if (!rawDigits) {
       if (current.phone || current.phoneDigits) changed.add("phone");
     } else {
-      const effectiveCountry = "country" in body ? body.country : current.country;
-      const normalized = effectiveCountry
-        ? normPhoneWithCountry(effectiveCountry, body.phone)
+      const normalized = hasPhoneCountryInput(body)
+        ? normPhoneWithCountry(phoneCountryInputFrom(body), body.phone)
         : { ok: false };
 
       if (normalized.ok) {
@@ -261,6 +278,8 @@ const collectEffectiveChangedFields = ({ current, update, unset }) => {
   if ("city" in update && normStr(update.city) !== normStr(current.city)) changed.add("city");
   if ("phone" in update && normStr(update.phone) !== normStr(current.phone)) changed.add("phone");
   if ("phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changed.add("phoneDigits");
+  if ("phoneCountry" in update && normStr(update.phoneCountry) !== normStr(current.phoneCountry)) changed.add("phoneCountry");
+  if ("phoneCountryIso" in update && normUpper(update.phoneCountryIso) !== normUpper(current.phoneCountryIso)) changed.add("phoneCountryIso");
   if ("isDeceased" in update && Boolean(update.isDeceased) !== Boolean(current.isDeceased)) changed.add("isDeceased");
   if ("causeOfDeath" in update && normStr(update.causeOfDeath) !== normStr(current.causeOfDeath)) changed.add("causeOfDeath");
 
@@ -363,6 +382,8 @@ export const createPatientService = async ({ user, body }) => {
     medications,
     email,
     phone,
+    phoneCountry,
+    phoneCountryIso,
     age,
     bloodtype,
     gender,
@@ -616,12 +637,20 @@ export const createPatientService = async ({ user, body }) => {
 
   let ph = { ok: true, phone: undefined, digits: undefined };
   if (phone) {
-    ph = normPhoneWithCountry(country, phone);
+    if (!hasPhoneCountryInput(body)) {
+      const err = new Error("Phone country is required");
+      err.status = 400;
+      throw err;
+    }
+
+    ph = normPhoneWithCountry({ phoneCountry, phoneCountryIso }, phone);
     if (!ph.ok) {
       const err = new Error(ph.error);
       err.status = 400;
       throw err;
     }
+  } else if (hasPhoneCountryInput(body)) {
+    throwPhoneCountryRequiresPhone();
   } else if (!isMinor) {
     const err = new Error("Phone is required for adults");
     err.status = 400;
@@ -679,7 +708,14 @@ export const createPatientService = async ({ user, body }) => {
     organDonor,
     bloodDonor,
     isDeceased: false,
-    ...(ph.phone ? { phone: ph.phone, phoneDigits: ph.digits } : {}),
+    ...(ph.phone
+      ? {
+          phone: ph.phone,
+          phoneDigits: ph.digits,
+          phoneCountry: ph.phoneCountry,
+          phoneCountryIso: ph.phoneCountryIso,
+        }
+      : {}),
     causeOfDeath: undefined,
     measurementSystem: sys,
     heightM,
@@ -711,6 +747,8 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     medications,
     email,
     phone,
+    phoneCountry,
+    phoneCountryIso,
     bloodtype,
     gender,
     organDonor: organIn,
@@ -1141,19 +1179,20 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       if (isMinorNext) {
         unset.phone = 1;
         unset.phoneDigits = 1;
+        unset.phoneCountry = 1;
+        unset.phoneCountryIso = 1;
       } else {
         const err = new Error("Phone is required for adults");
         err.status = 400;
         throw err;
       }
     } else {
-      const effectiveCountry = "country" in body ? country : current.country;
-      if (!effectiveCountry) {
-        const err = new Error("Send country together with phone");
+      if (!hasPhoneCountryInput(body)) {
+        const err = new Error("Phone country is required");
         err.status = 400;
         throw err;
       }
-      const ph = normPhoneWithCountry(effectiveCountry, body.phone);
+      const ph = normPhoneWithCountry({ phoneCountry, phoneCountryIso }, body.phone);
       if (!ph.ok) {
         const err = new Error(ph.error);
         err.status = 400;
@@ -1175,14 +1214,23 @@ export const updatePatientService = async ({ user, patientId, body }) => {
 
       update.phone = ph.phone;
       update.phoneDigits = ph.digits;
+      update.phoneCountry = ph.phoneCountry;
+      update.phoneCountryIso = ph.phoneCountryIso;
     }
-  } else if ("country" in body && current.phone) {
-    const ph = normPhoneWithCountry(country, current.phone);
+  } else if (hasPhoneCountryInput(body)) {
+    if (!current.phone) {
+      throwPhoneCountryRequiresPhone();
+    }
+
+    const ph = normPhoneWithCountry({ phoneCountry, phoneCountryIso }, current.phone);
     if (!ph.ok) {
       const err = new Error(ph.error);
       err.status = 400;
       throw err;
     }
+
+    update.phoneCountry = ph.phoneCountry;
+    update.phoneCountryIso = ph.phoneCountryIso;
   }
 
   if (!isMinorNext) {
@@ -1340,6 +1388,8 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     if (!changesFound && "city" in update && normStr(update.city) !== normStr(current.city)) changesFound = true;
     if (!changesFound && "phone" in update && normStr(update.phone) !== normStr(current.phone)) changesFound = true;
     if (!changesFound && "phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changesFound = true;
+    if (!changesFound && "phoneCountry" in update && normStr(update.phoneCountry) !== normStr(current.phoneCountry)) changesFound = true;
+    if (!changesFound && "phoneCountryIso" in update && normUpper(update.phoneCountryIso) !== normUpper(current.phoneCountryIso)) changesFound = true;
     if (!changesFound && "isDeceased" in update && Boolean(update.isDeceased) !== Boolean(current.isDeceased)) changesFound = true;
     if (!changesFound && "causeOfDeath" in update && normStr(update.causeOfDeath) !== normStr(current.causeOfDeath)) changesFound = true;
     const currentChildren = Array.isArray(current.children) ? current.children : [];

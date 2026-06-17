@@ -469,7 +469,7 @@ test("createPatientService rejects invalid optional minor phone", async () => {
       () =>
         createPatientService({
           user: { _id: "doctor-id" },
-          body: makeMinorCreateBody({ phone: "123" }),
+          body: makeMinorCreateBody({ phone: "123", phoneCountryIso: "US" }),
         }),
       (err) => {
         assert.equal(err.status, 400);

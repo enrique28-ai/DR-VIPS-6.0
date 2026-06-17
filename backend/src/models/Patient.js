@@ -69,6 +69,8 @@ const patientSchema = new mongoose.Schema({
   phone: { type: String, required() { return (effectiveAgeForDoc(this) ?? 0) >= 18; }, trim: true },
   //phoneDigits: { type: String, trim: true, index: true },
   phoneDigits: { type: String, trim: true },
+  phoneCountry: { type: String, trim: true },
+  phoneCountryIso: { type: String, uppercase: true, trim: true },
   age: { type: Number, min: 0, max: 120 },
   ageCategory: { type: String, enum: AGE_BANDS.map(b => b.key) },
   bloodtype: { type: String, required: true, enum: BLOOD_TYPES, uppercase: true, trim: true },
