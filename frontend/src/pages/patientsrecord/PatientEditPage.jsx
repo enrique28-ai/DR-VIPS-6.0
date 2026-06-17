@@ -741,7 +741,7 @@ if (isMinor) {
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
    const payload = {
       fullname: form.fullname.trim(),
-      // Email is adult-only; phone is included when provided.
+      // Email is adult-only; minor phone clearing must be explicit.
       birthDate: form.birthDate,
       age: ageNum,
       diseases: diseasesArr,
@@ -771,10 +771,16 @@ if (isMinor) {
     if (!isMinor) {
       payload.email = normalizedEmail;
     }
-    if (!isMinor || phoneDigits) {
+    const minorHadExistingPhone =
+      isMinor && Boolean(digitsOnly(patient?.phone) || digitsOnly(patient?.phoneDigits));
+    const shouldClearMinorPhone = minorHadExistingPhone && !phoneDigits;
+
+    if (!isMinor || phoneDigits || shouldClearMinorPhone) {
       payload.phone = rest;
-      payload.phoneCountry = phoneCountry;
-      payload.phoneCountryIso = phoneCountryIso;
+      if (!shouldClearMinorPhone) {
+        payload.phoneCountry = phoneCountry;
+        payload.phoneCountryIso = phoneCountryIso;
+      }
     }
 
     const mutationPayload = isDeathStatusOnlyEdit(patient, payload, phoneCountryIso)
