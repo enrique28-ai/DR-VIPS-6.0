@@ -627,6 +627,64 @@ test("updatePatientService lets doctors propose minor fullname rename without ch
   }
 });
 
+test("updatePatientService clears optional minor phone metadata when blank phone is submitted", async () => {
+  restorePatientMethods();
+
+  const current = makeMinorPatient({
+    phone: "+16195550101",
+    phoneDigits: "16195550101",
+    phoneCountry: "United States",
+    phoneCountryIso: "US",
+  });
+  const parent = makeApprovedAdultParent();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "lean", value: current },
+    {
+      kind: "selectLean",
+      value: parent,
+      projection: UPDATE_PARENT_PROJECTION,
+    },
+    { kind: "sortSelectLean", value: null, projection: "updatedAt approvedAt" },
+  ]);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async (leanOptions) => {
+        updateCalls[updateCalls.length - 1].leanOptions = leanOptions;
+        return applyUpdateForTest(current, updateDoc);
+      },
+    };
+  };
+
+  try {
+    const result = await updatePatientService({
+      user: { _id: "doctor-id" },
+      patientId: current._id,
+      body: { phone: "" },
+    });
+
+    assert.equal(findOneCalls.length, 3);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$unset.phone, 1);
+    assert.equal(updateCalls[0].updateDoc.$unset.phoneDigits, 1);
+    assert.equal(updateCalls[0].updateDoc.$unset.phoneCountry, 1);
+    assert.equal(updateCalls[0].updateDoc.$unset.phoneCountryIso, 1);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phone"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phoneDigits"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phoneCountry"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "phoneCountryIso"), false);
+    assert.equal(Object.hasOwn(result, "phone"), false);
+    assert.equal(Object.hasOwn(result, "phoneDigits"), false);
+    assert.equal(Object.hasOwn(result, "phoneCountry"), false);
+    assert.equal(Object.hasOwn(result, "phoneCountryIso"), false);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService keeps minor death-status changes under guardian approval", async () => {
   restorePatientMethods();
 

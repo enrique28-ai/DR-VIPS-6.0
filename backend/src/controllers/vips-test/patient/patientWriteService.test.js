@@ -664,6 +664,46 @@ test("updatePatientService rejects phone without phone country", async () => {
   }
 });
 
+test("updatePatientService rejects blank adult phone", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({ owners: [user._id], createdBy: user._id });
+  const findOneCalls = mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called when adult phone is blank");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called when adult phone is blank");
+  };
+  Patient.findOneAndUpdate = async () => {
+    throw new Error("Patient.findOneAndUpdate should not be called when adult phone is blank");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            phone: "",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.message, "Phone is required for adults");
+        return true;
+      }
+    );
+
+    assert.equal(findOneCalls.length, 1);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService accepts residence country-only update when stored phone belongs to another country", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
