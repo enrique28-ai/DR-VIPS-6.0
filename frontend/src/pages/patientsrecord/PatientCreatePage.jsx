@@ -38,10 +38,10 @@ function calcAgeFromYmd(birthYmd, refYmd) {
 
 const digitsOnly = (value) => String(value || "").replace(/\D/g, "");
 
-const parsePhoneForCountry = (value, countryIso) => {
+const parsePhoneForCountry = (value, phoneCountryIso) => {
   const digits = digitsOnly(value);
-  if (!digits || !countryIso) return null;
-  return parsePhoneNumberFromString(digits, countryIso);
+  if (!digits || !phoneCountryIso) return null;
+  return parsePhoneNumberFromString(digits, phoneCountryIso);
 };
 
 export default function PatientCreatePage() {
@@ -125,6 +125,8 @@ useEffect(() => {
   // Country/State/City
 const [countryIso, setCountryIso] = useState("");
 const [country, setCountry] = useState("");
+const [phoneCountryIso, setPhoneCountryIso] = useState("");
+const [phoneCountry, setPhoneCountry] = useState("");
 
 const [stateIso, setStateIso] = useState("");
 const [stateName, setStateName] = useState("");
@@ -150,20 +152,20 @@ const cities = useMemo(
   [countryIso, stateIso, i18n.language, t]
 );
 
-const dialCode = useMemo(
-  () => getDialCodeByCountryIso(countryIso),
-  [countryIso]
+const phoneDialCode = useMemo(
+  () => getDialCodeByCountryIso(phoneCountryIso),
+  [phoneCountryIso]
 );
 const phoneDigits = useMemo(() => digitsOnly(form.phone), [form.phone]);
 const parsedPhone = useMemo(
-  () => parsePhoneForCountry(phoneDigits, countryIso),
-  [phoneDigits, countryIso]
+  () => parsePhoneForCountry(phoneDigits, phoneCountryIso),
+  [phoneDigits, phoneCountryIso]
 );
 const isPhoneValidForCountry = Boolean(parsedPhone?.isValid());
 const phoneIssueKey = !isMinor
-  ? !countryIso && !phoneDigits
+  ? !phoneCountryIso && !phoneDigits
     ? "patients.create.phoneCountryAndNumberRequired"
-    : !countryIso
+    : !phoneCountryIso
       ? "patients.create.phoneSelectCountryToValidate"
       : !phoneDigits
         ? "patients.create.phoneRequiredAdult"
@@ -172,7 +174,7 @@ const phoneIssueKey = !isMinor
           : null
   : !phoneDigits
     ? null
-    : !countryIso
+    : !phoneCountryIso
       ? "patients.create.phoneSelectCountryToValidate"
       : !isPhoneValidForCountry
         ? "patients.create.phoneInvalidMinor"
@@ -198,6 +200,12 @@ const onStateChange = (e) => {
 
 const onCityChange = (e) => setCityName(e.target.value);
 
+const onPhoneCountryChange = (e) => {
+  const iso = e.target.value;
+  setPhoneCountryIso(iso);
+  setPhoneCountry(getCountryNameByIso(iso));
+};
+
  // Telefono: solo digitos
  const onPhoneChange = (e) => {
    const digits = e.target.value.replace(/\D/g, "");
@@ -216,10 +224,10 @@ const onCityChange = (e) => setCityName(e.target.value);
    setForm((f) => ({ ...f, phone: digits }));
  };
 
- // Al cambiar de pais, conserva solo digitos.
+ // Al cambiar de pais telefonico, conserva solo digitos.
   useEffect(() => {
     setForm((f) => ({ ...f, phone: digitsOnly(f.phone) }));
-  }, [countryIso]);
+  }, [phoneCountryIso]);
 
 
 
@@ -381,7 +389,9 @@ if (isMinor) {
       {
         fullname: form.fullname.trim(),
         ...(!isMinor ? { email: normalizedEmail } : {}),
-        ...(phoneDigits ? { phone: rest } : {}),
+        ...(phoneDigits
+          ? { phone: rest, phoneCountry, phoneCountryIso }
+          : {}),
         birthDate: form.birthDate,
         age: ageNum,
         diseases: diseasesArr,
@@ -444,12 +454,33 @@ if (isMinor) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div>
       <label className="block text-sm font-medium text-gray-700">
+        {t("patients.create.phoneCountry")}{(!isMinor || phoneDigits) && <span className="text-red-500">*</span>}
+      </label>
+      <select
+        value={phoneCountryIso}
+        onChange={onPhoneCountryChange}
+        className="mt-1 mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+        required={!isMinor || !!phoneDigits}
+        disabled={createPatient.isPending}
+      >
+        <option value="">{t("patients.create.selectPhoneCountryOption")}</option>
+        {localizedCountries.map((c) => {
+          const optionDialCode = getDialCodeByCountryIso(c.isoCode);
+          return (
+            <option key={c.isoCode} value={c.isoCode}>
+              {c.label}{optionDialCode ? ` (${optionDialCode})` : ""}
+            </option>
+          );
+        })}
+      </select>
+
+      <label className="block text-sm font-medium text-gray-700">
         {t("patients.create.phone")}{!isMinor && <span className="text-red-500">*</span>}
       </label>
 
       <div className="flex gap-2">
         <Input
-          value={dialCode}
+          value={phoneDialCode}
           readOnly
           className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-700"
           placeholder="+CC"

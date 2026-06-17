@@ -33,6 +33,8 @@ const SYNC_FIELDS_SCALAR = [
   "city",
   "phone",
   "phoneDigits",
+  "phoneCountry",
+  "phoneCountryIso",
   "childrenCount",
   "birthDate",
   "dateOfDeath",
