@@ -32,5 +32,5 @@ After editing:
 5. Manual test steps.
 """
 [[skills.config]]
-path = ".agents/skills/dr-vips-qa-engineer/SKILL.md"
+path = ".agents/skills/dr-vips-senior-engineer/SKILL.md"
 enabled = true

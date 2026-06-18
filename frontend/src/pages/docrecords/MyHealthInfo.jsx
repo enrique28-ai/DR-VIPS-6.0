@@ -26,6 +26,7 @@ import {
    localizeCountryName,
    localizeStateName,
    localizeCityName,
+   getDialCodeByCountryIso,
  } from "../../utilsfront/geoLabels.js";
 import {
   scalarValue,
@@ -129,6 +130,11 @@ export default function MyHealthInfo() {
 
    const bloodtypeVal = scalarValue(snapshot?.bloodtype);
   const phoneVal = scalarValue(snapshot?.phone);
+  const phoneCountryVal = scalarValue(snapshot?.phoneCountry);
+  const phoneCountryIsoVal = scalarValue(snapshot?.phoneCountryIso);
+  const phoneDialCodeVal = getDialCodeByCountryIso(phoneCountryIsoVal);
+  const phoneCountryDisplay = [phoneCountryVal, phoneDialCodeVal].filter(Boolean).join(" ");
+  const showPhoneCountryMeta = Boolean(phoneVal && phoneCountryDisplay);
 
   const countryRaw = scalarValue(snapshot?.country);
   const stateRaw = scalarValue(snapshot?.state);
@@ -367,6 +373,11 @@ export default function MyHealthInfo() {
               <Mail className="h-4 w-4 text-slate-500" />
               {phoneVal || t("myHealthInfo.common.notSpecified")}
             </span>
+            {showPhoneCountryMeta && (
+              <p className="mt-1 text-xs text-slate-600">
+                {t("patients.create.phoneCountry")}: {phoneCountryDisplay}
+              </p>
+            )}
             <ScalarHistory label={t("myHealthInfo.sections.basic.phone")} wrapper={snapshot?.phone} t={t} />
           </div>
 
