@@ -29,6 +29,7 @@ import {
   localizeCountryName,
   localizeStateName,
   localizeCityName,
+  getDialCodeByCountryIso,
 } from "../../utilsfront/geoLabels.js";
 
 import {
@@ -139,6 +140,12 @@ export default function MyChildHealthInfo() {
   };
 
   const bloodtypeVal = scalarValue(snapshot?.bloodtype);
+  const phoneVal = scalarValue(snapshot?.phone);
+  const phoneCountryVal = scalarValue(snapshot?.phoneCountry);
+  const phoneCountryIsoVal = scalarValue(snapshot?.phoneCountryIso);
+  const phoneDialCodeVal = getDialCodeByCountryIso(phoneCountryIsoVal);
+  const phoneCountryDisplay = [phoneCountryVal, phoneDialCodeVal].filter(Boolean).join(" ");
+  const showPhoneCountryMeta = Boolean(phoneVal && phoneCountryDisplay);
   const isDeceased = snapshot?.isDeceased === true;
   const birthDateVal = formatDateOnly(snapshot?.birthDate, t, i18n.language);
   const deathDateVal = formatDateOnly(snapshot?.dateOfDeath, t, i18n.language);
@@ -348,6 +355,22 @@ export default function MyChildHealthInfo() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.phone")}
+            </span>
+            <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+              <Mail className="h-4 w-4 text-slate-500" />
+              {phoneVal || t("myHealthInfo.common.notSpecified")}
+            </span>
+            {showPhoneCountryMeta && (
+              <p className="mt-1 text-xs text-slate-600">
+                {t("patients.create.phoneCountry")}: {phoneCountryDisplay}
+              </p>
+            )}
+            <ScalarHistory label={t("myHealthInfo.sections.basic.phone")} wrapper={snapshot?.phone} t={t} />
           </div>
 
            <div className="rounded-lg border border-slate-100 bg-white p-3">
