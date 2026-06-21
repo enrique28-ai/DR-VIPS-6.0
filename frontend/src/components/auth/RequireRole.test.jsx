@@ -73,4 +73,31 @@ describe("RequireRole", () => {
     expect(screen.getByText("Patient home")).toBeInTheDocument();
     expect(screen.queryByText("Allowed protected page")).not.toBeInTheDocument();
   });
+
+  test("redirects unauthenticated users to login", () => {
+    renderRequireRole();
+
+    expect(screen.getByText("Login page")).toBeInTheDocument();
+    expect(screen.queryByText("Allowed protected page")).not.toBeInTheDocument();
+  });
+
+  test("redirects a disallowed doctor to the doctor home", () => {
+    setAuthState({
+      isAuthenticated: true,
+      user: { role: "doctor" },
+    });
+
+    renderRequireRole({ allowed: ["patient"] });
+
+    expect(screen.getByText("Doctor home")).toBeInTheDocument();
+    expect(screen.queryByText("Allowed protected page")).not.toBeInTheDocument();
+  });
+
+  test("renders nothing while auth state is still checking", () => {
+    setAuthState({ isCheckingAuth: true });
+
+    const { container } = renderRequireRole();
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });

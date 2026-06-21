@@ -63,4 +63,12 @@ describe("RequireVerified", () => {
     expect(screen.getByText("Verify email page")).toBeInTheDocument();
     expect(screen.queryByText("Verified protected page")).not.toBeInTheDocument();
   });
+
+  test("renders nothing while auth state is still checking", () => {
+    setAuthState({ isCheckingAuth: true });
+
+    const { container } = renderRequireVerified();
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });
