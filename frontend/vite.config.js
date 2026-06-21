@@ -15,4 +15,9 @@ export default defineConfig({
   esbuild: {
     jsx: "automatic", // <- fuerza el transform moderno
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setupTests.jsx",
+    globals: true,
+  },
 });
