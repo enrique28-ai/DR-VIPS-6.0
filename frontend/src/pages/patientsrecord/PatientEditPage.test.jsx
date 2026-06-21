@@ -191,11 +191,10 @@ const baseMinorPatient = (overrides = {}) => ({
   ...overrides,
 });
 
-const comboboxes = () => screen.getAllByRole("combobox");
-const phoneCountrySelect = () => comboboxes()[0];
-const residenceCountrySelect = () => comboboxes()[2];
-const stateSelect = () => comboboxes()[3];
-const citySelect = () => comboboxes()[4];
+const phoneCountrySelect = () => screen.getByRole("combobox", { name: /Phone Country/i });
+const residenceCountrySelect = () => screen.getByRole("combobox", { name: /Residence Country/i });
+const stateSelect = () => screen.getByRole("combobox", { name: /^State/i });
+const citySelect = () => screen.getByRole("combobox", { name: /^City/i });
 const phoneInput = () => screen.getByPlaceholderText("Phone digits");
 const dialInput = () => screen.getByPlaceholderText("+CC");
 const saveButton = () => screen.getByRole("button", { name: "Save" });

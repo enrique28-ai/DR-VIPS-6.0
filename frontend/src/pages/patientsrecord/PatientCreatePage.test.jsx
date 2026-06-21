@@ -114,11 +114,10 @@ const renderCreatePage = () => {
   );
 };
 
-const comboboxes = () => screen.getAllByRole("combobox");
-const phoneCountrySelect = () => comboboxes()[0];
-const residenceCountrySelect = () => comboboxes()[2];
-const stateSelect = () => comboboxes()[3];
-const citySelect = () => comboboxes()[4];
+const phoneCountrySelect = () => screen.getByRole("combobox", { name: /Phone Country/i });
+const residenceCountrySelect = () => screen.getByRole("combobox", { name: /Residence Country/i });
+const stateSelect = () => screen.getByRole("combobox", { name: /^State/i });
+const citySelect = () => screen.getByRole("combobox", { name: /^City/i });
 const submitButton = () => screen.getByRole("button", { name: "Submit" });
 const submitForm = () => fireEvent.submit(submitButton().closest("form"));
 
