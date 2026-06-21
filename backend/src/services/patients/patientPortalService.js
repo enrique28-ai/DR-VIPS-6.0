@@ -301,6 +301,7 @@ export const getMyChildrenHealthInfoService = async ({ user, req }) => {
         attachPrev(snapshot.country, prev.country);
         attachPrev(snapshot.state, prev.state);
         attachPrev(snapshot.city, prev.city);
+        attachPrev(snapshot.phone, prev.phone);
         attachPrev(snapshot.status, prev.isDeceased);
 
         if (!snapshot.measurementSystemWrapper || typeof snapshot.measurementSystemWrapper !== "object") {

@@ -394,6 +394,52 @@ test("getMyChildrenHealthInfoService rejects non-patient role with 403", async (
   }
 });
 
+test("getMyChildrenHealthInfoService applies approvedSnapshot phone baseline when pending", async () => {
+  restoreModelMethods();
+
+  const currentPhone = "+16195550101";
+  const previousApprovedPhone = "+442079460056";
+
+  mockPatientFind([
+    makeChildPatient({
+      phone: currentPhone,
+      phoneDigits: "16195550101",
+      approvedAt: new Date("2026-01-01T12:00:00.000Z"),
+      approvedSnapshot: {
+        set: {
+          phone: previousApprovedPhone,
+        },
+        unset: {},
+      },
+      updatedAt: new Date("2026-01-03T12:00:00.000Z"),
+    }),
+  ]);
+
+  User.findById = () => {
+    throw new Error("User.findById should not be called for children health info");
+  };
+
+  try {
+    const result = await getMyChildrenHealthInfoService({
+      user: makePatientUser({
+        _id: "parent-user-id",
+        email: "Parent@Example.com ",
+      }),
+      req: { query: {} },
+    });
+
+    assert.equal(result.length, 1);
+    assert.equal(result[0].pendingDecision, true);
+    assert.equal(result[0].snapshot.phone.changed, true);
+    assert.deepEqual(result[0].snapshot.phone.alternatives, [
+      currentPhone,
+      previousApprovedPhone,
+    ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
 test("getMyChildrenHealthInfoService queries only by normalized parentEmail plus minor query", async () => {
   restoreModelMethods();
 
