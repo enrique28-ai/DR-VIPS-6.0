@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import MyHealthStateDetail from "./MyHealthStateDetail.jsx";
@@ -40,6 +40,17 @@ vi.mock("../../features/diagnostics/dhooks.js", async () => {
     useMyDiagnosis: vi.fn(),
   };
 });
+
+vi.mock("../../components/diagnostic/DiagnosisHistoryModal.jsx", () => ({
+  default: ({ diagnosisId, onClose }) => (
+    <div role="dialog" aria-label="Diagnosis history modal">
+      <p>History modal for {diagnosisId}</p>
+      <button type="button" onClick={onClose}>
+        Close history
+      </button>
+    </div>
+  ),
+}));
 
 vi.mock("../../i18n", () => ({
   default: {
@@ -183,5 +194,20 @@ describe("MyHealthStateDetail", () => {
     expect(screen.queryByText("Medicines")).not.toBeInTheDocument();
     expect(screen.queryByText("Treatments")).not.toBeInTheDocument();
     expect(screen.queryByText("Operations")).not.toBeInTheDocument();
+  });
+
+  test("opens and closes the diagnosis history modal with the route diagnosis id", () => {
+    renderDetail();
+
+    expect(screen.queryByRole("dialog", { name: "Diagnosis history modal" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+    const modal = screen.getByRole("dialog", { name: "Diagnosis history modal" });
+    expect(within(modal).getByText("History modal for diagnosis-1")).toBeInTheDocument();
+
+    fireEvent.click(within(modal).getByRole("button", { name: "Close history" }));
+
+    expect(screen.queryByRole("dialog", { name: "Diagnosis history modal" })).not.toBeInTheDocument();
   });
 });
