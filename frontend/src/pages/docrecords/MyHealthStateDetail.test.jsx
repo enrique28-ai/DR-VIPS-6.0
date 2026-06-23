@@ -1,0 +1,187 @@
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import MyHealthStateDetail from "./MyHealthStateDetail.jsx";
+import { useMyDiagnosis } from "../../features/diagnostics/dhooks.js";
+
+vi.mock("framer-motion", () => ({
+  motion: {
+    button: ({ children, whileHover, whileTap, ...props }) => (
+      <button {...props}>{children}</button>
+    ),
+  },
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    i18n: { language: "en" },
+    t: (key) =>
+      ({
+        "diagnoses.detail.created": "Created",
+        "diagnoses.detail.description": "Description",
+        "diagnoses.detail.history": "History",
+        "diagnoses.detail.medicines": "Medicines",
+        "diagnoses.detail.notFoundTitle": "Diagnosis not found",
+        "diagnoses.detail.operations": "Operations",
+        "diagnoses.detail.treatments": "Treatments",
+        "diagnoses.detail.untitled": "Untitled diagnosis",
+        "diagnoses.detail.updated": "Updated",
+        "myHealthState.detail.backToState": "Back to health state",
+        "myHealthState.detail.createdBy": "Created by",
+        "myHealthState.detail.unknownDoctor": "Unknown doctor",
+      }[key] ?? key),
+  }),
+}));
+
+vi.mock("../../features/diagnostics/dhooks.js", async () => {
+  const actual = await vi.importActual("../../features/diagnostics/dhooks.js");
+  return {
+    ...actual,
+    useMyDiagnosis: vi.fn(),
+  };
+});
+
+vi.mock("../../i18n", () => ({
+  default: {
+    t: (key, fallback) => fallback ?? key,
+  },
+}));
+
+const baseDiagnosis = (overrides = {}) => ({
+  _id: "diagnosis-1",
+  title: "Flu diagnosis",
+  description: "Fever and cough",
+  medicine: ["Ibuprofen", "Acetaminophen"],
+  treatment: ["Rest", "Hydration"],
+  operation: ["Procedure A"],
+  createdBy: {
+    name: "Dr. Smith",
+    email: "smith@example.com",
+  },
+  createdAt: "2026-06-21T12:00:00.000Z",
+  updatedAt: "2026-06-22T12:00:00.000Z",
+  ...overrides,
+});
+
+const renderDetail = (diagnosis = baseDiagnosis(), queryState = {}) => {
+  useMyDiagnosis.mockReturnValue({
+    data: diagnosis,
+    isLoading: false,
+    isError: false,
+    ...queryState,
+  });
+
+  return render(
+    <MemoryRouter initialEntries={["/docrecords/myhealthstate/diagnosis-1"]}>
+      <Routes>
+        <Route path="/docrecords/myhealthstate/:id" element={<MyHealthStateDetail />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+};
+
+describe("MyHealthStateDetail", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test("renders null while the diagnosis is loading without cached data", () => {
+    const { container } = renderDetail(undefined, {
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(useMyDiagnosis).toHaveBeenCalledWith("diagnosis-1");
+  });
+
+  test("renders not-found state with a back link", () => {
+    renderDetail(null, {
+      data: null,
+      isLoading: false,
+      isError: true,
+    });
+
+    expect(screen.getByRole("heading", { name: "Diagnosis not found" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to health state" })).toHaveAttribute(
+      "href",
+      "/docrecords/myhealthstate",
+    );
+  });
+
+  test("renders stable diagnosis detail content and back link", () => {
+    renderDetail();
+
+    expect(screen.getByRole("heading", { name: "Flu diagnosis" })).toBeInTheDocument();
+    expect(screen.getByText("Description")).toBeInTheDocument();
+    expect(screen.getByText("Fever and cough")).toBeInTheDocument();
+    expect(screen.getByText("Dr. Smith (smith@example.com)")).toBeInTheDocument();
+    expect(screen.getByText(/Created:/)).toBeInTheDocument();
+    expect(screen.getByText(/Updated:/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Back to health state/i })).toHaveAttribute(
+      "href",
+      "/docrecords/myhealthstate",
+    );
+  });
+
+  test("falls back to legacy title fields and then the untitled label", () => {
+    renderDetail(baseDiagnosis({ title: undefined, Diagnostic: "Legacy title" }));
+
+    expect(screen.getByRole("heading", { name: "Legacy title" })).toBeInTheDocument();
+
+    renderDetail(
+      baseDiagnosis({
+        title: undefined,
+        Diagnostic: undefined,
+        diagnosis: "Diagnosis field title",
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Diagnosis field title" })).toBeInTheDocument();
+
+    renderDetail(
+      baseDiagnosis({
+        title: undefined,
+        Diagnostic: undefined,
+        diagnosis: undefined,
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Untitled diagnosis" })).toBeInTheDocument();
+  });
+
+  test("falls back to unknown doctor when creator metadata is missing", () => {
+    renderDetail(baseDiagnosis({ createdBy: undefined }));
+
+    expect(screen.getByText("Created by")).toBeInTheDocument();
+    expect(screen.getByText("Unknown doctor")).toBeInTheDocument();
+  });
+
+  test("renders medicines, treatments, and operations when arrays have values", () => {
+    renderDetail();
+
+    expect(screen.getByText("Medicines")).toBeInTheDocument();
+    expect(screen.getByText("Treatments")).toBeInTheDocument();
+    expect(screen.getByText("Operations")).toBeInTheDocument();
+    expect(screen.getByText("Ibuprofen")).toBeInTheDocument();
+    expect(screen.getByText("Acetaminophen")).toBeInTheDocument();
+    expect(screen.getByText("Rest")).toBeInTheDocument();
+    expect(screen.getByText("Hydration")).toBeInTheDocument();
+    expect(screen.getByText("Procedure A")).toBeInTheDocument();
+  });
+
+  test("hides optional sections when arrays are empty or missing", () => {
+    renderDetail(
+      baseDiagnosis({
+        medicine: [],
+        treatment: undefined,
+        operation: [],
+      }),
+    );
+
+    expect(screen.queryByText("Medicines")).not.toBeInTheDocument();
+    expect(screen.queryByText("Treatments")).not.toBeInTheDocument();
+    expect(screen.queryByText("Operations")).not.toBeInTheDocument();
+  });
+});
