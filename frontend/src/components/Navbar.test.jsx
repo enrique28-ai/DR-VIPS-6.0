@@ -200,4 +200,121 @@ describe("Navbar", () => {
       expect(navigateMock).toHaveBeenCalledWith("/login", { replace: true });
     });
   });
+
+  test("verified patient renders NotificationBell and greeting using the first name from user.name", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: true,
+      role: "patient",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    renderNavbar();
+
+    expect(screen.getByTestId("notification-bell-stub")).toBeInTheDocument();
+    expect(
+      screen.getByText((_text, element) => {
+        return element?.textContent.replace(/\s+/g, " ").trim() === "Hi Dr";
+      }),
+    ).toBeInTheDocument();
+  });
+
+  test("verified patient menu shows Calendar, My Health State, Profile, My Children, and Logout", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: true,
+      role: "patient",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    fireEvent.click(getAvatarButton(container));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Calendar" }),
+    ).toHaveAttribute("href", "/calendar");
+    expect(
+      screen.getByRole("menuitem", { name: "My health state" }),
+    ).toHaveAttribute("href", "/docrecords/myhealthstate");
+    expect(
+      screen.getByRole("menuitem", { name: "Profile" }),
+    ).toHaveAttribute("href", "/profile");
+    expect(
+      screen.getByRole("menuitem", { name: "My children" }),
+    ).toHaveAttribute("href", "/docrecords/mychildren");
+    expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  test("verified doctor with no name derives greeting from user.email and renders NotificationBell", () => {
+    authState.user = {
+      name: "",
+      email: "doctor@example.com",
+      isVerified: true,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    renderNavbar();
+
+    expect(screen.getByTestId("notification-bell-stub")).toBeInTheDocument();
+    expect(
+      screen.getByText((_text, element) => {
+        return (
+          element?.textContent.replace(/\s+/g, " ").trim() === "Hi doctor"
+        );
+      }),
+    ).toBeInTheDocument();
+  });
+
+  test("verified doctor menu shows Calendar, Patients, Profile, and Logout", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: true,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    fireEvent.click(getAvatarButton(container));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Calendar" }),
+    ).toHaveAttribute("href", "/calendar");
+    expect(
+      screen.getByRole("menuitem", { name: "Patients" }),
+    ).toHaveAttribute("href", "/patients");
+    expect(
+      screen.getByRole("menuitem", { name: "Profile" }),
+    ).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  test("renders img alt=avatar with the avatar src when user.avatar is set", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      avatar: "https://example.com/avatar.png",
+      isVerified: true,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    const avatarImg = container.querySelector(
+      'button[aria-haspopup="menu"] img[alt="avatar"]',
+    );
+    expect(avatarImg).not.toBeNull();
+    expect(avatarImg.getAttribute("src")).toBe("https://example.com/avatar.png");
+  });
 });
