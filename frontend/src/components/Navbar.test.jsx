@@ -317,4 +317,88 @@ describe("Navbar", () => {
     expect(avatarImg).not.toBeNull();
     expect(avatarImg.getAttribute("src")).toBe("https://example.com/avatar.png");
   });
+
+  test("outside click closes an open menu", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: false,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    const avatar = getAvatarButton(container);
+    fireEvent.click(avatar);
+    expect(
+      screen.getByRole("menuitem", { name: "Verify email" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(document.body);
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Verify email" }),
+    ).not.toBeInTheDocument();
+    expect(avatar).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("clicking a verified patient menu link closes the menu", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: true,
+      role: "patient",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    const avatar = getAvatarButton(container);
+    fireEvent.click(avatar);
+    expect(
+      screen.getByRole("menuitem", { name: "Profile" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Profile" }));
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Profile" }),
+    ).not.toBeInTheDocument();
+    expect(avatar).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("avatar initial comes from user.email when user.name is missing", () => {
+    authState.user = {
+      name: "",
+      email: "doctor@example.com",
+      isVerified: false,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    const avatar = getAvatarButton(container);
+    expect(avatar).not.toBeNull();
+    expect(avatar.textContent).toBe("D");
+  });
+
+  test("avatar initial falls back to U when name and email are missing", () => {
+    authState.user = {
+      isVerified: false,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    const avatar = getAvatarButton(container);
+    expect(avatar).not.toBeNull();
+    expect(avatar.textContent).toBe("U");
+  });
 });
