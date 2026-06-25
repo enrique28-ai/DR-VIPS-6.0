@@ -41,6 +41,12 @@ vi.mock("react-i18next", () => ({
         "patients.card.genderFemale": "Female",
         "patients.create.birthDate": "Birth date",
         "patients.create.phoneCountry": "Phone country",
+        "myHealthInfo.history.button": "History",
+        "myHealthInfo.actions.approveIntro": "Review pending changes before applying them.",
+        "myHealthInfo.actions.approve": "Approve",
+        "myHealthInfo.actions.reject": "Reject",
+        "myHealthInfo.actions.approving": "Approving...",
+        "myHealthInfo.actions.rejecting": "Rejecting...",
       }[key] ?? options.defaultValue ?? key),
   }),
 }));
@@ -53,7 +59,12 @@ vi.mock("../../features/patients/phooks.js", () => ({
 }));
 
 vi.mock("../../components/patient/PatientHistoryModal.jsx", () => ({
-  default: () => null,
+  default: ({ variant, patientId }) => (
+    <div role="dialog" aria-label="Child history modal">
+      <p>History modal variant {variant}</p>
+      <p>History modal patient {patientId}</p>
+    </div>
+  ),
 }));
 
 const inertMutation = { mutate: vi.fn(), isPending: false };
@@ -178,6 +189,91 @@ describe("MyChildHealthInfo", () => {
 
     expect(screen.getByText("Pending changes require your approval.")).toBeInTheDocument();
     expect(screen.getByText(/Dr\. Smith/)).toBeInTheDocument();
+  });
+});
+
+describe("MyChildHealthInfo actions", () => {
+  test("opens the child history modal when the History button is clicked", () => {
+    renderChildHealthInfo();
+
+    expect(
+      screen.queryByRole("dialog", { name: "Child history modal" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+    const modal = screen.getByRole("dialog", { name: "Child history modal" });
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent("History modal variant child");
+    expect(modal).toHaveTextContent("History modal patient child-profile-id");
+  });
+
+  test("approve button calls approve.mutate with the child profile id", () => {
+    const approveMutate = vi.fn();
+    useApproveChildProfile.mockReturnValue({
+      mutate: approveMutate,
+      isPending: false,
+    });
+
+    renderChildHealthInfo(undefined, {
+      data: [baseChild({ pendingDecision: true })],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(approveMutate).toHaveBeenCalledTimes(1);
+    expect(approveMutate).toHaveBeenCalledWith("child-profile-id");
+  });
+
+  test("reject button calls reject.mutate with the child profile id", () => {
+    const rejectMutate = vi.fn();
+    useRejectChildProfile.mockReturnValue({
+      mutate: rejectMutate,
+      isPending: false,
+    });
+
+    renderChildHealthInfo(undefined, {
+      data: [baseChild({ pendingDecision: true })],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+
+    expect(rejectMutate).toHaveBeenCalledTimes(1);
+    expect(rejectMutate).toHaveBeenCalledWith("child-profile-id");
+  });
+
+  test("hides approve and reject actions when no decision is pending", () => {
+    renderChildHealthInfo();
+
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Review pending changes before applying them."),
+    ).not.toBeInTheDocument();
+  });
+
+  test("disables approve and reject buttons while approve mutation is pending", () => {
+    useApproveChildProfile.mockReturnValue({ mutate: vi.fn(), isPending: true });
+    useRejectChildProfile.mockReturnValue({ mutate: vi.fn(), isPending: false });
+
+    renderChildHealthInfo(undefined, {
+      data: [baseChild({ pendingDecision: true })],
+    });
+
+    expect(screen.getByRole("button", { name: "Approving..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+  });
+
+  test("disables approve and reject buttons while reject mutation is pending", () => {
+    useApproveChildProfile.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    useRejectChildProfile.mockReturnValue({ mutate: vi.fn(), isPending: true });
+
+    renderChildHealthInfo(undefined, {
+      data: [baseChild({ pendingDecision: true })],
+    });
+
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Rejecting..." })).toBeDisabled();
   });
 });
 
