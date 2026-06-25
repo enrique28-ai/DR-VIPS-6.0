@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import CalendarPage from "./CalendarPage.jsx";
 
@@ -93,14 +93,24 @@ vi.mock("../../components/calendar/AppointmentActionModal.jsx", () => ({
     open ? <div data-testid="appointment-modal">{mode}</div> : null,
 }));
 
+const dateMap = vi.hoisted(() => ({
+  start: new Date("2026-06-25T10:00:00Z"),
+  end: new Date("2026-06-25T11:00:00Z"),
+  earlyEnd: new Date("2026-06-25T09:00:00Z"),
+  overlapStart: new Date("2026-06-25T10:30:00Z"),
+  overlapEnd: new Date("2026-06-25T11:30:00Z"),
+  laterStart: new Date("2026-06-25T14:00:00Z"),
+  laterEnd: new Date("2026-06-25T15:00:00Z"),
+}));
+
 vi.mock("../../components/forms/LocalizedDatePicker.jsx", () => ({
-  default: ({ value, placeholder }) => (
+  default: ({ value, onChange, placeholder }) => (
     <input
       type="text"
       data-testid="localized-date-picker"
       value={value ? value.toISOString() : ""}
-      readOnly
       placeholder={placeholder}
+      onChange={(e) => onChange?.(dateMap[e.target.value] ?? null)}
     />
   ),
 }));
@@ -116,6 +126,7 @@ import {
   useRejectAppointment,
 } from "../../features/appointments/ahooks.js";
 import { buildPatientParams, usePatients } from "../../features/patients/phooks.js";
+import toast from "react-hot-toast";
 
 const doctorUser = { _id: "doctor-1", role: "doctor", name: "Dr. Current" };
 const patientUser = { _id: "patient-1", role: "patient", name: "Patient Current" };
@@ -133,6 +144,17 @@ const appointment = {
   start: new Date("2026-06-25T10:00:00Z"),
   end: new Date("2026-06-25T11:00:00Z"),
   reason: "Follow up",
+  titleData: {
+    doctor: { name: "Dr. Smith" },
+    patient: { fullname: "John Doe" },
+  },
+};
+
+const existingAppointment = {
+  _id: "appt-existing",
+  status: "accepted",
+  start: new Date("2026-06-25T10:00:00Z"),
+  end: new Date("2026-06-25T11:00:00Z"),
   titleData: {
     doctor: { name: "Dr. Smith" },
     patient: { fullname: "John Doe" },
@@ -273,5 +295,157 @@ describe("CalendarPage", () => {
     renderCalendarPage();
 
     expect(screen.queryByTestId("appointment-modal")).not.toBeInTheDocument();
+  });
+
+  describe("appointment creation", () => {
+    test("shows missing-fields toast when patient and date are empty", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(toast.error).toHaveBeenCalledWith("Please select a patient and a date");
+      expect(createMutate).not.toHaveBeenCalled();
+    });
+
+    test("shows missing-fields toast when only patient is selected", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(toast.error).toHaveBeenCalledWith("Please select a patient and a date");
+      expect(createMutate).not.toHaveBeenCalled();
+    });
+
+    test("shows invalid-range toast when end is before start", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.change(screen.getByPlaceholderText("Start"), { target: { value: "start" } });
+      fireEvent.change(screen.getByPlaceholderText("End"), { target: { value: "earlyEnd" } });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(toast.error).toHaveBeenCalledWith("Please select a valid time range");
+      expect(createMutate).not.toHaveBeenCalled();
+    });
+
+    test("shows overlap toast when requested range overlaps existing appointment", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [existingAppointment], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.change(screen.getByPlaceholderText("Start"), { target: { value: "overlapStart" } });
+      fireEvent.change(screen.getByPlaceholderText("End"), { target: { value: "overlapEnd" } });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(toast.error).toHaveBeenCalledWith("That time range is already taken!", {
+        icon: "🚫",
+        duration: 4000,
+      });
+      expect(createMutate).not.toHaveBeenCalled();
+    });
+
+    test("calls create mutation with selected patient, dates, and reason", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [existingAppointment], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.change(screen.getByPlaceholderText("Start"), { target: { value: "laterStart" } });
+      fireEvent.change(screen.getByPlaceholderText("End"), { target: { value: "laterEnd" } });
+      fireEvent.change(screen.getByPlaceholderText("e.g. Follow up..."), {
+        target: { value: "Follow up visit" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(createMutate).toHaveBeenCalledTimes(1);
+      const [payload, options] = createMutate.mock.calls[0];
+      expect(payload.patientId).toBe("p1");
+      expect(payload.start).toEqual(dateMap.laterStart);
+      expect(payload.end).toEqual(dateMap.laterEnd);
+      expect(payload.reason).toBe("Follow up visit");
+      expect(typeof options.onSuccess).toBe("function");
+    });
+
+    test("uses default reason when reason input is empty or whitespace", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.change(screen.getByPlaceholderText("Start"), { target: { value: "start" } });
+      fireEvent.change(screen.getByPlaceholderText("End"), { target: { value: "end" } });
+      fireEvent.change(screen.getByPlaceholderText("e.g. Follow up..."), {
+        target: { value: "   " },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(createMutate).toHaveBeenCalledTimes(1);
+      expect(createMutate.mock.calls[0][0].reason).toBe("General consultation");
+    });
+
+    test("resets form fields on successful create", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.change(screen.getByPlaceholderText("Start"), { target: { value: "start" } });
+      fireEvent.change(screen.getByPlaceholderText("End"), { target: { value: "end" } });
+      fireEvent.change(screen.getByPlaceholderText("e.g. Follow up..."), {
+        target: { value: "Follow up visit" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      const [, options] = createMutate.mock.calls[0];
+      act(() => options.onSuccess());
+
+      expect(screen.getAllByRole("combobox")[0]).toHaveValue("");
+      expect(screen.getByPlaceholderText("e.g. Follow up...")).toHaveValue("");
+      expect(screen.getAllByTestId("localized-date-picker")[0]).toHaveValue("");
+      expect(screen.getAllByTestId("localized-date-picker")[1]).toHaveValue("");
+      expect(screen.getAllByRole("combobox")[1]).toHaveValue("60");
+    });
+
+    test("disables schedule button and shows scheduling text while mutation is pending", () => {
+      authState.user = doctorUser;
+      useCreateAppointment.mockReturnValue({ mutate: vi.fn(), isPending: true });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+
+      const button = screen.getByRole("button", { name: "Scheduling..." });
+      expect(button).toBeInTheDocument();
+      expect(button).toBeDisabled();
+    });
   });
 });
