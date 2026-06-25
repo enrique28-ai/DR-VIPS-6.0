@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import MyChildHealthInfo from "./MyChildHealthInfo.jsx";
 import {
@@ -47,6 +47,9 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.actions.reject": "Reject",
         "myHealthInfo.actions.approving": "Approving...",
         "myHealthInfo.actions.rejecting": "Rejecting...",
+        "myHealthInfo.actions.clearTranslation": "Clear translation",
+        "common.translate": "Translate",
+        "common.loading": "Loading",
       }[key] ?? options.defaultValue ?? key),
   }),
 }));
@@ -274,6 +277,123 @@ describe("MyChildHealthInfo actions", () => {
 
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Rejecting..." })).toBeDisabled();
+  });
+});
+
+describe("MyChildHealthInfo translation", () => {
+  test("translate button calls mutation with current language", () => {
+    const translateMutate = vi.fn();
+    useTranslateMyChildrenHealthInfo.mockReturnValue({
+      mutate: translateMutate,
+      isPending: false,
+    });
+
+    renderChildHealthInfo();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+
+    expect(translateMutate).toHaveBeenCalledTimes(1);
+    expect(translateMutate).toHaveBeenCalledWith(
+      { lang: "en" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  test("successful translation renders translated child name", () => {
+    const translateMutate = vi.fn();
+    useTranslateMyChildrenHealthInfo.mockReturnValue({
+      mutate: translateMutate,
+      isPending: false,
+    });
+
+    renderChildHealthInfo();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+
+    const [, options] = translateMutate.mock.calls[0];
+    act(() => {
+      options.onSuccess([
+        baseChild({
+          snapshot: baseSnapshot({
+            fullnameWrapper: { value: "Translated Minor Patient" },
+            fullname: { value: "Translated Minor Patient" },
+          }),
+        }),
+      ]);
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Translated Minor Patient" }),
+    ).toBeInTheDocument();
+  });
+
+  test("clear translation button appears after successful translation", () => {
+    const translateMutate = vi.fn();
+    useTranslateMyChildrenHealthInfo.mockReturnValue({
+      mutate: translateMutate,
+      isPending: false,
+    });
+
+    renderChildHealthInfo();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+
+    const [, options] = translateMutate.mock.calls[0];
+    act(() => {
+      options.onSuccess([
+        baseChild({
+          snapshot: baseSnapshot({
+            fullnameWrapper: { value: "Translated Minor Patient" },
+            fullname: { value: "Translated Minor Patient" },
+          }),
+        }),
+      ]);
+    });
+
+    expect(screen.getByRole("button", { name: "Clear translation" })).toBeInTheDocument();
+  });
+
+  test("clicking clear translation restores original child data", () => {
+    const translateMutate = vi.fn();
+    useTranslateMyChildrenHealthInfo.mockReturnValue({
+      mutate: translateMutate,
+      isPending: false,
+    });
+
+    renderChildHealthInfo();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+
+    const [, options] = translateMutate.mock.calls[0];
+    act(() => {
+      options.onSuccess([
+        baseChild({
+          snapshot: baseSnapshot({
+            fullnameWrapper: { value: "Translated Minor Patient" },
+            fullname: { value: "Translated Minor Patient" },
+          }),
+        }),
+      ]);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear translation" }));
+
+    expect(screen.getByRole("heading", { name: "Minor Patient" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Translated Minor Patient" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("translate button shows loading state and is disabled while pending", () => {
+    useTranslateMyChildrenHealthInfo.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: true,
+    });
+
+    renderChildHealthInfo();
+
+    const button = screen.getByRole("button", { name: "Loading" });
+    expect(button).toBeDisabled();
   });
 });
 
