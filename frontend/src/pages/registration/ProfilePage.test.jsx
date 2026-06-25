@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import toast from "react-hot-toast";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ProfilePage from "./ProfilePage.jsx";
 import { useAuthStore } from "../../stores/authStore.js";
 
@@ -23,6 +24,9 @@ vi.mock("framer-motion", () => ({
 }));
 
 vi.mock("react-hot-toast", () => ({
+  default: {
+    error: vi.fn(),
+  },
   toast: {
     error: vi.fn(),
   },
@@ -118,6 +122,10 @@ describe("ProfilePage", () => {
     vi.clearAllMocks();
     navigateMock.mockReset();
     resetAuth();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test("returns null when there is no user", () => {
@@ -225,5 +233,139 @@ describe("ProfilePage", () => {
     const saveButton = screen.getByRole("button", { name: "Save profile" });
     expect(saveButton).toBeDisabled();
     expect(saveButton).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+describe("ProfilePage account actions and avatar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigateMock.mockReset();
+    resetAuth();
+  });
+
+  test("wrong delete confirmation shows toast error and does not call deleteMe", () => {
+    authState.user = doctorUser;
+    renderProfilePage();
+
+    fireEvent.change(screen.getByPlaceholderText("Type DELETE to confirm"), {
+      target: { value: "WRONG" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Type DELETE to confirm account deletion.");
+    expect(authState.deleteMe).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalledWith("/login", { replace: true });
+  });
+
+  test("correct delete confirmation calls deleteMe and navigates to login", async () => {
+    authState.user = doctorUser;
+    renderProfilePage();
+
+    fireEvent.change(screen.getByPlaceholderText("Type DELETE to confirm"), {
+      target: { value: "DELETE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+    await waitFor(() => {
+      expect(authState.deleteMe).toHaveBeenCalledTimes(1);
+    });
+    expect(navigateMock).toHaveBeenCalledWith("/login", { replace: true });
+  });
+
+  test("Use link toggles URL mode", () => {
+    authState.user = doctorUser;
+    renderProfilePage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use link" }));
+
+    expect(screen.getByPlaceholderText("https://...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use file" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use file" }));
+
+    expect(screen.queryByPlaceholderText("https://...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use link" })).toBeInTheDocument();
+  });
+
+  test("saving avatar by URL calls importAvatarByUrl and navigates", async () => {
+    authState.user = doctorUser;
+    renderProfilePage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use link" }));
+    fireEvent.change(screen.getByPlaceholderText("https://..."), {
+      target: { value: "https://example.com/avatar.png" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() => {
+      expect(authState.importAvatarByUrl).toHaveBeenCalledWith(
+        "https://example.com/avatar.png",
+      );
+    });
+    expect(authState.updateProfile).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/patients", { replace: true });
+  });
+
+  test("remove avatar flow calls updateProfile({ avatar: '' }) on save", async () => {
+    authState.user = { ...doctorUser, avatar: "/uploads/avatar.png" };
+    renderProfilePage();
+
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() => {
+      expect(authState.updateProfile).toHaveBeenCalledWith({ avatar: "" });
+    });
+    expect(navigateMock).toHaveBeenCalledWith("/patients", { replace: true });
+  });
+
+  test("valid file selection uploads avatar on save", async () => {
+    const createObjectURLSpy = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:avatar-preview");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    authState.user = doctorUser;
+    const { container } = renderProfilePage();
+
+    const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [file] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() => {
+      expect(authState.uploadAvatar).toHaveBeenCalledWith(file);
+    });
+    expect(navigateMock).toHaveBeenCalledWith("/patients", { replace: true });
+
+    createObjectURLSpy.mockRestore();
+  });
+
+  test("oversized file selection shows max-size toast and does not upload", () => {
+    authState.user = doctorUser;
+    const { container } = renderProfilePage();
+
+    const bigFile = new File(
+      [new Uint8Array(2 * 1024 * 1024 + 1)],
+      "large.png",
+      { type: "image/png" },
+    );
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [bigFile] },
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Image must be 2 MB or less.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(authState.uploadAvatar).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/patients", { replace: true });
   });
 });
