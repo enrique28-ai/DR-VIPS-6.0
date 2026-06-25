@@ -7,13 +7,16 @@ const authState = vi.hoisted(() => ({
 }));
 
 vi.mock("react-big-calendar", () => ({
-  Calendar: ({ events, culture, titleAccessor }) => (
+  Calendar: ({ events, culture, titleAccessor, onSelectEvent }) => (
     <div data-testid="calendar">
       <div data-testid="event-count">{events?.length ?? 0}</div>
       <div data-testid="culture">{culture}</div>
       {events?.map((evt, idx) => (
         <div key={idx} data-testid="event-title">
-          {typeof titleAccessor === "function" ? titleAccessor(evt) : evt.title}
+          <span>{typeof titleAccessor === "function" ? titleAccessor(evt) : evt.title}</span>
+          <button type="button" onClick={() => onSelectEvent?.(evt)}>
+            Select event {evt._id ?? idx}
+          </button>
         </div>
       ))}
     </div>
@@ -89,8 +92,24 @@ vi.mock("../../features/patients/phooks.js", () => ({
 }));
 
 vi.mock("../../components/calendar/AppointmentActionModal.jsx", () => ({
-  default: ({ open, mode }) =>
-    open ? <div data-testid="appointment-modal">{mode}</div> : null,
+  default: ({ open, mode, event, isDoctor, busy, onClose, onAccept, onReject }) =>
+    open ? (
+      <div data-testid="appointment-modal">
+        <p>Modal mode: {mode}</p>
+        <p>Modal event: {event?._id}</p>
+        <p>Modal isDoctor: {String(isDoctor)}</p>
+        <p>Modal busy: {String(busy)}</p>
+        <button type="button" onClick={onClose} disabled={busy}>
+          Close modal
+        </button>
+        <button type="button" onClick={() => onAccept(event._id)} disabled={busy}>
+          Accept modal
+        </button>
+        <button type="button" onClick={() => onReject(event._id)} disabled={busy}>
+          Reject modal
+        </button>
+      </div>
+    ) : null,
 }));
 
 const dateMap = vi.hoisted(() => ({
@@ -159,6 +178,18 @@ const existingAppointment = {
     doctor: { name: "Dr. Smith" },
     patient: { fullname: "John Doe" },
   },
+};
+
+const acceptedAppointment = {
+  ...appointment,
+  _id: "appt-accepted",
+  status: "accepted",
+};
+
+const noIdAppointment = {
+  ...appointment,
+  _id: undefined,
+  status: "pending",
 };
 
 const renderCalendarPage = () => render(<CalendarPage />);
@@ -446,6 +477,146 @@ describe("CalendarPage", () => {
       const button = screen.getByRole("button", { name: "Scheduling..." });
       expect(button).toBeInTheDocument();
       expect(button).toBeDisabled();
+    });
+  });
+
+  describe("event selection and modal actions", () => {
+    test("patient selecting pending appointment opens pending modal", () => {
+      authState.user = patientUser;
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+
+      expect(screen.getByTestId("appointment-modal")).toBeInTheDocument();
+      expect(screen.getByText("Modal mode: pending")).toBeInTheDocument();
+      expect(screen.getByText("Modal event: appt-1")).toBeInTheDocument();
+      expect(screen.getByText("Modal isDoctor: false")).toBeInTheDocument();
+    });
+
+    test("patient selecting accepted appointment opens cancel modal", () => {
+      authState.user = patientUser;
+      useAppointments.mockReturnValue({ data: [acceptedAppointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-accepted" }));
+
+      expect(screen.getByTestId("appointment-modal")).toBeInTheDocument();
+      expect(screen.getByText("Modal mode: cancel")).toBeInTheDocument();
+      expect(screen.getByText("Modal event: appt-accepted")).toBeInTheDocument();
+    });
+
+    test("doctor selecting pending appointment opens cancel modal", () => {
+      authState.user = doctorUser;
+      usePatients.mockReturnValue({ data: patientsData });
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+
+      expect(screen.getByTestId("appointment-modal")).toBeInTheDocument();
+      expect(screen.getByText("Modal mode: cancel")).toBeInTheDocument();
+      expect(screen.getByText("Modal isDoctor: true")).toBeInTheDocument();
+    });
+
+    test("selecting event without id does not open modal", () => {
+      authState.user = patientUser;
+      useAppointments.mockReturnValue({ data: [noIdAppointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event 0" }));
+
+      expect(screen.queryByTestId("appointment-modal")).not.toBeInTheDocument();
+    });
+
+    test("closing modal hides it", () => {
+      authState.user = patientUser;
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+      expect(screen.getByTestId("appointment-modal")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+      expect(screen.queryByTestId("appointment-modal")).not.toBeInTheDocument();
+    });
+
+    test("accept action calls accept mutation and closes modal on success", () => {
+      authState.user = patientUser;
+      const acceptMutate = vi.fn();
+      useAcceptAppointment.mockReturnValue({ mutate: acceptMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+      fireEvent.click(screen.getByRole("button", { name: "Accept modal" }));
+
+      expect(acceptMutate).toHaveBeenCalledTimes(1);
+      expect(acceptMutate.mock.calls[0][0]).toBe("appt-1");
+      expect(typeof acceptMutate.mock.calls[0][1].onSuccess).toBe("function");
+
+      act(() => acceptMutate.mock.calls[0][1].onSuccess());
+      expect(screen.queryByTestId("appointment-modal")).not.toBeInTheDocument();
+    });
+
+    test("reject action from pending modal calls reject mutation and closes modal on success", () => {
+      authState.user = patientUser;
+      const rejectMutate = vi.fn();
+      useRejectAppointment.mockReturnValue({ mutate: rejectMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+      fireEvent.click(screen.getByRole("button", { name: "Reject modal" }));
+
+      expect(rejectMutate).toHaveBeenCalledTimes(1);
+      expect(rejectMutate.mock.calls[0][0]).toBe("appt-1");
+      expect(typeof rejectMutate.mock.calls[0][1].onSuccess).toBe("function");
+
+      act(() => rejectMutate.mock.calls[0][1].onSuccess());
+      expect(screen.queryByTestId("appointment-modal")).not.toBeInTheDocument();
+    });
+
+    test("reject action from cancel modal calls reject mutation", () => {
+      authState.user = doctorUser;
+      const rejectMutate = vi.fn();
+      useRejectAppointment.mockReturnValue({ mutate: rejectMutate, isPending: false });
+      usePatients.mockReturnValue({ data: patientsData });
+      useAppointments.mockReturnValue({ data: [acceptedAppointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-accepted" }));
+      fireEvent.click(screen.getByRole("button", { name: "Reject modal" }));
+
+      expect(rejectMutate).toHaveBeenCalledTimes(1);
+      expect(rejectMutate.mock.calls[0][0]).toBe("appt-accepted");
+      expect(typeof rejectMutate.mock.calls[0][1].onSuccess).toBe("function");
+    });
+
+    test("modal shows busy state when accept mutation is pending", () => {
+      authState.user = patientUser;
+      useAcceptAppointment.mockReturnValue({ mutate: vi.fn(), isPending: true });
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+
+      expect(screen.getByText("Modal busy: true")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Accept modal" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Reject modal" })).toBeDisabled();
+    });
+
+    test("modal shows busy state when reject mutation is pending", () => {
+      authState.user = patientUser;
+      useRejectAppointment.mockReturnValue({ mutate: vi.fn(), isPending: true });
+      useAppointments.mockReturnValue({ data: [appointment], isLoading: false });
+
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Select event appt-1" }));
+
+      expect(screen.getByText("Modal busy: true")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Accept modal" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Reject modal" })).toBeDisabled();
     });
   });
 });
