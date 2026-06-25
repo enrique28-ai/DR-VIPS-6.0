@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import MyChildHealthInfo from "./MyChildHealthInfo.jsx";
 import {
@@ -8,8 +8,10 @@ import {
   useTranslateMyChildrenHealthInfo,
 } from "../../features/patients/phooks.js";
 
+const navigateMock = vi.hoisted(() => vi.fn());
+
 vi.mock("react-router-dom", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateMock,
   useParams: () => ({ childId: "child-profile-id" }),
 }));
 
@@ -21,12 +23,23 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.common.notSpecified": "Not specified",
         "myHealthInfo.common.unknownDate": "Unknown date",
         "myHealthInfo.history.systemUnknown": "Unknown",
-        "myHealthInfo.sections.basic.title": "Basic",
+        "myHealthInfo.sections.basic.title": "Basic information",
+        "myHealthInfo.sections.basic.age": "Age",
+        "myHealthInfo.sections.basic.ageWithYears": `${options.age} years`,
+        "myHealthInfo.sections.basic.gender": "Gender",
+        "myHealthInfo.sections.basic.bloodType": "Blood type",
+        "myHealthInfo.sections.basic.location": "Country / State / City",
         "myHealthInfo.sections.basic.phone": "Phone",
-        "myHealthInfo.sections.basic.location": "Location",
-        "myChildren.healthInfo": "Child health info",
-        "myChildren.upToDate": "Up to date",
+        "myChildren.childNotFound": "Child not found or no longer accessible.",
+        "myChildren.healthInfo": "Health Info",
+        "myChildren.upToDate": "Up to date.",
+        "myChildren.pending": "Pending changes require your approval.",
         "myChildren.tutorEmail": "Tutor email",
+        "myChildren.back": "Back",
+        "myChildren.unknownChild": "Unknown child",
+        "patients.card.genderMale": "Male",
+        "patients.card.genderFemale": "Female",
+        "patients.create.birthDate": "Birth date",
         "patients.create.phoneCountry": "Phone country",
       }[key] ?? options.defaultValue ?? key),
   }),
@@ -47,6 +60,7 @@ const inertMutation = { mutate: vi.fn(), isPending: false };
 
 const baseSnapshot = (overrides = {}) => ({
   fullnameWrapper: { value: "Minor Patient" },
+  fullname: { value: "Minor Patient" },
   age: { value: 10 },
   gender: { value: "female" },
   bloodtype: { value: "O+" },
@@ -64,28 +78,107 @@ const baseSnapshot = (overrides = {}) => ({
   ...overrides,
 });
 
-const renderChildHealthInfo = (snapshot) => {
+const baseChild = (overrides = {}) => ({
+  profileId: "child-profile-id",
+  hasRecords: true,
+  pendingDecision: false,
+  parentEmail: "parent@example.com",
+  snapshot: baseSnapshot(),
+  ...overrides,
+});
+
+const renderChildHealthInfo = (snapshot, hookState = {}) => {
+  const resolvedSnapshot = snapshot ?? baseSnapshot();
   useMyChildrenHealthInfo.mockReturnValue({
-    data: [
+    data: hookState.data ?? [
       {
         profileId: "child-profile-id",
         hasRecords: true,
         pendingDecision: false,
         parentEmail: "parent@example.com",
-        snapshot,
+        snapshot: resolvedSnapshot,
       },
     ],
-    isLoading: false,
+    isLoading: hookState.isLoading ?? false,
   });
 
-  render(<MyChildHealthInfo />);
+  return render(<MyChildHealthInfo />);
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  navigateMock.mockReset();
   useApproveChildProfile.mockReturnValue(inertMutation);
   useRejectChildProfile.mockReturnValue(inertMutation);
   useTranslateMyChildrenHealthInfo.mockReturnValue(inertMutation);
+});
+
+describe("MyChildHealthInfo", () => {
+  test("renders loading state while child health info is loading", () => {
+    const { container } = renderChildHealthInfo(undefined, {
+      data: undefined,
+      isLoading: true,
+    });
+
+    expect(container.querySelector(".animate-spin")).toBeInTheDocument();
+  });
+
+  test("renders child-not-found state when the children list is empty", () => {
+    renderChildHealthInfo(undefined, { data: [], isLoading: false });
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Child not found or no longer accessible.",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  test("renders child-not-found state when the matched child has no records", () => {
+    renderChildHealthInfo(undefined, {
+      data: [{ ...baseChild(), hasRecords: false }],
+      isLoading: false,
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Child not found or no longer accessible.",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  test("back button navigates to the children home page", () => {
+    renderChildHealthInfo(undefined, { data: [], isLoading: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(navigateMock).toHaveBeenCalledWith("/docrecords/mychildren");
+  });
+
+  test("renders the selected child health info details", () => {
+    renderChildHealthInfo();
+
+    expect(screen.getByRole("heading", { name: "Minor Patient" })).toBeInTheDocument();
+    expect(screen.getByText("Health Info")).toBeInTheDocument();
+    expect(screen.getByText("Basic information")).toBeInTheDocument();
+    expect(screen.getByText("10 years")).toBeInTheDocument();
+    expect(screen.getByText("Female")).toBeInTheDocument();
+    expect(screen.getByText("O+")).toBeInTheDocument();
+    expect(screen.getByText("Mexico, Jalisco, Guadalajara")).toBeInTheDocument();
+    expect(screen.getByText("parent@example.com")).toBeInTheDocument();
+  });
+
+  test("renders the up-to-date banner when no decision is pending", () => {
+    renderChildHealthInfo(undefined, { data: [baseChild({ pendingDecision: false })] });
+
+    expect(screen.getByText("Up to date.")).toBeInTheDocument();
+  });
+
+  test("renders the pending banner with doctor name", () => {
+    renderChildHealthInfo(undefined, { data: [baseChild({ pendingDecision: true })] });
+
+    expect(screen.getByText("Pending changes require your approval.")).toBeInTheDocument();
+    expect(screen.getByText(/Dr\. Smith/)).toBeInTheDocument();
+  });
 });
 
 describe("MyChildHealthInfo phone country display", () => {
