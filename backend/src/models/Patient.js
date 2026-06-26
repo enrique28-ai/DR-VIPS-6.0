@@ -304,9 +304,10 @@ patientSchema.pre("findOneAndUpdate", function (next) {
   const touchedFeet = has("heightFeet");
   const touchedInches = has("heightInches");
   const touchedW = has("weight");
-  const anyAnthro = touchedSys || touchedH || touchedFeet || touchedInches || touchedW;
+  const hasRawAnthro = touchedH || touchedFeet || touchedInches || touchedW;
+  const hasCanonicalAnthro = has("heightM") || has("weightKg");
 
-  if (anyAnthro) {
+  if (hasRawAnthro || (touchedSys && !hasCanonicalAnthro)) {
     const explicitImperialHeight = touchedFeet || touchedInches;
     const hasCompleteHeight = explicitImperialHeight
       ? touchedFeet && touchedInches
@@ -349,7 +350,7 @@ patientSchema.pre("findOneAndUpdate", function (next) {
     const { bmi, bmiCategory } = computeBmi(ensureSet().weightKg, ensureSet().heightM);
     ensureSet().bmi = bmi;
     ensureSet().bmiCategory = bmiCategory;
-  } else {
+  } else if (hasCanonicalAnthro) {
     // Alternativa: si actualizan heightM/weightKg directos
     const hasM = has("heightM");
     const hasK = has("weightKg");

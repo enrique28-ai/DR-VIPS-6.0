@@ -744,6 +744,29 @@ test("Patient findOneAndUpdate hook normalizes explicit imperial feet and inches
   assert.ok(Math.abs(doc.heightDisplay - (70 / 12)) < 0.001);
 });
 
+test("Patient findOneAndUpdate hook allows canonical measurementSystem with heightM and weightKg", async () => {
+  restorePatientMethods();
+
+  const updateDoc = await runFindOneAndUpdatePreHook({
+    $set: {
+      measurementSystem: "imperial",
+      heightM: 1.778,
+      weightKg: 68.0389,
+    },
+  });
+
+  assert.equal(updateDoc.$set.measurementSystem, "imperial");
+  assert.ok(Math.abs(updateDoc.$set.heightM - 1.778) < 0.001);
+  assert.ok(Math.abs(updateDoc.$set.weightKg - 68.0389) < 0.001);
+  assert.equal(Object.hasOwn(updateDoc.$set, "height"), false);
+  assert.equal(Object.hasOwn(updateDoc.$set, "heightFeet"), false);
+  assert.equal(Object.hasOwn(updateDoc.$set, "heightInches"), false);
+  assert.equal(Object.hasOwn(updateDoc.$set, "weight"), false);
+  assert.equal(typeof updateDoc.$set.bmi, "number");
+  assert.ok(Math.abs(updateDoc.$set.bmi - 21.5) < 0.1);
+  assert.equal(updateDoc.$set.bmiCategory, "healthy");
+});
+
 test("updatePatientService blocks duplicate phoneDigits on update", async () => {
   restorePatientMethods();
 
@@ -831,6 +854,86 @@ test("updatePatientService stores explicit imperial feet and inches as metric he
     assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "heightFeet"), false);
     assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "heightInches"), false);
     assert.ok(Math.abs(result.heightM - 70 * 0.0254) < 0.001);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService imperial feet/inches update passes the findOneAndUpdate pre-hook and recomputes BMI", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    measurementSystem: "metric",
+    heightM: 1.7,
+    weightKg: 70,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+    owners: [user._id],
+    createdBy: user._id,
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => {
+        const realQuery = originalPatientMethods.findOneAndUpdate.call(
+          Patient,
+          query,
+          updateDoc,
+          options
+        );
+        await new Promise((resolve, reject) => {
+          Patient.schema.s.hooks.execPre("findOneAndUpdate", realQuery, [], (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        return applyUpdateForTest(current, realQuery.getUpdate());
+      },
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        height: 5 + 10 / 12,
+        weight: 150,
+      },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+
+    const setDoc = updateCalls[0].updateDoc.$set;
+    assert.equal(setDoc.measurementSystem, "imperial");
+    assert.ok(Math.abs(setDoc.heightM - 1.778) < 0.001);
+    assert.ok(Math.abs(setDoc.weightKg - 68.0389) < 0.001);
+    assert.equal(Object.hasOwn(setDoc, "height"), false);
+    assert.equal(Object.hasOwn(setDoc, "heightFeet"), false);
+    assert.equal(Object.hasOwn(setDoc, "heightInches"), false);
+    assert.equal(Object.hasOwn(setDoc, "weight"), false);
+
+    assert.ok(Math.abs(result.heightM - 1.778) < 0.001);
+    assert.ok(Math.abs(result.weightKg - 68.0389) < 0.001);
+    assert.equal(typeof result.bmi, "number");
+    assert.ok(Math.abs(result.bmi - 21.5) < 0.1);
+    assert.equal(result.bmiCategory, "healthy");
   } finally {
     restorePatientMethods();
   }
