@@ -93,7 +93,9 @@ export default function MyChildHealthInfo() {
   const lastUpdated = formatDateTime(latestSource?.updatedAt, t, i18n.language);
   const doctorName = latestSource?.doctorName || t("myHealthInfo.history.systemUnknown");
 
-  const measurementSystem = scalarValue(snapshot?.measurementSystem);
+  const measurementSystem =
+    scalarValue(snapshot?.measurementSystem) ??
+    scalarValue(snapshot?.measurementSystemWrapper);
   const useMetric = measurementSystem === "metric";
 
   // Arrays lógicos para comparación (traídos de la lógica de Codex)
@@ -187,12 +189,16 @@ export default function MyChildHealthInfo() {
           return !isCurrent;
         })
       : [];
+  const heightMValue =
+    scalarValue(snapshot?.heightM) ??
+    scalarValue(snapshot?.heightWrapper);
+
   const heightDisplay = formatHeightForSystem({
     measurementSystem,
-    heightM: scalarValue(snapshot?.heightM),
-    heightFeet: scalarValue(snapshot?.heightFeet),
-    heightInches: scalarValue(snapshot?.heightInches),
-    heightDisplay: scalarValue(snapshot?.heightDisplay),
+    heightM: heightMValue,
+    heightFeet: scalarValue(snapshot?.heightFeet) ?? undefined,
+    heightInches: scalarValue(snapshot?.heightInches) ?? undefined,
+    heightDisplay: scalarValue(snapshot?.heightDisplay) ?? undefined,
     notSpecified: t("myHealthInfo.common.notSpecified"),
   });
 

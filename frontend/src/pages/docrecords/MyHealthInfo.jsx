@@ -181,15 +181,21 @@ export default function MyHealthInfo() {
   const organDonorLabel = yesNoFromScalar(snapshot?.organDonor, t);
   const bloodDonorLabel = yesNoFromScalar(snapshot?.bloodDonor, t);
 
-  const measurementSystem = scalarValue(snapshot?.measurementSystem);
+  const measurementSystem =
+    scalarValue(snapshot?.measurementSystem) ??
+    scalarValue(snapshot?.measurementSystemWrapper);
   const useMetric = measurementSystem === "metric";
+
+  const heightMValue =
+    scalarValue(snapshot?.heightM) ??
+    scalarValue(snapshot?.heightWrapper);
 
   const heightDisplay = formatHeightForSystem({
     measurementSystem,
-    heightM: scalarValue(snapshot?.heightM),
-    heightFeet: scalarValue(snapshot?.heightFeet),
-    heightInches: scalarValue(snapshot?.heightInches),
-    heightDisplay: scalarValue(snapshot?.heightDisplay),
+    heightM: heightMValue,
+    heightFeet: scalarValue(snapshot?.heightFeet) ?? undefined,
+    heightInches: scalarValue(snapshot?.heightInches) ?? undefined,
+    heightDisplay: scalarValue(snapshot?.heightDisplay) ?? undefined,
     notSpecified: t("myHealthInfo.common.notSpecified"),
   });
 

@@ -455,4 +455,22 @@ describe("MyChildHealthInfo imperial height display", () => {
     expect(screen.getByText("5 ft 10 in")).toBeInTheDocument();
     expect(screen.queryByText(/5\.83/)).not.toBeInTheDocument();
   });
+
+  test("displays imperial height from heightWrapper when direct heightM is absent", () => {
+    renderChildHealthInfo(
+      baseSnapshot({
+        measurementSystem: "imperial",
+        heightM: undefined,
+        heightWrapper: { value: 1.778 },
+        weightKg: 81.6466,
+        phone: { value: "+16195550101" },
+        phoneCountry: { value: "United States" },
+        phoneCountryIso: { value: "US" },
+      }),
+    );
+
+    expect(screen.getByText("5 ft 10 in")).toBeInTheDocument();
+    expect(screen.queryByText(/5\.83/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Not specified")).not.toBeInTheDocument();
+  });
 });
