@@ -91,6 +91,9 @@ vi.mock("react-i18next", () => ({
         "patients.create.systemMetric": "Metric",
         "patients.create.systemImperial": "Imperial",
         "patients.create.heightLabel": "Height",
+        "patients.create.heightFeetLabel": "Feet",
+        "patients.create.heightInchesLabel": "Inches",
+        "patients.create.heightFeetInchesInvalid": "Enter height as whole feet and inches from 0 to 11.",
         "patients.create.weightLabel": "Weight",
         "patients.create.childrenNamesRequired": "Children names required",
         "patients.create.parentEmailRequired": "Parent email required",
@@ -337,5 +340,86 @@ describe("PatientEditPage phone country behavior", () => {
     expect(payload).toEqual(expect.objectContaining({ phone: "" }));
     expect(payload).not.toHaveProperty("phoneCountry");
     expect(payload).not.toHaveProperty("phoneCountryIso");
+  });
+});
+
+describe("PatientEditPage imperial height initialization and submission", () => {
+  let mutate;
+
+  const feetInput = () => screen.getByPlaceholderText("5");
+  const inchesInput = () => screen.getByPlaceholderText("10");
+  const imperialWeightInput = () => screen.getByPlaceholderText("e.g. 150");
+
+  beforeEach(() => {
+    mutate = vi.fn();
+    vi.clearAllMocks();
+    locationState = {};
+    useUpdatePatient.mockReturnValue({ mutate, isPending: false });
+  });
+
+  test("initializes separate Feet and Inches inputs from existing imperial patient", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        heightM: 1.778,
+        weightKg: 81.6466,
+        weightDisplay: 180,
+      }),
+    );
+
+    await waitForPatientForm();
+
+    expect(feetInput()).toHaveValue(5);
+    expect(inchesInput()).toHaveValue(10);
+    expect(screen.queryByPlaceholderText("e.g. 1.73")).not.toBeInTheDocument();
+  });
+
+  test("derives Feet and Inches from heightM when heightFeet/heightInches absent", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        measurementSystem: "imperial",
+        heightM: 1.78,
+        weightKg: 81.6466,
+        weightDisplay: 180,
+      }),
+    );
+
+    await waitForPatientForm();
+
+    expect(feetInput()).toHaveValue(5);
+    expect(inchesInput()).toHaveValue(10);
+  });
+
+  test("submits edited imperial height with normalized payload", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        heightM: 1.778,
+        weightKg: 81.6466,
+        weightDisplay: 170,
+      }),
+    );
+
+    await waitForPatientForm();
+
+    fireEvent.change(imperialWeightInput(), { target: { value: "150" } });
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        weight: 150,
+      }),
+    );
+    expect(payload.height).toBeCloseTo(5 + 10 / 12, 4);
+    expect(payload.height).not.toBe(5.1);
   });
 });

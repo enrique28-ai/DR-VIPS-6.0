@@ -439,3 +439,20 @@ describe("MyChildHealthInfo phone country display", () => {
     expect(screen.getByText("Mexico, Jalisco, Guadalajara")).toBeInTheDocument();
   });
 });
+
+describe("MyChildHealthInfo imperial height display", () => {
+  test("displays imperial height as '5 ft 10 in', not '5.83 ft'", () => {
+    renderChildHealthInfo(
+      baseSnapshot({
+        measurementSystem: "imperial",
+        heightFeet: { value: 5 },
+        heightInches: { value: 10 },
+        heightM: 1.778,
+        weightKg: 81.6466,
+      }),
+    );
+
+    expect(screen.getByText("5 ft 10 in")).toBeInTheDocument();
+    expect(screen.queryByText(/5\.83/)).not.toBeInTheDocument();
+  });
+});

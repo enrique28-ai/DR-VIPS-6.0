@@ -343,3 +343,45 @@ describe("PatientDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Reassign guardian" })).not.toBeInTheDocument();
   });
 });
+
+describe("PatientDetailPage imperial height display", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useReassignGuardian.mockReturnValue({
+      mutate: reassignMutate,
+      isPending: false,
+    });
+    useTranslatePatient.mockReturnValue({
+      mutate: translateMutate,
+      isPending: false,
+    });
+  });
+
+  test("displays imperial height as '5 ft 10 in', not '5.83 ft'", () => {
+    renderDetailPage(
+      adultPatient({
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        heightM: 1.778,
+        weightKg: 81.6466,
+        weightDisplay: 180,
+      }),
+    );
+
+    expect(screen.getByText("5 ft 10 in")).toBeInTheDocument();
+    expect(screen.queryByText(/5\.83/)).not.toBeInTheDocument();
+    expect(screen.getByText("180.00 lb")).toBeInTheDocument();
+  });
+
+  test("derives imperial display from heightM when feet/inches absent", () => {
+    renderDetailPage(
+      adultPatient({
+        measurementSystem: "imperial",
+        heightM: 1.78,
+      }),
+    );
+
+    expect(screen.getByText("5 ft 10 in")).toBeInTheDocument();
+  });
+});

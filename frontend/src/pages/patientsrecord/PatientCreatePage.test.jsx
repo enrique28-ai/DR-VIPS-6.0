@@ -71,6 +71,9 @@ vi.mock("react-i18next", () => ({
         "patients.create.systemMetric": "Metric",
         "patients.create.systemImperial": "Imperial",
         "patients.create.heightLabel": "Height",
+        "patients.create.heightFeetLabel": "Feet",
+        "patients.create.heightInchesLabel": "Inches",
+        "patients.create.heightFeetInchesInvalid": "Enter height as whole feet and inches from 0 to 11.",
         "patients.create.weightLabel": "Weight",
         "patients.create.submit": "Submit",
         "patients.create.submitting": "Submitting",
@@ -278,5 +281,116 @@ describe("PatientCreatePage phone country behavior", () => {
     );
     expect(payload.phoneCountry).not.toBe(payload.country);
     expect(payload.phoneCountryIso).not.toBe("MX");
+  });
+});
+
+describe("PatientCreatePage imperial height submission", () => {
+  let mutate;
+
+  const selectImperial = () =>
+    fireEvent.click(screen.getByRole("button", { name: "Imperial" }));
+  const feetInput = () => screen.getByPlaceholderText("5");
+  const inchesInput = () => screen.getByPlaceholderText("10");
+  const imperialWeightInput = () => screen.getByPlaceholderText("e.g. 150");
+
+  const fillImperialAdultBaseline = ({ feet = "5", inches = "10", weight = "150" } = {}) => {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
+      target: { value: "Patient Example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Male" }));
+    screen.getAllByRole("button", { name: "No" }).forEach((button) => {
+      fireEvent.click(button);
+    });
+    selectImperial();
+    fireEvent.change(feetInput(), { target: { value: feet } });
+    fireEvent.change(inchesInput(), { target: { value: inches } });
+    fireEvent.change(imperialWeightInput(), { target: { value: weight } });
+    selectMexicoResidence();
+    fireEvent.change(screen.getByPlaceholderText("adult@example.com"), {
+      target: { value: "adult@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Birth date"), {
+      target: { value: "1990-01-01" },
+    });
+    fireEvent.change(phoneCountrySelect(), { target: { value: "US" } });
+    fireEvent.change(screen.getByPlaceholderText("Phone digits"), {
+      target: { value: "2025550123" },
+    });
+  };
+
+  const assertInvalidHeightBlocked = () => {
+    submitForm();
+    expect(toast.error).toHaveBeenCalledWith(
+      "Enter height as whole feet and inches from 0 to 11.",
+    );
+    expect(mutate).not.toHaveBeenCalled();
+  };
+
+  beforeEach(() => {
+    mutate = vi.fn();
+    vi.clearAllMocks();
+    useCreatePatient.mockReturnValue({ mutate, isPending: false });
+  });
+
+  test("submits imperial payload with feet, inches, decimal feet, and weight", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline();
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        weight: 150,
+      }),
+    );
+    expect(payload.height).toBeCloseTo(5 + 10 / 12, 4);
+    expect(payload.height).not.toBe(5.1);
+  });
+
+  test("inches equal to 12 blocks submit with validation toast", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline({ inches: "12" });
+    assertInvalidHeightBlocked();
+  });
+
+  test("negative inches blocks submit with validation toast", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline({ inches: "-1" });
+    assertInvalidHeightBlocked();
+  });
+
+  test("fractional feet blocks submit with validation toast", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline({ feet: "5.5" });
+    assertInvalidHeightBlocked();
+  });
+
+  test("fractional inches blocks submit with validation toast", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline({ inches: "10.5" });
+    assertInvalidHeightBlocked();
+  });
+
+  test("missing feet blocks submit with validation toast", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline({ feet: "" });
+    assertInvalidHeightBlocked();
+  });
+
+  test("missing inches blocks submit with validation toast", () => {
+    renderCreatePage();
+
+    fillImperialAdultBaseline({ inches: "" });
+    assertInvalidHeightBlocked();
   });
 });
