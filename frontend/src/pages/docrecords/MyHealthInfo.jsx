@@ -28,6 +28,7 @@ import {
    localizeCityName,
    getDialCodeByCountryIso,
  } from "../../utilsfront/geoLabels.js";
+import { formatHeightForSystem } from "../../utilsfront/measurements.js";
 import {
   scalarValue,
   formatDateTime,
@@ -180,14 +181,17 @@ export default function MyHealthInfo() {
   const organDonorLabel = yesNoFromScalar(snapshot?.organDonor, t);
   const bloodDonorLabel = yesNoFromScalar(snapshot?.bloodDonor, t);
 
-  const useMetric = snapshot?.measurementSystem === "metric";
+  const measurementSystem = scalarValue(snapshot?.measurementSystem);
+  const useMetric = measurementSystem === "metric";
 
-  const heightDisplay =
-    typeof snapshot?.heightM === "number"
-      ? useMetric
-        ? `${snapshot.heightM.toFixed(2)} m`
-        : `${(snapshot.heightM / 0.3048).toFixed(2)} ft`
-      : t("myHealthInfo.common.notSpecified");
+  const heightDisplay = formatHeightForSystem({
+    measurementSystem,
+    heightM: scalarValue(snapshot?.heightM),
+    heightFeet: scalarValue(snapshot?.heightFeet),
+    heightInches: scalarValue(snapshot?.heightInches),
+    heightDisplay: scalarValue(snapshot?.heightDisplay),
+    notSpecified: t("myHealthInfo.common.notSpecified"),
+  });
 
   const weightDisplay =
     typeof snapshot?.weightKg === "number"
@@ -469,7 +473,13 @@ export default function MyHealthInfo() {
               isHeight
               formatter={(v) => {
                 if (typeof v !== "number") return t("myHealthInfo.common.notSpecified");
-                return useMetric ? `${v.toFixed(2)} m` : `${(v / 0.3048).toFixed(2)} ft`;
+                return useMetric
+                  ? `${v.toFixed(2)} m`
+                  : formatHeightForSystem({
+                      measurementSystem: "imperial",
+                      heightM: v,
+                      notSpecified: t("myHealthInfo.common.notSpecified"),
+                    });
               }}
             />
           </div>

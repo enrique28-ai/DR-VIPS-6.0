@@ -6,6 +6,7 @@ import PatientHistoryModal from "../../components/patient/PatientHistoryModal.js
 import { Droplet, Globe, User2, Users, Activity, Heart, Pill, CalendarClock, History, X, AlertTriangle, Languages, Loader2, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localizeCountryName } from "../../utilsfront/geoLabels.js";
+import { formatHeightForSystem } from "../../utilsfront/measurements.js";
 
 
 const ageToLabel = (age, t) => {
@@ -148,10 +149,18 @@ const isImp = sys === "imperial";
 const heightDisplayUI =
   patientView?.heightDisplay ?? (
     patientView?.heightM != null
-      ? (isImp ? (patientView.heightM / 0.3048) : patientView.heightM) // m → ft si imperial
+      ? patientView.heightM
       : null
   );
 const heightUnitUI = isImp ? "ft" : "m";
+const heightTextUI = formatHeightForSystem({
+  measurementSystem: sys,
+  heightM: patientView?.heightM,
+  heightFeet: patientView?.heightFeet,
+  heightInches: patientView?.heightInches,
+  heightDisplay: patientView?.heightDisplay,
+  notSpecified: "",
+});
 
 const weightDisplayUI =
   patientView?.weightDisplay ?? (
@@ -262,10 +271,10 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
             </>
           )}
 
-          {heightDisplayUI != null && (
+          {heightTextUI && (
             <>
               <dt className="font-medium">{t("patients.detail.height")}</dt>
-              <dd>{Number(heightDisplayUI).toFixed(2)} {heightUnitUI}</dd>
+              <dd>{heightTextUI}</dd>
             </>
           )}
           {weightDisplayUI != null && (

@@ -4,6 +4,7 @@ import { History, X, Languages, Loader2 } from "lucide-react";
 import Button from "../forms/Button.jsx";
 import { usePatientHistory, useMyHistory, useTranslatePatientHistorySnapshot, useChildHistory } from "../../features/patients/phooks.js";
 import { localizeCountryName, localizeStateName, localizeCityName } from "../../utilsfront/geoLabels.js";
+import { formatHeightForSystem } from "../../utilsfront/measurements.js";
 
 const trOr = (t, key, fallback) => {
   const v = t(key);
@@ -19,9 +20,18 @@ function SnapshotViewer({ snapshot, t, i18n, right }) {
   const height =
     typeof snapshot.heightM === "number"
       ? isImp
-        ? `${(snapshot.heightM / 0.3048).toFixed(2)} ft`
+        ? ""
         : `${snapshot.heightM.toFixed(2)} m`
       : "—";
+
+  const heightText = formatHeightForSystem({
+    measurementSystem: sys,
+    heightM: snapshot.heightM,
+    heightFeet: snapshot.heightFeet,
+    heightInches: snapshot.heightInches,
+    heightDisplay: snapshot.heightDisplay,
+    notSpecified: "—",
+  });
 
   const weight =
     typeof snapshot.weightKg === "number"
@@ -69,7 +79,7 @@ const none = trOr(t, "patients.history.none", "None");
       </div>
 
       <div>
-        <span className="font-medium text-gray-500">{t("patients.detail.height")}:</span> {height}
+        <span className="font-medium text-gray-500">{t("patients.detail.height")}:</span> {heightText}
       </div>
       <div>
         <span className="font-medium text-gray-500">{t("patients.detail.weight")}:</span> {weight}

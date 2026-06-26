@@ -17,6 +17,16 @@ import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx"
 
  import { useTranslation } from "react-i18next";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
+import {
+  feetInchesToDecimalFeet,
+  feetInchesToMeters,
+  formatNumber,
+  isValidFeetInches,
+  kgToLb,
+  lbToKg,
+  resolveImperialHeightParts,
+  metersToFeetInches,
+} from "../../utilsfront/measurements.js";
 function calcAgeFromYmd(birthYmd, refYmd) {
   if (!birthYmd) return NaN;
 
@@ -105,7 +115,11 @@ function isDeathStatusOnlyEdit(patient, payload, phoneCountryIso) {
 
   const sys = normLower(payload.measurementSystem || patient.measurementSystem || "metric");
   const nextHeightM =
-    sys === "imperial" ? Number(payload.height) * FT_TO_M : Number(payload.height);
+    sys === "imperial" && "heightFeet" in payload && "heightInches" in payload
+      ? feetInchesToMeters(Number(payload.heightFeet), Number(payload.heightInches))
+      : sys === "imperial"
+        ? Number(payload.height) * FT_TO_M
+        : Number(payload.height);
   const nextWeightKg =
     sys === "imperial" ? Number(payload.weight) * LB_TO_KG : Number(payload.weight);
   const currentPhoneCountryIso = patient.phoneCountryIso || phoneCountryIso;
@@ -241,6 +255,8 @@ useEffect(() => {
   const [bloodDonor, setBloodDonor] = useState(""); // "yes" | "no"
   const [system, setSystem] = useState("metric");    // "metric" | "imperial"
   const [height, setHeight] = useState("");          // m o ft según system
+  const [heightFeet, setHeightFeet] = useState("");
+  const [heightInches, setHeightInches] = useState("");
   const [weight, setWeight] = useState("");          // kg o lb según system
   const [cause, setCause] = useState("");            // cause of death
   const todayYmd = localYmd();
@@ -372,7 +388,12 @@ const MAX = {
 const lim = system === "imperial" ? MAX.imperial : MAX.metric;
 const H = Number(height);
 const W = Number(weight);
-const isHeightInvalidForBtn = !Number.isFinite(H) || H <= 0 || H > lim.h;
+const isImperialHeightInvalidForBtn =
+  system === "imperial" && !isValidFeetInches(heightFeet, heightInches);
+const isHeightInvalidForBtn =
+  system === "imperial"
+    ? isImperialHeightInvalidForBtn
+    : !Number.isFinite(H) || H <= 0 || H > lim.h;
 const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
 
 const DEC = {
@@ -381,10 +402,7 @@ const DEC = {
 };
 
 const fmt = (v, decimals) => {
-  if (v === "" || v == null) return "";
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "";
-  return String(Number(n.toFixed(decimals))); // quita basura tipo 1.00000000001
+  return formatNumber(v, decimals);
 };
 
 
@@ -422,15 +440,19 @@ const handleSystem = (next) => {
   const curW = parseFloat(weight);
 
   if (system === "metric" && next === "imperial") {
-    // m -> ft
-    if (Number.isFinite(curH)) setHeight(fmt(curH / 0.3048, DEC.imperial.h));
+    if (Number.isFinite(curH)) {
+      const parts = metersToFeetInches(curH);
+      setHeightFeet(parts.feet);
+      setHeightInches(parts.inches);
+    }
     // kg -> lb
-    if (Number.isFinite(curW)) setWeight(fmt(curW * 2.2046226218, DEC.imperial.w));
+    if (Number.isFinite(curW)) setWeight(fmt(kgToLb(curW), DEC.imperial.w));
   } else if (system === "imperial" && next === "metric") {
-    // ft -> m
-    if (Number.isFinite(curH)) setHeight(fmt(curH * 0.3048, DEC.metric.h));
+    if (isValidFeetInches(heightFeet, heightInches)) {
+      setHeight(fmt(feetInchesToMeters(Number(heightFeet), Number(heightInches)), DEC.metric.h));
+    }
     // lb -> kg
-    if (Number.isFinite(curW)) setWeight(fmt(curW * 0.45359237, DEC.metric.w));
+    if (Number.isFinite(curW)) setWeight(fmt(lbToKg(curW), DEC.metric.w));
   }
 
   setSystem(next);
@@ -464,10 +486,18 @@ const handleSystem = (next) => {
 
   // altura
   let hInit = "";
-  if (patient?.heightDisplay != null) {
+  if (isImp) {
+    const parts = resolveImperialHeightParts(patient);
+    setHeightFeet(parts.feet);
+    setHeightInches(parts.inches);
+  } else if (patient?.heightDisplay != null) {
     hInit = patient.heightDisplay; // ya en la unidad del sistema
   } else if (patient?.heightM != null) {
-    hInit = isImp ? (patient.heightM / 0.3048) : patient.heightM; // m→ft si imperial
+    hInit = patient.heightM;
+  }
+  if (!isImp) {
+    setHeightFeet("");
+    setHeightInches("");
   }
   setHeight(fmt(hInit, DEC[sys].h));
 
@@ -619,13 +649,17 @@ if (life === "deceased") {
       }
 
     
-    if (!(H > 0) || !(W > 0)) {
+    if ((system === "metric" && !(H > 0)) || !(W > 0)) {
       toast.error(t("patients.edit.heightWeightPositive"));
+      return;
+    }
+    if (system === "imperial" && !isValidFeetInches(heightFeet, heightInches)) {
+      toast.error(t("patients.create.heightFeetInchesInvalid"));
       return;
     }
     // Validación de topes
     
-    if (H > lim.h || W > lim.w) {
+    if ((system === "metric" && H > lim.h) || W > lim.w) {
       toast.error(t("patients.edit.heightWeightTooHigh", {
           maxH: lim.h,
           maxW: lim.w,
@@ -739,6 +773,15 @@ if (isMinor) {
  if (!countryIso) { toast.error(t("patients.create.countryRequired")); return; }
  if (!hasState)   { toast.error(t("patients.create.stateRequired")); return; }
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
+   const heightPayload =
+      system === "imperial"
+        ? {
+            height: feetInchesToDecimalFeet(Number(heightFeet), Number(heightInches)),
+            heightFeet: Number(heightFeet),
+            heightInches: Number(heightInches),
+          }
+        : { height: Number(height) };
+
    const payload = {
       fullname: form.fullname.trim(),
       // Email is adult-only; minor phone clearing must be explicit.
@@ -764,7 +807,7 @@ if (isMinor) {
       ...(isMinor ? { parentEmail: parentEmailNorm } : {}),
       ...(!isMinor ? { childrenCount: finalChildrenCount, children: finalChildren } : {}),
       measurementSystem: system,
-      height: Number(height),
+      ...heightPayload,
       weight: Number(weight),
     };
 
@@ -1325,17 +1368,43 @@ if (isMinor) {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label={`${t("patients.create.heightLabel")} (${system === "imperial" ? "ft" : "m"})`}
-              type="number"
-              step="any"
-              min={0}
-              max={system === "imperial" ? MAX.imperial.h : MAX.metric.h}
-              required
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              placeholder={system === "imperial" ? "e.g. 5.8" : "e.g. 1.73"}
-            />
+            {system === "imperial" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label={`${t("patients.create.heightFeetLabel")} (ft)`}
+                  type="number"
+                  step={1}
+                  min={1}
+                  required
+                  value={heightFeet}
+                  onChange={(e) => setHeightFeet(e.target.value)}
+                  placeholder="5"
+                />
+                <Input
+                  label={`${t("patients.create.heightInchesLabel")} (in)`}
+                  type="number"
+                  step={1}
+                  min={0}
+                  max={11}
+                  required
+                  value={heightInches}
+                  onChange={(e) => setHeightInches(e.target.value)}
+                  placeholder="10"
+                />
+              </div>
+            ) : (
+              <Input
+                label={`${t("patients.create.heightLabel")} (m)`}
+                type="number"
+                step="any"
+                min={0}
+                max={MAX.metric.h}
+                required
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                placeholder="e.g. 1.73"
+              />
+            )}
             <Input
               label={`${t("patients.create.weightLabel")} (${system === "imperial" ? "lb" : "kg"})`}
               type="number"
@@ -1357,7 +1426,7 @@ if (isMinor) {
               (isMinor && !isParentEmailFormatValid) ||
               (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
               isMinorPhoneInvalid || !gender || !organDonor || !bloodDonor ||  !system
-              || !height || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim()) 
+              || (system === "metric" ? !height : (!heightFeet || heightInches === "")) || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim())
               || (hasDiseases === "yes" && form.diseases.trim() === "") || (hasAllergies === "yes" && form.allergies.trim() === "") 
               || (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 
               || isDeathDateInvalid || isDeathCauseInvalid || isHeightInvalidForBtn || isWeightInvalidForBtn || updatePatient.isPending}>
