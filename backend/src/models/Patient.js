@@ -29,6 +29,70 @@ function mapAgeToBand(age) {
 const asNum = v => (v == null || v === "" ? undefined : Number(v));
 const FT_TO_M  = 0.3048;
 const LB_TO_KG = 0.45359237;
+const IN_TO_M = 0.0254;
+
+const hasValue = (v) => v !== undefined && v !== null && v !== "";
+
+export function normalizeMeasurements({
+  measurementSystem,
+  height,
+  heightFeet,
+  heightInches,
+  weight,
+} = {}) {
+  const sys = String(measurementSystem ?? "").toLowerCase();
+  const explicitFeet = hasValue(heightFeet);
+  const explicitInches = hasValue(heightInches);
+  const explicitImperialHeight = explicitFeet || explicitInches;
+  const W = asNum(weight);
+
+  if (!["metric", "imperial"].includes(sys) || !(W > 0)) {
+    throw new Error("Invalid anthropometric payload");
+  }
+
+  let heightM;
+  let heightInput;
+
+  if (sys === "metric") {
+    const H = asNum(height);
+    if (!(H > 0)) throw new Error("Invalid anthropometric payload");
+    heightM = H;
+    heightInput = H;
+  } else if (explicitImperialHeight) {
+    if (!(explicitFeet && explicitInches)) {
+      throw new Error("Invalid anthropometric payload");
+    }
+
+    const feet = asNum(heightFeet);
+    const inches = asNum(heightInches);
+    if (!(feet >= 0) || !(inches >= 0) || !(inches < 12)) {
+      throw new Error("Invalid anthropometric payload");
+    }
+
+    const totalInches = feet * 12 + inches;
+    if (!(totalInches > 0)) throw new Error("Invalid anthropometric payload");
+    heightM = totalInches * IN_TO_M;
+    heightInput = totalInches / 12;
+  } else {
+    const H = asNum(height);
+    if (!(H > 0)) throw new Error("Invalid anthropometric payload");
+    heightM = H * FT_TO_M;
+    heightInput = H;
+  }
+
+  const weightKg = sys === "metric" ? W : W * LB_TO_KG;
+  if (!(heightM > 0) || heightM > MAX_HEIGHT_M || !(weightKg > 0) || weightKg > MAX_WEIGHT_KG) {
+    throw new Error("Invalid anthropometric payload");
+  }
+
+  return {
+    measurementSystem: sys,
+    heightM,
+    weightKg,
+    height: heightInput,
+    weight: W,
+  };
+}
 
 function computeBmi(weightKg, heightM) {
   if (!(heightM > 0) || !(weightKg > 0)) return { bmi: undefined, bmiCategory: undefined };
@@ -131,6 +195,14 @@ patientSchema.virtual("heightDisplay").get(function(){
   if (typeof this.heightM !== "number") return undefined;
   return this.measurementSystem === "imperial" ? this.heightM / 0.3048 : this.heightM;
 });
+patientSchema.virtual("heightFeet").get(function(){
+  if (this.measurementSystem !== "imperial" || typeof this.heightM !== "number") return undefined;
+  return Math.floor(Math.round(this.heightM / IN_TO_M) / 12);
+});
+patientSchema.virtual("heightInches").get(function(){
+  if (this.measurementSystem !== "imperial" || typeof this.heightM !== "number") return undefined;
+  return Math.round(this.heightM / IN_TO_M) % 12;
+});
 patientSchema.virtual("weightDisplay").get(function(){
   if (typeof this.weightKg !== "number") return undefined;
   return this.measurementSystem === "imperial" ? this.weightKg / 0.45359237 : this.weightKg;
@@ -229,11 +301,18 @@ patientSchema.pre("findOneAndUpdate", function (next) {
   // ¿tocaron antropometría con height/weight + measurementSystem?
   const touchedSys = has("measurementSystem");
   const touchedH = has("height");
+  const touchedFeet = has("heightFeet");
+  const touchedInches = has("heightInches");
   const touchedW = has("weight");
-  const anyAnthro = touchedSys || touchedH || touchedW;
+  const anyAnthro = touchedSys || touchedH || touchedFeet || touchedInches || touchedW;
 
   if (anyAnthro) {
-    if (!(touchedSys && touchedH && touchedW)) {
+    const explicitImperialHeight = touchedFeet || touchedInches;
+    const hasCompleteHeight = explicitImperialHeight
+      ? touchedFeet && touchedInches
+      : touchedH;
+
+    if (!(touchedSys && hasCompleteHeight && touchedW)) {
       return next(
         new mongoose.Error.ValidatorError({
           message:
@@ -241,10 +320,16 @@ patientSchema.pre("findOneAndUpdate", function (next) {
         })
       );
     }
-    const sys = String(get("measurementSystem") || "").toLowerCase();
-    const H = asNum(get("height"));
-    const W = asNum(get("weight"));
-    if (!["metric", "imperial"].includes(sys) || !(H > 0) || !(W > 0)) {
+    let normalized;
+    try {
+      normalized = normalizeMeasurements({
+        measurementSystem: get("measurementSystem"),
+        height: get("height"),
+        heightFeet: get("heightFeet"),
+        heightInches: get("heightInches"),
+        weight: get("weight"),
+      });
+    } catch {
       return next(
         new mongoose.Error.ValidatorError({
           message: "Invalid anthropometric payload.",
@@ -252,16 +337,14 @@ patientSchema.pre("findOneAndUpdate", function (next) {
       );
     }
 
-    if (sys === "metric") {
-      ensureSet().heightM = H;
-      ensureSet().weightKg = W;
-    } else {
-      ensureSet().heightM = H * FT_TO_M;
-      ensureSet().weightKg = W * LB_TO_KG;
-    }
+    ensureSet().measurementSystem = normalized.measurementSystem;
+    ensureSet().heightM = normalized.heightM;
+    ensureSet().weightKg = normalized.weightKg;
     // limpia campos de entrada que no están en el schema
     delete upd.height; delete upd.weight;
+    delete upd.heightFeet; delete upd.heightInches;
     delete $set.height; delete $set.weight;
+    delete $set.heightFeet; delete $set.heightInches;
 
     const { bmi, bmiCategory } = computeBmi(ensureSet().weightKg, ensureSet().heightM);
     ensureSet().bmi = bmi;

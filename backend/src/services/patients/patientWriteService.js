@@ -1,4 +1,4 @@
-import Patient from "../../models/Patient.js";
+import Patient, { normalizeMeasurements } from "../../models/Patient.js";
 import PatientHistory from "../../models/PatientHistory.js";
 import User from "../../models/User.js";
 import {
@@ -12,8 +12,6 @@ import {
   normGender,
   verifyEmail,
   hasPendingHealthDecisionForEmail,
-  FT_TO_M,
-  LB_TO_KG,
   sanitizeChildren,
   parseChildrenCount,
   normLower,
@@ -78,9 +76,23 @@ const phoneCountryInputFrom = (obj) => ({
   phoneCountry: obj?.phoneCountry,
   phoneCountryIso: obj?.phoneCountryIso,
 });
+const hasAnthroInput = (obj) =>
+  hasOwn(obj, "measurementSystem") ||
+  hasOwn(obj, "height") ||
+  hasOwn(obj, "heightFeet") ||
+  hasOwn(obj, "heightInches") ||
+  hasOwn(obj, "weight");
+const hasExplicitHeightPart = (obj) =>
+  hasOwn(obj, "heightFeet") || hasOwn(obj, "heightInches");
 
 const throwPhoneCountryRequiresPhone = () => {
   const err = new Error("Phone country requires phone");
+  err.status = 400;
+  throw err;
+};
+
+const throwInvalidAnthropometrics = (message = "Invalid anthropometric payload") => {
+  const err = new Error(message);
   err.status = 400;
   throw err;
 };
@@ -189,28 +201,25 @@ const collectEffectiveNormalChangedFieldsFromBody = ({ current, body }) => {
     }
   }
 
-  const touchedAnthro =
-    "measurementSystem" in body || "height" in body || "weight" in body;
+  const touchedAnthro = hasAnthroInput(body);
 
   if (touchedAnthro) {
-    const sys = normLower(body.measurementSystem || current.measurementSystem || "metric");
-    const heightValue = Number(body.height);
-    const weightValue = Number(body.weight);
+    try {
+      const next = normalizeMeasurements({
+        measurementSystem: body.measurementSystem,
+        height: body.height,
+        heightFeet: body.heightFeet,
+        heightInches: body.heightInches,
+        weight: body.weight,
+      });
 
-    if (sys !== normLower(current.measurementSystem)) changed.add("measurementSystem");
-
-    if (Number.isFinite(heightValue)) {
-      const nextHeightM = sys === "imperial" ? heightValue * FT_TO_M : heightValue;
-      if (!near(nextHeightM, current.heightM)) changed.add("heightM");
-    } else if ("height" in body && normStr(body.height) !== "") {
-      changed.add("heightM");
-    }
-
-    if (Number.isFinite(weightValue)) {
-      const nextWeightKg = sys === "imperial" ? weightValue * LB_TO_KG : weightValue;
-      if (!near(nextWeightKg, current.weightKg)) changed.add("weightKg");
-    } else if ("weight" in body && normStr(body.weight) !== "") {
-      changed.add("weightKg");
+      if (next.measurementSystem !== normLower(current.measurementSystem)) changed.add("measurementSystem");
+      if (!near(next.heightM, current.heightM)) changed.add("heightM");
+      if (!near(next.weightKg, current.weightKg)) changed.add("weightKg");
+    } catch {
+      if ("measurementSystem" in body) changed.add("measurementSystem");
+      if ("height" in body || hasExplicitHeightPart(body)) changed.add("heightM");
+      if ("weight" in body) changed.add("weightKg");
     }
   }
 
@@ -273,6 +282,7 @@ const collectEffectiveChangedFields = ({ current, update, unset }) => {
   if ("gender" in update && normLower(update.gender) !== normLower(current.gender)) changed.add("gender");
   if ("organDonor" in update && Boolean(update.organDonor) !== Boolean(current.organDonor)) changed.add("organDonor");
   if ("bloodDonor" in update && Boolean(update.bloodDonor) !== Boolean(current.bloodDonor)) changed.add("bloodDonor");
+  if ("measurementSystem" in update && normLower(update.measurementSystem) !== normLower(current.measurementSystem)) changed.add("measurementSystem");
   if ("country" in update && normStr(update.country) !== normStr(current.country)) changed.add("country");
   if ("state" in update && normStr(update.state) !== normStr(current.state)) changed.add("state");
   if ("city" in update && normStr(update.city) !== normStr(current.city)) changed.add("city");
@@ -296,19 +306,19 @@ const collectEffectiveChangedFields = ({ current, update, unset }) => {
   if ("ageCategory" in update && normStr(update.ageCategory) !== normStr(current.ageCategory)) changed.add("ageCategory");
 
   const touchedAnthro =
-    "measurementSystem" in update || "height" in update || "weight" in update;
+    "height" in update || hasExplicitHeightPart(update) || "weight" in update;
 
   if (touchedAnthro) {
-    const sys = normLower(update.measurementSystem || current.measurementSystem || "metric");
-    const H = Number(update.height);
-    const W = Number(update.weight);
-
-    const nextHeightM = sys === "imperial" ? H * FT_TO_M : H;
-    const nextWeightKg = sys === "imperial" ? W * LB_TO_KG : W;
-
-    if (sys !== normLower(current.measurementSystem)) changed.add("measurementSystem");
-    if (!near(nextHeightM, current.heightM)) changed.add("heightM");
-    if (!near(nextWeightKg, current.weightKg)) changed.add("weightKg");
+    try {
+      const next = normalizeMeasurements(update);
+      if (next.measurementSystem !== normLower(current.measurementSystem)) changed.add("measurementSystem");
+      if (!near(next.heightM, current.heightM)) changed.add("heightM");
+      if (!near(next.weightKg, current.weightKg)) changed.add("weightKg");
+    } catch {
+      if ("measurementSystem" in update) changed.add("measurementSystem");
+      if ("height" in update || hasExplicitHeightPart(update)) changed.add("heightM");
+      if ("weight" in update) changed.add("weightKg");
+    }
   }
 
   if ("heightM" in update && !near(update.heightM, current.heightM)) changed.add("heightM");
@@ -391,6 +401,8 @@ export const createPatientService = async ({ user, body }) => {
     bloodDonor: bloodIn,
     measurementSystem,
     height,
+    heightFeet,
+    heightInches,
     weight,
     country,
     state,
@@ -442,6 +454,20 @@ export const createPatientService = async ({ user, body }) => {
   }
 
   const isMinor = ageNum < 18;
+  const requestedMeasurementSystem = normLower(measurementSystem);
+  const hasLegacyHeight = height !== undefined && height !== null && height !== "";
+  const hasExplicitHeight = hasExplicitHeightPart(body);
+  const hasCompleteExplicitHeight =
+    heightFeet !== undefined &&
+    heightFeet !== null &&
+    heightFeet !== "" &&
+    heightInches !== undefined &&
+    heightInches !== null &&
+    heightInches !== "";
+  const hasRequiredHeight =
+    requestedMeasurementSystem === "imperial"
+      ? hasLegacyHeight || hasCompleteExplicitHeight
+      : hasLegacyHeight;
 
   if (
     !fullname ||
@@ -451,7 +477,7 @@ export const createPatientService = async ({ user, body }) => {
     !hasOrgan ||
     !hasBlood ||
     !measurementSystem ||
-    !height ||
+    !hasRequiredHeight ||
     !weight ||
     !country ||
     !state ||
@@ -462,24 +488,36 @@ export const createPatientService = async ({ user, body }) => {
     throw err;
   }
 
-  if (measurementSystem == null || height == null || weight == null) {
-    const err = new Error("Provide measurementSystem, height and weight");
-    err.status = 400;
-    throw err;
-  }
-
-  const sys = String(measurementSystem).toLowerCase();
-  const H = Number(height);
-  const W = Number(weight);
-
-  if (!["metric", "imperial"].includes(sys) || !(H > 0) || !(W > 0)) {
+  if (hasExplicitHeight && !hasCompleteExplicitHeight) {
     const err = new Error("Invalid anthropometric payload");
     err.status = 400;
     throw err;
   }
 
-  const heightM = sys === "metric" ? H : H * FT_TO_M;
-  const weightKg = sys === "metric" ? W : W * LB_TO_KG;
+  if (measurementSystem == null || weight == null || !hasRequiredHeight) {
+    const err = new Error("Provide measurementSystem, height and weight");
+    err.status = 400;
+    throw err;
+  }
+
+  let measurements;
+  try {
+    measurements = normalizeMeasurements({
+      measurementSystem,
+      height,
+      heightFeet,
+      heightInches,
+      weight,
+    });
+  } catch {
+    throwInvalidAnthropometrics();
+  }
+
+  const sys = measurements.measurementSystem;
+  const heightM = measurements.heightM;
+  const weightKg = measurements.weightKg;
+  const H = measurements.height;
+  const W = measurements.weight;
 
   const organDonor = toBool(organIn);
   const bloodDonor = toBool(bloodIn);
@@ -755,6 +793,8 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     bloodDonor: bloodIn,
     measurementSystem,
     height,
+    heightFeet,
+    heightInches,
     weight,
     heightM,
     weightKg,
@@ -1334,10 +1374,17 @@ export const updatePatientService = async ({ user, patientId, body }) => {
 
   const touchSys = typeof measurementSystem !== "undefined";
   const touchH = typeof height !== "undefined";
+  const touchFeet = typeof heightFeet !== "undefined";
+  const touchInches = typeof heightInches !== "undefined";
   const touchW = typeof weight !== "undefined";
+  const touchExplicitHeight = touchFeet || touchInches;
 
-  if (touchSys || touchH || touchW) {
-    if (!(touchSys && touchH && touchW)) {
+  if (touchSys || touchH || touchExplicitHeight || touchW) {
+    const hasCompleteHeight = touchExplicitHeight
+      ? touchFeet && touchInches
+      : touchH;
+
+    if (!(touchSys && hasCompleteHeight && touchW)) {
       const err = new Error(
         "To update anthropometrics send measurementSystem, height and weight together"
       );
@@ -1345,9 +1392,22 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       throw err;
     }
 
-    update.measurementSystem = measurementSystem;
-    update.height = height;
-    update.weight = weight;
+    let measurements;
+    try {
+      measurements = normalizeMeasurements({
+        measurementSystem,
+        height,
+        heightFeet,
+        heightInches,
+        weight,
+      });
+    } catch {
+      throwInvalidAnthropometrics();
+    }
+
+    update.measurementSystem = measurements.measurementSystem;
+    update.heightM = measurements.heightM;
+    update.weightKg = measurements.weightKg;
   } else {
     if (typeof heightM !== "undefined") update.heightM = heightM;
     if (typeof weightKg !== "undefined") update.weightKg = weightKg;
@@ -1383,6 +1443,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     if (!changesFound && "gender" in update && normLower(update.gender) !== normLower(current.gender)) changesFound = true;
     if (!changesFound && "organDonor" in update && Boolean(update.organDonor) !== Boolean(current.organDonor)) changesFound = true;
     if (!changesFound && "bloodDonor" in update && Boolean(update.bloodDonor) !== Boolean(current.bloodDonor)) changesFound = true;
+    if (!changesFound && "measurementSystem" in update && normLower(update.measurementSystem) !== normLower(current.measurementSystem)) changesFound = true;
     if (!changesFound && "country" in update && normStr(update.country) !== normStr(current.country)) changesFound = true;
     if (!changesFound && "state" in update && normStr(update.state) !== normStr(current.state)) changesFound = true;
     if (!changesFound && "city" in update && normStr(update.city) !== normStr(current.city)) changesFound = true;
@@ -1405,19 +1466,17 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     if (!changesFound && "ageCategory" in update && normStr(update.ageCategory) !== normStr(current.ageCategory)) changesFound = true;
 
     const touchedAnthro =
-      "measurementSystem" in update || "height" in update || "weight" in update;
+      "height" in update || hasExplicitHeightPart(update) || "weight" in update;
 
     if (!changesFound && touchedAnthro) {
-      const sys = normLower(update.measurementSystem || current.measurementSystem || "metric");
-      const H = Number(update.height);
-      const W = Number(update.weight);
-
-      const nextHeightM = sys === "imperial" ? H * FT_TO_M : H;
-      const nextWeightKg = sys === "imperial" ? W * LB_TO_KG : W;
-
-      if (sys !== normLower(current.measurementSystem)) changesFound = true;
-      else if (!near(nextHeightM, current.heightM)) changesFound = true;
-      else if (!near(nextWeightKg, current.weightKg)) changesFound = true;
+      try {
+        const next = normalizeMeasurements(update);
+        if (next.measurementSystem !== normLower(current.measurementSystem)) changesFound = true;
+        else if (!near(next.heightM, current.heightM)) changesFound = true;
+        else if (!near(next.weightKg, current.weightKg)) changesFound = true;
+      } catch {
+        changesFound = true;
+      }
     }
 
     if (!changesFound && "heightM" in update && !near(update.heightM, current.heightM)) changesFound = true;

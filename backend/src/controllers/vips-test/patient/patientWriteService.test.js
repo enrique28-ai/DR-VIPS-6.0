@@ -317,6 +317,87 @@ async function assertCreateNormalizesPhone({
   }
 }
 
+async function assertCreateAnthropometrics({ body, expectedHeightM, expectedWeightKg }) {
+  restorePatientMethods();
+
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "selectLean", value: null },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+  const patientFindCalls = mockNoPendingCreateEmailLookup(body.email.toLowerCase());
+  const createCalls = [];
+
+  Patient.create = async (payload) => {
+    createCalls.push(payload);
+    return {
+      toObject: () => ({ _id: "created-patient-id", ...payload }),
+    };
+  };
+
+  try {
+    await createPatientService({ user: { _id: "doctor-id" }, body });
+
+    assert.equal(findOneCalls.length, 2);
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(createCalls.length, 1);
+    assert.ok(Math.abs(createCalls[0].heightM - expectedHeightM) < 0.001);
+    assert.ok(Math.abs(createCalls[0].weightKg - expectedWeightKg) < 0.001);
+  } finally {
+    restorePatientMethods();
+  }
+}
+
+async function assertCreateRejectsAnthropometrics(overrides) {
+  restorePatientMethods();
+
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called for invalid anthropometrics");
+  };
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for invalid anthropometrics");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for invalid anthropometrics");
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called for invalid anthropometrics");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body: makeValidCreateBody({
+            measurementSystem: "imperial",
+            height: undefined,
+            heightFeet: 5,
+            heightInches: 10,
+            weight: 180,
+            ...overrides,
+          }),
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+}
+
+async function runFindOneAndUpdatePreHook(updateDoc) {
+  const query = Patient.findOneAndUpdate({ _id: "patient-id" }, updateDoc);
+  await new Promise((resolve, reject) => {
+    Patient.schema.s.hooks.execPre("findOneAndUpdate", query, [], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+  return query.getUpdate();
+}
+
 test("createPatientService blocks duplicate email on create", async () => {
   restorePatientMethods();
 
@@ -586,6 +667,83 @@ test("createPatientService blocks duplicate phoneDigits on create", async () => 
   }
 });
 
+test("createPatientService stores explicit imperial feet and inches as metric height", async () => {
+  await assertCreateAnthropometrics({
+    body: makeValidCreateBody({
+      measurementSystem: "imperial",
+      height: undefined,
+      heightFeet: 5,
+      heightInches: 10,
+      weight: 180,
+    }),
+    expectedHeightM: 70 * 0.0254,
+    expectedWeightKg: 180 * 0.45359237,
+  });
+});
+
+test("createPatientService keeps legacy imperial height as decimal feet", async () => {
+  await assertCreateAnthropometrics({
+    body: makeValidCreateBody({
+      measurementSystem: "imperial",
+      height: "5.10",
+      weight: 180,
+    }),
+    expectedHeightM: 5.10 * 0.3048,
+    expectedWeightKg: 180 * 0.45359237,
+  });
+});
+
+test("createPatientService keeps metric anthropometrics unchanged", async () => {
+  await assertCreateAnthropometrics({
+    body: makeValidCreateBody({
+      measurementSystem: "metric",
+      height: 1.75,
+      weight: 72,
+    }),
+    expectedHeightM: 1.75,
+    expectedWeightKg: 72,
+  });
+});
+
+test("createPatientService rejects invalid imperial inches", async () => {
+  for (const heightInches of [12, 13, -1, "not-a-number"]) {
+    await assertCreateRejectsAnthropometrics({ heightInches });
+  }
+});
+
+test("createPatientService rejects invalid imperial feet", async () => {
+  for (const heightFeet of [-1, "not-a-number"]) {
+    await assertCreateRejectsAnthropometrics({ heightFeet });
+  }
+});
+
+test("Patient findOneAndUpdate hook normalizes explicit imperial feet and inches", async () => {
+  const updateDoc = await runFindOneAndUpdatePreHook({
+    $set: {
+      measurementSystem: "imperial",
+      heightFeet: 5,
+      heightInches: 10,
+      weight: 180,
+    },
+  });
+
+  assert.equal(updateDoc.$set.measurementSystem, "imperial");
+  assert.ok(Math.abs(updateDoc.$set.heightM - 70 * 0.0254) < 0.001);
+  assert.ok(Math.abs(updateDoc.$set.weightKg - 180 * 0.45359237) < 0.001);
+  assert.equal(Object.hasOwn(updateDoc.$set, "height"), false);
+  assert.equal(Object.hasOwn(updateDoc.$set, "heightFeet"), false);
+  assert.equal(Object.hasOwn(updateDoc.$set, "heightInches"), false);
+
+  const doc = Patient.hydrate({
+    measurementSystem: "imperial",
+    heightM: 70 * 0.0254,
+    weightKg: 180 * 0.45359237,
+  });
+  assert.equal(doc.heightFeet, 5);
+  assert.equal(doc.heightInches, 10);
+  assert.ok(Math.abs(doc.heightDisplay - (70 / 12)) < 0.001);
+});
+
 test("updatePatientService blocks duplicate phoneDigits on update", async () => {
   restorePatientMethods();
 
@@ -619,6 +777,60 @@ test("updatePatientService blocks duplicate phoneDigits on update", async () => 
     assert.equal(findOneCalls.length, 2);
     assert.equal(findOneCalls[1].phoneDigits, "16195550102");
     assert.deepEqual(findOneCalls[1]._id, { $ne: current._id });
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService stores explicit imperial feet and inches as metric height", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        weight: 180,
+      },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.measurementSystem, "imperial");
+    assert.ok(Math.abs(updateCalls[0].updateDoc.$set.heightM - 70 * 0.0254) < 0.001);
+    assert.ok(Math.abs(updateCalls[0].updateDoc.$set.weightKg - 180 * 0.45359237) < 0.001);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "height"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "heightFeet"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "heightInches"), false);
+    assert.ok(Math.abs(result.heightM - 70 * 0.0254) < 0.001);
   } finally {
     restorePatientMethods();
   }
