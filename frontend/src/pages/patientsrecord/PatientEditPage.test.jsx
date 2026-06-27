@@ -423,3 +423,43 @@ describe("PatientEditPage imperial height initialization and submission", () => 
     expect(payload.height).not.toBe(5.1);
   });
 });
+
+describe("PatientEditPage weight conversion round-trip", () => {
+  let mutate;
+
+  const imperialWeightInput = () => screen.getByPlaceholderText("e.g. 150");
+  const metricWeightInput = () => screen.getByPlaceholderText("e.g. 68");
+
+  beforeEach(() => {
+    mutate = vi.fn();
+    vi.clearAllMocks();
+    locationState = {};
+    useUpdatePatient.mockReturnValue({ mutate, isPending: false });
+  });
+
+  test("imperial 87 lb survives metric round-trip without drifting to 86.99", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        measurementSystem: "imperial",
+        heightFeet: 5,
+        heightInches: 10,
+        heightM: 1.778,
+        weightKg: 87 * 0.45359237,
+        weightDisplay: 87,
+      }),
+    );
+
+    await waitForPatientForm();
+
+    expect(Number(imperialWeightInput().value)).toBeCloseTo(87, 2);
+
+    // imperial -> metric: 87 lb -> 39.4625 kg (4 decimals preserves precision)
+    fireEvent.click(screen.getByRole("button", { name: "Metric" }));
+    expect(Number(metricWeightInput().value)).toBeCloseTo(39.4625, 4);
+
+    // metric -> imperial: 39.4625 kg -> 87 lb
+    fireEvent.click(screen.getByRole("button", { name: "Imperial" }));
+    expect(Number(imperialWeightInput().value)).toBeCloseTo(87, 2);
+    expect(imperialWeightInput().value).not.toBe("86.99");
+  });
+});

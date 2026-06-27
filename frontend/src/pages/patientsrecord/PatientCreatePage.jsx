@@ -260,7 +260,7 @@ const isHeightInvalidForBtn =
 const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
 
 const DEC = {
-  metric:   { h: 2, w: 2 },
+  metric:   { h: 2, w: 4 },
   imperial: { h: 2, w: 2 },
 };
 

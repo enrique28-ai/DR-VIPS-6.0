@@ -394,3 +394,38 @@ describe("PatientCreatePage imperial height submission", () => {
     assertInvalidHeightBlocked();
   });
 });
+
+describe("PatientCreatePage weight conversion round-trip", () => {
+  let mutate;
+
+  beforeEach(() => {
+    mutate = vi.fn();
+    vi.clearAllMocks();
+    useCreatePatient.mockReturnValue({ mutate, isPending: false });
+  });
+
+  test("imperial 87 lb survives metric round-trip without drifting to 86.99", () => {
+    renderCreatePage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Male" }));
+    screen.getAllByRole("button", { name: "No" }).forEach((button) => {
+      fireEvent.click(button);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Imperial" }));
+
+    const imperialWeightInput = screen.getByPlaceholderText("e.g. 150");
+    fireEvent.change(imperialWeightInput, { target: { value: "87" } });
+    expect(Number(imperialWeightInput.value)).toBeCloseTo(87, 2);
+
+    // imperial -> metric: 87 lb -> 39.4625 kg (4 decimals preserves precision)
+    fireEvent.click(screen.getByRole("button", { name: "Metric" }));
+    const metricWeightInput = screen.getByPlaceholderText("e.g. 68");
+    expect(Number(metricWeightInput.value)).toBeCloseTo(39.4625, 4);
+
+    // metric -> imperial: 39.4625 kg -> 87 lb
+    fireEvent.click(screen.getByRole("button", { name: "Imperial" }));
+    const backToImperialWeightInput = screen.getByPlaceholderText("e.g. 150");
+    expect(Number(backToImperialWeightInput.value)).toBeCloseTo(87, 2);
+    expect(backToImperialWeightInput.value).not.toBe("86.99");
+  });
+});

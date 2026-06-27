@@ -7,6 +7,9 @@ import {
   resolveImperialHeightParts,
   formatFeetInches,
   formatHeightForSystem,
+  formatNumber,
+  kgToLb,
+  lbToKg,
   MAX_HEIGHT_M,
 } from "./measurements.js";
 
@@ -113,6 +116,25 @@ if (globalThis.vi) {
           heightM: 1.7,
         }),
       ).toEqual({ feet: "5", inches: "10" });
+    });
+  });
+}
+
+if (globalThis.vi) {
+  describe("measurements weight conversion precision", () => {
+    test("87 lb round-trips through 4-decimal kg within 0.01 lb", () => {
+      const kg = Number(formatNumber(lbToKg(87), 4));
+      const lb = Number(formatNumber(kgToLb(kg), 2));
+      expect(kg).toBeCloseTo(39.4625, 4);
+      expect(Math.abs(lb - 87)).toBeLessThanOrEqual(0.01);
+      expect(lb).not.toBe(86.99);
+    });
+
+    test("87 lb round-trips through 2-decimal kg drifts to 86.99 (documents the drift avoided by 4 decimals)", () => {
+      const kg = Number(formatNumber(lbToKg(87), 2));
+      const lb = Number(formatNumber(kgToLb(kg), 2));
+      expect(kg).toBe(39.46);
+      expect(lb).toBe(86.99);
     });
   });
 }

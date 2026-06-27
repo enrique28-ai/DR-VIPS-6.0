@@ -397,7 +397,7 @@ const isHeightInvalidForBtn =
 const isWeightInvalidForBtn = !Number.isFinite(W) || W <= 0 || W > lim.w;
 
 const DEC = {
-  metric:   { h: 2, w: 2 },  // altura 2 decimales, peso 1
+  metric:   { h: 2, w: 4 },  // altura 2 decimales, peso 4 para preservar conversión lb<->kg
   imperial: { h: 2, w: 2 },
 };
 
