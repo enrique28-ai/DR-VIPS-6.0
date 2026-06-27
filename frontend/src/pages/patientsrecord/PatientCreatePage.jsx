@@ -146,6 +146,14 @@ const [stateText, setStateText] = useState("");
 const [cityName, setCityName] = useState("");
 const [cityText, setCityText] = useState("");
 
+const [birthCountryIso, setBirthCountryIso] = useState("");
+const [birthCountry, setBirthCountry] = useState("");
+const [birthStateIso, setBirthStateIso] = useState("");
+const [birthStateName, setBirthStateName] = useState("");
+const [birthStateText, setBirthStateText] = useState("");
+const [birthCityName, setBirthCityName] = useState("");
+const [birthCityText, setBirthCityText] = useState("");
+
 
   // País/Estado/Ciudad — NUEVO
  const localizedCountries = useMemo(
@@ -161,6 +169,16 @@ const states = useMemo(
 const cities = useMemo(
   () => (countryIso && stateIso ? getLocalizedCities(countryIso, stateIso, t) : []),
   [countryIso, stateIso, i18n.language, t]
+);
+
+const birthStates = useMemo(
+  () => (birthCountryIso ? getLocalizedStates(birthCountryIso, t) : []),
+  [birthCountryIso, i18n.language, t]
+);
+
+const birthCities = useMemo(
+  () => (birthCountryIso && birthStateIso ? getLocalizedCities(birthCountryIso, birthStateIso, t) : []),
+  [birthCountryIso, birthStateIso, i18n.language, t]
 );
 
 const phoneDialCode = useMemo(
@@ -210,6 +228,37 @@ const onStateChange = (e) => {
 };
 
 const onCityChange = (e) => setCityName(e.target.value);
+
+const onBirthCountryChange = (e) => {
+  const iso = e.target.value;
+  setBirthCountryIso(iso);
+  setBirthCountry(getCountryNameByIso(iso));
+  setBirthStateIso(""); setBirthStateName(""); setBirthStateText("");
+  setBirthCityName(""); setBirthCityText("");
+};
+
+const onBirthStateChange = (e) => {
+  const iso = e.target.value;
+  const rec = birthStates.find((s) => s.isoCode === iso);
+  setBirthStateIso(iso);
+  setBirthStateName(rec?.name || "");
+  setBirthCityName(""); setBirthCityText("");
+};
+
+const onBirthCityChange = (e) => setBirthCityName(e.target.value);
+
+const birthStateValue = birthStateName || birthStateText.trim();
+const birthCityValue = birthCityName || birthCityText.trim();
+const hasBirthplaceInput = Boolean(
+  birthCountryIso ||
+  birthCountry ||
+  birthStateIso ||
+  birthStateText.trim() ||
+  birthCityName ||
+  birthCityText.trim()
+);
+const hasCompleteBirthplace = Boolean(birthCountry && birthStateValue && birthCityValue);
+const isBirthplacePartial = hasBirthplaceInput && !hasCompleteBirthplace;
 
 const onPhoneCountryChange = (e) => {
   const iso = e.target.value;
@@ -402,6 +451,10 @@ if (isMinor) {
   if (!countryIso) { toast.error(t("patients.create.countryRequired")); return; }
  if (!hasState)   { toast.error(t("patients.create.stateRequired")); return; }
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
+ if (isBirthplacePartial) {
+   toast.error(t("patients.create.birthplaceCompleteRequired"));
+   return;
+ }
 
  // ✅ Validación BirthDate
     if (!form.birthDate) {
@@ -439,6 +492,13 @@ if (isMinor) {
         country: country,
         state: stateName || stateText,
         city: cityName || cityText,
+        ...(hasCompleteBirthplace
+          ? {
+              birthCountry,
+              birthState: birthStateValue,
+              birthCity: birthCityValue,
+            }
+          : {}),
         measurementSystem: system,
         ...heightPayload,
         weight: Number(weight),
@@ -661,8 +721,9 @@ if (isMinor) {
 
 
           <div>
+           <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.residence")}</h2>
            {/* Country */}
- <label htmlFor="patient-create-residence-country" className="block text-sm font-medium text-gray-700">{t("patients.create.country")}<span className="text-red-500">*</span></label>
+ <label htmlFor="patient-create-residence-country" className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
  <select
    id="patient-create-residence-country"
    value={countryIso}
@@ -681,7 +742,7 @@ if (isMinor) {
  </select>
 
  {/* State/Province */}
- <label htmlFor={states.length > 0 ? "patient-create-residence-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.state")}<span className="text-red-500">*</span></label>
+ <label htmlFor={states.length > 0 ? "patient-create-residence-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
  {states.length > 0 ? (
    <select
      id="patient-create-residence-state"
@@ -700,7 +761,7 @@ if (isMinor) {
    </select>
  ) : (
    <Input
-     placeholder={t("patients.create.state")}
+     placeholder={t("patients.create.residenceState")}
      value={stateText}
      onChange={(e)=>setStateText(e.target.value)}
      required
@@ -708,7 +769,7 @@ if (isMinor) {
  )}
 
  {/* City */}
- <label htmlFor={cities.length > 0 ? "patient-create-residence-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.city")}<span className="text-red-500">*</span></label>
+ <label htmlFor={cities.length > 0 ? "patient-create-residence-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
  {cities.length > 0 ? (
    <select
      id="patient-create-residence-city"
@@ -727,7 +788,7 @@ if (isMinor) {
    </select>
  ) : (
    <Input
-     placeholder={t("patients.create.city")}
+     placeholder={t("patients.create.residenceCity")}
      value={cityText}
      onChange={(e)=>setCityText(e.target.value)}
      required
@@ -735,6 +796,71 @@ if (isMinor) {
  )}
 
       </div>
+
+          <div>
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
+            <label htmlFor="patient-create-birth-country" className="block text-sm font-medium text-gray-700">{t("patients.create.birthCountry")}</label>
+            <select
+              id="patient-create-birth-country"
+              value={birthCountryIso}
+              onChange={onBirthCountryChange}
+              className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={createPatient.isPending}
+            >
+              <option value=""> {t("patients.create.selectCountryOption")}</option>
+              {localizedCountries.map(c => (
+                <option key={c.isoCode} value={c.isoCode}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+
+            <label htmlFor={birthStates.length > 0 ? "patient-create-birth-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthState")}</label>
+            {birthStates.length > 0 ? (
+              <select
+                id="patient-create-birth-state"
+                value={birthStateIso}
+                onChange={onBirthStateChange}
+                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">{t("patients.create.selectStateOption")}</option>
+                {birthStates.map((s) => (
+                  <option key={s.isoCode} value={s.isoCode}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                placeholder={t("patients.create.birthState")}
+                value={birthStateText}
+                onChange={(e)=>setBirthStateText(e.target.value)}
+              />
+            )}
+
+            <label htmlFor={birthCities.length > 0 ? "patient-create-birth-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthCity")}</label>
+            {birthCities.length > 0 ? (
+              <select
+                id="patient-create-birth-city"
+                value={birthCityName}
+                onChange={onBirthCityChange}
+                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">{t("patients.create.selectCityOption")}</option>
+                {birthCities.map((ct) => (
+                  <option key={ct.name} value={ct.name}>
+                    {ct.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                placeholder={t("patients.create.birthCity")}
+                value={birthCityText}
+                onChange={(e)=>setBirthCityText(e.target.value)}
+              />
+            )}
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasDiseases")}</label>
@@ -947,8 +1073,8 @@ if (isMinor) {
               (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
               isMinorPhoneInvalid ||!gender || !organDonor || (hasDiseases === "yes" && form.diseases.trim() === "")||
                !bloodDonor || (hasAllergies === "yes" && form.allergies.trim() === "") || !system || (system === "metric" ? !height : (!heightFeet || heightInches === ""))
-               || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim()) 
-               ||  (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 
+               || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim())
+               || isBirthplacePartial ||  (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX
                || isHeightInvalidForBtn || isWeightInvalidForBtn || createPatient.isPending}
             >{createPatient.isPending ? t("patients.create.submitting") :  t("patients.create.submit")}</Button>
           </div>

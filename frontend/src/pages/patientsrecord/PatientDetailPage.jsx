@@ -103,6 +103,16 @@ const locationText = useMemo(() => {
   return [country, st, ct].filter(Boolean).join(", ");
 }, [patientView, i18n.language]);
 
+const birthplaceText = useMemo(() => {
+  if (!patientView) return "";
+
+  const country = localizeCountryName(patientView.birthCountry, i18n.language);
+  const st = patientView.birthState || "";
+  const ct = patientView.birthCity || "";
+
+  return [country, st, ct].filter(Boolean).join(", ");
+}, [patientView, i18n.language]);
+
 
 
 
@@ -270,6 +280,10 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
               <dd>{phone}</dd>
             </>
           )}
+          <dt className="font-medium">{t("patients.create.residence")}</dt>
+          <dd>{locationText || t("patients.detail.notSpecified")}</dd>
+          <dt className="font-medium">{t("patients.create.placeOfBirth")}</dt>
+          <dd>{birthplaceText || t("patients.detail.notSpecified")}</dd>
 
           {heightTextUI && (
             <>

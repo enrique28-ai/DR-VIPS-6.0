@@ -460,6 +460,9 @@ test("rejectPatientProfileService restores phone country from previous profile",
     country: "United States",
     state: "California",
     city: "San Diego",
+    birthCountry: "United States",
+    birthState: "California",
+    birthCity: "Los Angeles",
     updatedAt: new Date("2026-01-03T12:00:00.000Z"),
   });
   const previous = makePatient({
@@ -472,6 +475,9 @@ test("rejectPatientProfileService restores phone country from previous profile",
     country: "Mexico",
     state: "Ciudad de Mexico",
     city: "Mexico City",
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
     updatedAt: new Date("2026-01-01T12:00:00.000Z"),
   });
 
@@ -490,6 +496,9 @@ test("rejectPatientProfileService restores phone country from previous profile",
     assert.equal(updateManyCalls[0].updateDoc.$set.country, "Mexico");
     assert.equal(updateManyCalls[0].updateDoc.$set.state, "Ciudad de Mexico");
     assert.equal(updateManyCalls[0].updateDoc.$set.city, "Mexico City");
+    assert.equal(updateManyCalls[0].updateDoc.$set.birthCountry, "Mexico");
+    assert.equal(updateManyCalls[0].updateDoc.$set.birthState, "Baja California");
+    assert.equal(updateManyCalls[0].updateDoc.$set.birthCity, "Mexicali");
     assert.equal(updateManyCalls[0].updateDoc.$set.phone, "+442079460056");
     assert.equal(updateManyCalls[0].updateDoc.$set.phoneDigits, "442079460056");
     assert.equal(updateManyCalls[0].updateDoc.$set.phoneCountry, "United Kingdom");
@@ -532,6 +541,9 @@ test("approvePatientProfileService marks the target profile as approved", async 
       updateManyCalls[0].updateDoc.$set.approvedSnapshot.set.fullname,
       "Patient Profile"
     );
+    assert.equal(updateManyCalls[0].updateDoc.$set.approvedSnapshot.unset.birthCountry, 1);
+    assert.equal(updateManyCalls[0].updateDoc.$set.approvedSnapshot.unset.birthState, 1);
+    assert.equal(updateManyCalls[0].updateDoc.$set.approvedSnapshot.unset.birthCity, 1);
     assert.deepEqual(updateManyCalls[0].options, { timestamps: false });
     assert.equal(historyCalls.length, 1);
     assert.equal(historyCalls[0].approvedFromProfile, "profile-id");

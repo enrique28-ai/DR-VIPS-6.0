@@ -42,6 +42,8 @@ vi.mock("react-i18next", () => ({
         "patients.card.gender": "Gender",
         "patients.card.genderFemale": "Female",
         "patients.card.genderMale": "Male",
+        "patients.create.residence": "Residence",
+        "patients.create.placeOfBirth": "Place of Birth",
         "patients.create.childrenCount": "Children count",
         "patients.detail.allergies": "Allergies",
         "patients.detail.back": "Back",
@@ -60,6 +62,7 @@ vi.mock("react-i18next", () => ({
         "patients.detail.medications": "Medications",
         "patients.detail.newGuardianEmail": "New guardian email",
         "patients.detail.newGuardianEmailPlaceholder": "new.parent@example.com",
+        "patients.detail.notSpecified": "Not specified",
         "patients.detail.notFoundText": "The patient could not be loaded",
         "patients.detail.notFoundTitle": "Patient not found",
         "patients.detail.pendingApproval": "Pending approval",
@@ -122,6 +125,9 @@ const adultPatient = (overrides = {}) => ({
   country: "Mexico",
   state: "Jalisco",
   city: "Guadalajara",
+  birthCountry: "Mexico",
+  birthState: "Baja California",
+  birthCity: "Mexicali",
   gender: "female",
   isDeceased: false,
   organDonor: true,
@@ -227,7 +233,8 @@ describe("PatientDetailPage", () => {
     expect(screen.getByText("34")).toBeInTheDocument();
     expect(screen.getByText("Adult")).toBeInTheDocument();
     expect(screen.getByText("O+")).toBeInTheDocument();
-    expect(screen.getByText("Mexico, Jalisco, Guadalajara")).toBeInTheDocument();
+    expect(screen.getAllByText("Mexico, Jalisco, Guadalajara").length).toBeGreaterThan(0);
+    expect(screen.getByText("Mexico, Baja California, Mexicali")).toBeInTheDocument();
     expect(screen.getByText("Female")).toBeInTheDocument();
     expect(screen.getByText("Alive")).toBeInTheDocument();
     expect(screen.getByText("1.70 m")).toBeInTheDocument();
@@ -283,7 +290,7 @@ describe("PatientDetailPage", () => {
       expect(screen.getByRole("heading", { name: "Ana Traducida" })).toBeInTheDocument();
     });
     expect(screen.getByText("translated@example.com")).toBeInTheDocument();
-    expect(screen.getByText("United States, California, Los Angeles")).toBeInTheDocument();
+    expect(screen.getAllByText("United States, California, Los Angeles").length).toBeGreaterThan(0);
     expect(screen.getByText("Translated disease")).toBeInTheDocument();
     expect(screen.queryByText("Ana Martinez")).not.toBeInTheDocument();
   });

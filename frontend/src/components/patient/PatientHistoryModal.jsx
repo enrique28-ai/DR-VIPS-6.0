@@ -44,6 +44,10 @@ function SnapshotViewer({ snapshot, t, i18n, right }) {
   const st = localizeStateName({ countryName: snapshot.country, stateName: snapshot.state, t });
   const ct = localizeCityName({ countryName: snapshot.country, stateName: snapshot.state, cityName: snapshot.city, t });
   const location = [country, st, ct].filter(Boolean).join(", ");
+  const birthCountry = localizeCountryName(snapshot.birthCountry, i18n.language);
+  const birthSt = localizeStateName({ countryName: snapshot.birthCountry, stateName: snapshot.birthState, t });
+  const birthCt = localizeCityName({ countryName: snapshot.birthCountry, stateName: snapshot.birthState, cityName: snapshot.birthCity, t });
+  const birthplace = [birthCountry, birthSt, birthCt].filter(Boolean).join(", ");
 
   const gender =
     snapshot.gender === "male"
@@ -76,6 +80,10 @@ const none = trOr(t, "patients.history.none", "None");
       </div>
       <div>
         <span className="font-medium text-gray-500">{t("patients.history.location")}:</span> {location || "—"}
+      </div>
+      <div>
+        <span className="font-medium text-gray-500">{t("patients.create.placeOfBirth")}:</span>{" "}
+        {birthplace || trOr(t, "patients.detail.notSpecified", "Not specified")}
       </div>
 
       <div>

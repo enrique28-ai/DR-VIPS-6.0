@@ -74,6 +74,14 @@ vi.mock("react-i18next", () => ({
         "patients.create.yes": "Yes",
         "patients.create.bloodType": "Blood type",
         "patients.create.country": "Residence Country",
+        "patients.create.residence": "Residence",
+        "patients.create.residenceCountry": "Residence Country",
+        "patients.create.residenceState": "Residence State",
+        "patients.create.residenceCity": "Residence City",
+        "patients.create.placeOfBirth": "Place of Birth",
+        "patients.create.birthCountry": "Birth Country",
+        "patients.create.birthState": "Birth State",
+        "patients.create.birthCity": "Birth City",
         "patients.create.selectCountryOption": "Select residence country",
         "patients.create.state": "State",
         "patients.create.selectStateOption": "Select state",
@@ -103,6 +111,8 @@ vi.mock("react-i18next", () => ({
         "patients.create.countryRequired": "Country required",
         "patients.create.stateRequired": "State required",
         "patients.create.cityRequired": "City required",
+        "patients.create.birthplaceCompleteRequired": "Birthplace complete required",
+        "patients.edit.birthplaceClearUnsupported": "Birthplace clear unsupported",
         "patients.detail.diseases": "Diseases",
         "patients.detail.allergies": "Allergies",
         "patients.detail.medications": "Medications",
@@ -196,8 +206,11 @@ const baseMinorPatient = (overrides = {}) => ({
 
 const phoneCountrySelect = () => screen.getByRole("combobox", { name: /Phone Country/i });
 const residenceCountrySelect = () => screen.getByRole("combobox", { name: /Residence Country/i });
-const stateSelect = () => screen.getByRole("combobox", { name: /^State/i });
-const citySelect = () => screen.getByRole("combobox", { name: /^City/i });
+const stateSelect = () => screen.getByRole("combobox", { name: /Residence State/i });
+const citySelect = () => screen.getByRole("combobox", { name: /Residence City/i });
+const birthCountrySelect = () => screen.getByRole("combobox", { name: /Birth Country/i });
+const birthStateSelect = () => screen.getByRole("combobox", { name: /Birth State/i });
+const birthCitySelect = () => screen.getByRole("combobox", { name: /Birth City/i });
 const phoneInput = () => screen.getByPlaceholderText("Phone digits");
 const dialInput = () => screen.getByPlaceholderText("+CC");
 const saveButton = () => screen.getByRole("button", { name: "Save" });
@@ -295,6 +308,63 @@ describe("PatientEditPage phone country behavior", () => {
     );
     expect(payload.phoneCountry).not.toBe(payload.country);
     expect(payload.phoneCountryIso).not.toBe("MX");
+  });
+
+  test("initializes and submits residence and birthplace separately", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        birthCountry: "Mexico",
+        birthState: "Baja California",
+        birthCity: "Mexicali",
+      }),
+    );
+
+    await waitForPatientForm();
+    expect(birthCountrySelect()).toHaveValue("MX");
+    expect(birthStateSelect()).toHaveValue("BCN");
+    expect(birthCitySelect()).toHaveValue("Mexicali");
+
+    fireEvent.change(birthCountrySelect(), { target: { value: "US" } });
+    fireEvent.change(birthStateSelect(), { target: { value: "CA" } });
+    fireEvent.change(birthCitySelect(), { target: { value: "Los Angeles" } });
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        country: "Mexico",
+        state: "Jalisco",
+        city: "Guadalajara",
+        birthCountry: "United States",
+        birthState: "California",
+        birthCity: "Los Angeles",
+      }),
+    );
+  });
+
+  test("allows edit when legacy birthplace is empty", async () => {
+    renderEditPage(baseAdultPatient());
+
+    await waitForPatientForm();
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).not.toHaveProperty("birthCountry");
+    expect(payload).not.toHaveProperty("birthState");
+    expect(payload).not.toHaveProperty("birthCity");
+  });
+
+  test("blocks edit when birthplace is partial", async () => {
+    renderEditPage(baseAdultPatient());
+
+    await waitForPatientForm();
+    fireEvent.change(birthCountrySelect(), { target: { value: "MX" } });
+    submitForm();
+
+    expect(toast.error).toHaveBeenCalledWith("Birthplace complete required");
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   test("blocks an adult phone when phone country is missing", async () => {

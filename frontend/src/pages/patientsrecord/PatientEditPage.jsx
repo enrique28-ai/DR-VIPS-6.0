@@ -145,6 +145,9 @@ function isDeathStatusOnlyEdit(patient, payload, phoneCountryIso) {
     normStr(payload.country) !== normStr(patient.country) ||
     normStr(payload.state) !== normStr(patient.state) ||
     normStr(payload.city) !== normStr(patient.city) ||
+    normStr(payload.birthCountry) !== normStr(patient.birthCountry) ||
+    normStr(payload.birthState) !== normStr(patient.birthState) ||
+    normStr(payload.birthCity) !== normStr(patient.birthCity) ||
     Boolean(payload.organDonor) !== Boolean(patient.organDonor) ||
     Boolean(payload.bloodDonor) !== Boolean(patient.bloodDonor) ||
     normLower(payload.parentEmail) !== normLower(patient.parentEmail) ||
@@ -299,6 +302,24 @@ const cities = useMemo(
 const [cityName, setCityName] = useState("");
 const [cityText, setCityText] = useState("");
 
+const [birthCountryIso, setBirthCountryIso] = useState("");
+const [birthCountry, setBirthCountry] = useState("");
+const [birthStateIso, setBirthStateIso] = useState("");
+const [birthStateName, setBirthStateName] = useState("");
+const [birthStateText, setBirthStateText] = useState("");
+const [birthCityName, setBirthCityName] = useState("");
+const [birthCityText, setBirthCityText] = useState("");
+
+const birthStates = useMemo(
+  () => (birthCountryIso ? getLocalizedStates(birthCountryIso, t) : []),
+  [birthCountryIso, i18n.language, t]
+);
+
+const birthCities = useMemo(
+  () => (birthCountryIso && birthStateIso ? getLocalizedCities(birthCountryIso, birthStateIso, t) : []),
+  [birthCountryIso, birthStateIso, i18n.language, t]
+);
+
 const phoneDialCode = useMemo(
   () => getDialCodeByCountryIso(phoneCountryIso),
   [phoneCountryIso]
@@ -346,6 +367,43 @@ const onStateChange = (e) => {
 };
 
 const onCityChange = (e) => setCityName(e.target.value);
+
+const onBirthCountryChange = (e) => {
+  const iso = e.target.value;
+  setBirthCountryIso(iso);
+  setBirthCountry(getCountryNameByIso(iso));
+  setBirthStateIso(""); setBirthStateName(""); setBirthStateText("");
+  setBirthCityName(""); setBirthCityText("");
+};
+
+const onBirthStateChange = (e) => {
+  const iso = e.target.value;
+  const rec = birthStates.find((s) => s.isoCode === iso);
+  setBirthStateIso(iso);
+  setBirthStateName(rec?.name || "");
+  setBirthCityName(""); setBirthCityText("");
+};
+
+const onBirthCityChange = (e) => setBirthCityName(e.target.value);
+
+const birthStateValue = birthStateName || birthStateText.trim();
+const birthCityValue = birthCityName || birthCityText.trim();
+const hasBirthplaceInput = Boolean(
+  birthCountryIso ||
+  birthCountry ||
+  birthStateIso ||
+  birthStateText.trim() ||
+  birthCityName ||
+  birthCityText.trim()
+);
+const hasCompleteBirthplace = Boolean(birthCountry && birthStateValue && birthCityValue);
+const isBirthplacePartial = hasBirthplaceInput && !hasCompleteBirthplace;
+const patientHasBirthplace = Boolean(
+  patient?.birthCountry ||
+  patient?.birthState ||
+  patient?.birthCity
+);
+const isClearingExistingBirthplace = patientHasBirthplace && !hasBirthplaceInput;
 
 const onPhoneCountryChange = (e) => {
   const iso = e.target.value;
@@ -579,6 +637,48 @@ if (cRec) {
   setCityText(String(patient.city || ""));
 }
 
+const birthCountryRec = all.find(
+  (c) => c.name.toLowerCase() === String(patient.birthCountry || "").toLowerCase()
+);
+
+if (birthCountryRec) {
+  setBirthCountry(birthCountryRec.name);
+  setBirthCountryIso(birthCountryRec.isoCode);
+
+  const birthStateList = getLocalizedStates(birthCountryRec.isoCode, t);
+  const birthStateRec = birthStateList.find(
+    (s) => s.name.toLowerCase() === String(patient.birthState || "").toLowerCase()
+  );
+
+  if (birthStateList.length > 0) {
+    if (birthStateRec) {
+      setBirthStateIso(birthStateRec.isoCode);
+      setBirthStateName(birthStateRec.name);
+
+      const birthCityList = getLocalizedCities(birthCountryRec.isoCode, birthStateRec.isoCode, t);
+      const birthCityRec = birthCityList.find(
+        (x) => x.name.toLowerCase() === String(patient.birthCity || "").toLowerCase()
+      );
+      if (birthCityRec) setBirthCityName(birthCityRec.name);
+      else setBirthCityText(String(patient.birthCity || ""));
+    } else {
+      setBirthStateText(String(patient.birthState || ""));
+      setBirthCityText(String(patient.birthCity || ""));
+    }
+  } else {
+    setBirthStateText(String(patient.birthState || ""));
+    setBirthCityText(String(patient.birthCity || ""));
+  }
+} else {
+  setBirthCountry(String(patient.birthCountry || ""));
+  setBirthCountryIso("");
+  setBirthStateIso("");
+  setBirthStateName("");
+  setBirthStateText(String(patient.birthState || ""));
+  setBirthCityName("");
+  setBirthCityText(String(patient.birthCity || ""));
+}
+
 const parsedStoredPhone = parsePhoneNumberFromString(patient.phone || "");
 const phoneCountryRec =
   (patient.phoneCountryIso
@@ -773,6 +873,14 @@ if (isMinor) {
  if (!countryIso) { toast.error(t("patients.create.countryRequired")); return; }
  if (!hasState)   { toast.error(t("patients.create.stateRequired")); return; }
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
+ if (isClearingExistingBirthplace) {
+   toast.error(t("patients.edit.birthplaceClearUnsupported"));
+   return;
+ }
+ if (isBirthplacePartial) {
+   toast.error(t("patients.create.birthplaceCompleteRequired"));
+   return;
+ }
    const heightPayload =
       system === "imperial"
         ? {
@@ -795,6 +903,13 @@ if (isMinor) {
       country: country,
       state: stateName || stateText,
       city:  cityName  || cityText,
+      ...(hasCompleteBirthplace
+        ? {
+            birthCountry,
+            birthState: birthStateValue,
+            birthCity: birthCityValue,
+          }
+        : {}),
       organDonor: organDonor === "yes",
       bloodDonor: bloodDonor === "yes",
       isDeceased: life === "deceased",
@@ -1106,8 +1221,9 @@ if (isMinor) {
 
 
           <div>
+                    <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.residence")}</h2>
                     {/* Country */}
-          <label htmlFor="patient-edit-residence-country" className="block text-sm font-medium text-gray-700">{t("patients.create.country")}<span className="text-red-500">*</span></label>
+          <label htmlFor="patient-edit-residence-country" className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
           <select
             id="patient-edit-residence-country"
             value={countryIso}
@@ -1126,7 +1242,7 @@ if (isMinor) {
           </select>
          
           {/* State/Province */}
-          <label htmlFor={states.length > 0 ? "patient-edit-residence-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.state")}<span className="text-red-500">*</span></label>
+          <label htmlFor={states.length > 0 ? "patient-edit-residence-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
           {states.length > 0 ? (
             <select
               id="patient-edit-residence-state"
@@ -1145,7 +1261,7 @@ if (isMinor) {
             </select>
           ) : (
             <Input
-              placeholder={t("patients.create.state")}
+              placeholder={t("patients.create.residenceState")}
               value={stateText}
               onChange={(e)=>setStateText(e.target.value)}
               required
@@ -1153,7 +1269,7 @@ if (isMinor) {
           )}
          
           {/* City */}
-          <label htmlFor={cities.length > 0 ? "patient-edit-residence-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.city")}<span className="text-red-500">*</span></label>
+          <label htmlFor={cities.length > 0 ? "patient-edit-residence-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
           {cities.length > 0 ? (
             <select
               id="patient-edit-residence-city"
@@ -1172,7 +1288,7 @@ if (isMinor) {
             </select>
           ) : (
             <Input
-              placeholder=  {t("patients.create.city")}
+              placeholder=  {t("patients.create.residenceCity")}
               value={cityText}
               onChange={(e)=>setCityText(e.target.value)}
               required
@@ -1180,6 +1296,71 @@ if (isMinor) {
           )}
 
         </div>
+
+          <div>
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
+            <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-gray-700">{t("patients.create.birthCountry")}</label>
+            <select
+              id="patient-edit-birth-country"
+              value={birthCountryIso}
+              onChange={onBirthCountryChange}
+              className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={updatePatient.isPending}
+            >
+              <option value="">{t("patients.create.selectCountryOption")}</option>
+              {localizedCountries.map((c) => (
+                <option key={c.isoCode} value={c.isoCode}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+
+            <label htmlFor={birthStates.length > 0 ? "patient-edit-birth-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthState")}</label>
+            {birthStates.length > 0 ? (
+              <select
+                id="patient-edit-birth-state"
+                value={birthStateIso}
+                onChange={onBirthStateChange}
+                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">{t("patients.create.selectStateOption")}</option>
+                {birthStates.map((s) => (
+                  <option key={s.isoCode} value={s.isoCode}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                placeholder={t("patients.create.birthState")}
+                value={birthStateText}
+                onChange={(e)=>setBirthStateText(e.target.value)}
+              />
+            )}
+
+            <label htmlFor={birthCities.length > 0 ? "patient-edit-birth-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthCity")}</label>
+            {birthCities.length > 0 ? (
+              <select
+                id="patient-edit-birth-city"
+                value={birthCityName}
+                onChange={onBirthCityChange}
+                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">{t("patients.create.selectCityOption")}</option>
+                {birthCities.map((ct) => (
+                  <option key={ct.name} value={ct.name}>
+                    {ct.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                placeholder={t("patients.create.birthCity")}
+                value={birthCityText}
+                onChange={(e)=>setBirthCityText(e.target.value)}
+              />
+            )}
+          </div>
 
            {/* Diseases toggle + input condicional */}
           <div>
@@ -1427,6 +1608,7 @@ if (isMinor) {
               (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
               isMinorPhoneInvalid || !gender || !organDonor || !bloodDonor ||  !system
               || (system === "metric" ? !height : (!heightFeet || heightInches === "")) || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim())
+              || isBirthplacePartial || isClearingExistingBirthplace
               || (hasDiseases === "yes" && form.diseases.trim() === "") || (hasAllergies === "yes" && form.allergies.trim() === "") 
               || (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 
               || isDeathDateInvalid || isDeathCauseInvalid || isHeightInvalidForBtn || isWeightInvalidForBtn || updatePatient.isPending}>

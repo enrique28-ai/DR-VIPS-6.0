@@ -323,6 +323,14 @@
     "country": "Country",
     "state": "State/Province",
     "city": "City",
+    "residence": "Residence",
+    "residenceCountry": "Residence Country",
+    "residenceState": "Residence State/Province",
+    "residenceCity": "Residence City",
+    "placeOfBirth": "Place of Birth",
+    "birthCountry": "Birth Country",
+    "birthState": "Birth State/Province",
+    "birthCity": "Birth City",
     "hasDiseases": "Has diseases?",
     "diseasesPlaceholder": "Hypertension, Diabetes",
     "hasAllergies": "Has allergies?",
@@ -362,6 +370,7 @@
     "phoneCountryAndNumberRequired": "Select a phone country and enter a phone number to continue.",
     "phoneSelectCountryToValidate": "Select a phone country to validate this phone number.",
     "phoneRequiredAdult": "Phone is required for adults.",
+    "birthplaceCompleteRequired": "Provide birth country, state/province and city together, or leave place of birth empty.",
     "selectPhoneCountryOption": "Select a phone country…",
     "selectCountryOption": "Select a country…",
     "selectStateOption": "Select a state…",
@@ -405,7 +414,8 @@
     "dateOfDeath": "Date of death",
     "dateOfDeathPlaceholder": "YYYY-MM-DD",
     "childrenNamesImmutable": "Existing children names cannot be edited.",
-    "childrenNamesDuplicate": "Children names must be unique."
+    "childrenNamesDuplicate": "Children names must be unique.",
+    "birthplaceClearUnsupported": "Clearing an existing place of birth is not supported in this update."
   },
 
   "detail": {
@@ -419,6 +429,7 @@
     "phone": "Phone",
     "height": "Height",
     "weight": "Weight",
+    "notSpecified": "Not specified",
     "pendingApproval": "Pending Approval",
     "bmi": "BMI",
       "bmiCategories": {
@@ -751,6 +762,7 @@
     "previouslyRecorded": "Previously recorded {{label}}:",
     "previouslyRecordedGeneric": "Previously recorded values:",
     "previouslyRecordedLocations": "Previously recorded locations:",
+    "previouslyRecordedBirthplaces": "Previously recorded places of birth:",
     "alive": "Alive",
     "deceased": "Deceased",
     "yes": "Yes",

@@ -443,6 +443,123 @@ test("createPatientService normalizes valid US phone to E.164", async () => {
   });
 });
 
+test("createPatientService stores residence and birthplace separately", async () => {
+  restorePatientMethods();
+
+  const body = makeValidCreateBody({
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
+  });
+  const findOneCalls = mockPatientFindOneSequence([
+    { kind: "selectLean", value: null },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+  const patientFindCalls = mockNoPendingCreateEmailLookup(body.email.toLowerCase());
+  const createCalls = [];
+
+  Patient.create = async (payload) => {
+    createCalls.push(payload);
+    return {
+      toObject: () => ({ _id: "created-patient-id", ...payload }),
+    };
+  };
+
+  try {
+    const result = await createPatientService({
+      user: { _id: "doctor-id" },
+      body,
+    });
+
+    assert.equal(findOneCalls.length, 2);
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(createCalls.length, 1);
+    assert.equal(createCalls[0].country, "United States");
+    assert.equal(createCalls[0].state, "California");
+    assert.equal(createCalls[0].city, "San Diego");
+    assert.equal(createCalls[0].birthCountry, "Mexico");
+    assert.equal(createCalls[0].birthState, "Baja California");
+    assert.equal(createCalls[0].birthCity, "Mexicali");
+    assert.equal(result.birthCountry, "Mexico");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("createPatientService rejects partial birthplace", async () => {
+  restorePatientMethods();
+
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called for partial birthplace");
+  };
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for partial birthplace");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for partial birthplace");
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called for partial birthplace");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body: makeValidCreateBody({ birthCountry: "Mexico" }),
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "BIRTHPLACE_PARTIAL");
+        return true;
+      }
+    );
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("createPatientService allows legacy records without birthplace", async () => {
+  restorePatientMethods();
+
+  const body = makeValidCreateBody({
+    birthCountry: "",
+    birthState: "",
+    birthCity: "",
+  });
+  mockPatientFindOneSequence([
+    { kind: "selectLean", value: null },
+    { kind: "selectLean", value: null, projection: "_id" },
+  ]);
+  mockNoPendingCreateEmailLookup(body.email.toLowerCase());
+  const createCalls = [];
+
+  Patient.create = async (payload) => {
+    createCalls.push(payload);
+    return {
+      toObject: () => ({ _id: "created-patient-id", ...payload }),
+    };
+  };
+
+  try {
+    await createPatientService({
+      user: { _id: "doctor-id" },
+      body,
+    });
+
+    assert.equal(createCalls.length, 1);
+    assert.equal(Object.hasOwn(createCalls[0], "birthCountry"), false);
+    assert.equal(Object.hasOwn(createCalls[0], "birthState"), false);
+    assert.equal(Object.hasOwn(createCalls[0], "birthCity"), false);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("createPatientService normalizes valid MX phone to E.164", async () => {
   await assertCreateNormalizesPhone({
     body: makeValidCreateBody({
@@ -1204,6 +1321,122 @@ test("updatePatientService accepts residence update when valid phone and phone c
   }
 });
 
+test("updatePatientService updates birthplace without changing residence", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        birthCountry: "Canada",
+        birthState: "Ontario",
+        birthCity: "Toronto",
+      },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "country"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "state"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "city"), false);
+    assert.equal(updateCalls[0].updateDoc.$set.birthCountry, "Canada");
+    assert.equal(updateCalls[0].updateDoc.$set.birthState, "Ontario");
+    assert.equal(updateCalls[0].updateDoc.$set.birthCity, "Toronto");
+    assert.equal(result.country, "United States");
+    assert.equal(result.birthCountry, "Canada");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService preserves existing birthplace when omitted from update", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: { city: "Los Angeles" },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.city, "Los Angeles");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthCountry"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthState"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthCity"), false);
+    assert.equal(result.city, "Los Angeles");
+    assert.equal(result.birthCountry, "Mexico");
+    assert.equal(result.birthState, "Baja California");
+    assert.equal(result.birthCity, "Mexicali");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
 test("updatePatientService blocks duplicate email on update when current patient has no email", async () => {
   restorePatientMethods();
 
@@ -1286,6 +1519,9 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
   const user = { _id: "doctor-id" };
   const current = makeAdultPatient({
     age: 36,
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
     updatedAt: new Date("2026-01-02T12:00:00.000Z"),
     approvedAt: new Date("2026-01-02T12:00:00.000Z"),
   });
@@ -1338,6 +1574,9 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
       country: current.country,
       state: current.state,
       city: current.city,
+      birthCountry: current.birthCountry,
+      birthState: current.birthState,
+      birthCity: current.birthCity,
       organDonor: current.organDonor,
       bloodDonor: current.bloodDonor,
       children: [],
@@ -1380,6 +1619,18 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
     assert.equal(
       updateCalls[0].updateDoc.$set.approvedSnapshot.set.dateOfDeath.toISOString().slice(0, 10),
       "2026-01-15"
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.birthCountry,
+      "Mexico"
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.birthState,
+      "Baja California"
+    );
+    assert.equal(
+      updateCalls[0].updateDoc.$set.approvedSnapshot.set.birthCity,
+      "Mexicali"
     );
     assert.deepEqual(updateCalls[0].options, {
       new: true,

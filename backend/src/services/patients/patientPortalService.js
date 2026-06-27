@@ -150,6 +150,9 @@ export const getMyHealthInfoService = async ({ user, req }) => {
       attachPrev(snapshot.country, prev.country);
       attachPrev(snapshot.state, prev.state);
       attachPrev(snapshot.city, prev.city);
+      attachPrev(snapshot.birthCountry, prev.birthCountry);
+      attachPrev(snapshot.birthState, prev.birthState);
+      attachPrev(snapshot.birthCity, prev.birthCity);
       attachPrev(snapshot.phone, prev.phone);
       attachPrev(snapshot.status, prev.isDeceased);
 
@@ -301,6 +304,9 @@ export const getMyChildrenHealthInfoService = async ({ user, req }) => {
         attachPrev(snapshot.country, prev.country);
         attachPrev(snapshot.state, prev.state);
         attachPrev(snapshot.city, prev.city);
+        attachPrev(snapshot.birthCountry, prev.birthCountry);
+        attachPrev(snapshot.birthState, prev.birthState);
+        attachPrev(snapshot.birthCity, prev.birthCity);
         attachPrev(snapshot.phone, prev.phone);
         attachPrev(snapshot.status, prev.isDeceased);
 

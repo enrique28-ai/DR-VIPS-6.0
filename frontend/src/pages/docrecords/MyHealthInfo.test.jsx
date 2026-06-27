@@ -26,6 +26,7 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.sections.basic.phone": "Phone",
         "myHealthInfo.sections.basic.location": "Location",
         "patients.create.phoneCountry": "Phone country",
+        "patients.create.placeOfBirth": "Place of Birth",
       }[key] ?? options.defaultValue ?? key),
   }),
 }));
@@ -51,6 +52,9 @@ const baseSnapshot = (overrides = {}) => ({
   country: { value: "Mexico" },
   state: { value: "Jalisco" },
   city: { value: "Guadalajara" },
+  birthCountry: { value: "Mexico" },
+  birthState: { value: "Baja California" },
+  birthCity: { value: "Mexicali" },
   birthDate: "1990-01-01T12:00:00.000Z",
   organDonor: { value: false },
   bloodDonor: { value: true },
@@ -87,6 +91,26 @@ beforeEach(() => {
 });
 
 describe("MyHealthInfo phone country display", () => {
+  test("shows birthplace from snapshot when present", () => {
+    renderHealthInfo(baseSnapshot());
+
+    expect(screen.getByText("Place of Birth")).toBeInTheDocument();
+    expect(screen.getByText("Mexico, Baja California, Mexicali")).toBeInTheDocument();
+  });
+
+  test("shows not specified when birthplace is missing", () => {
+    renderHealthInfo(
+      baseSnapshot({
+        birthCountry: undefined,
+        birthState: undefined,
+        birthCity: undefined,
+      }),
+    );
+
+    expect(screen.getByText("Place of Birth")).toBeInTheDocument();
+    expect(screen.getAllByText("Not specified").length).toBeGreaterThan(0);
+  });
+
   test("shows phone country metadata when phone and phone country ISO exist", () => {
     renderHealthInfo(
       baseSnapshot({

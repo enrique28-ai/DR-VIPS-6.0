@@ -54,6 +54,14 @@ vi.mock("react-i18next", () => ({
         "patients.create.yes": "Yes",
         "patients.create.bloodType": "Blood type",
         "patients.create.country": "Residence Country",
+        "patients.create.residence": "Residence",
+        "patients.create.residenceCountry": "Residence Country",
+        "patients.create.residenceState": "Residence State",
+        "patients.create.residenceCity": "Residence City",
+        "patients.create.placeOfBirth": "Place of Birth",
+        "patients.create.birthCountry": "Birth Country",
+        "patients.create.birthState": "Birth State",
+        "patients.create.birthCity": "Birth City",
         "patients.create.selectCountryOption": "Select residence country",
         "patients.create.state": "State",
         "patients.create.selectStateOption": "Select state",
@@ -87,6 +95,7 @@ vi.mock("react-i18next", () => ({
         "patients.create.countryRequired": "Country required",
         "patients.create.stateRequired": "State required",
         "patients.create.cityRequired": "City required",
+        "patients.create.birthplaceCompleteRequired": "Birthplace complete required",
         "patients.create.ageOutOfRange": "Age out of range",
         "patients.create.heightWeightTooHigh": "Height or weight too high",
         "patients.errors.birthDateRequired": "Birth date required",
@@ -119,8 +128,11 @@ const renderCreatePage = () => {
 
 const phoneCountrySelect = () => screen.getByRole("combobox", { name: /Phone Country/i });
 const residenceCountrySelect = () => screen.getByRole("combobox", { name: /Residence Country/i });
-const stateSelect = () => screen.getByRole("combobox", { name: /^State/i });
-const citySelect = () => screen.getByRole("combobox", { name: /^City/i });
+const stateSelect = () => screen.getByRole("combobox", { name: /Residence State/i });
+const citySelect = () => screen.getByRole("combobox", { name: /Residence City/i });
+const birthCountrySelect = () => screen.getByRole("combobox", { name: /Birth Country/i });
+const birthStateSelect = () => screen.getByRole("combobox", { name: /Birth State/i });
+const birthCitySelect = () => screen.getByRole("combobox", { name: /Birth City/i });
 const submitButton = () => screen.getByRole("button", { name: "Submit" });
 const submitForm = () => fireEvent.submit(submitButton().closest("form"));
 
@@ -145,6 +157,12 @@ const selectMexicoResidence = () => {
   fireEvent.change(residenceCountrySelect(), { target: { value: "MX" } });
   fireEvent.change(stateSelect(), { target: { value: "JAL" } });
   fireEvent.change(citySelect(), { target: { value: "Guadalajara" } });
+};
+
+const selectMexicoBirthplace = () => {
+  fireEvent.change(birthCountrySelect(), { target: { value: "MX" } });
+  fireEvent.change(birthStateSelect(), { target: { value: "BCN" } });
+  fireEvent.change(birthCitySelect(), { target: { value: "Mexicali" } });
 };
 
 const fillValidAdultBaseline = ({ withPhoneCountry = true, phone = "2025550123" } = {}) => {
@@ -205,6 +223,51 @@ describe("PatientCreatePage phone country behavior", () => {
         city: "Guadalajara",
       }),
     );
+  });
+
+  test("submits residence and birthplace separately for a valid adult", () => {
+    renderCreatePage();
+
+    fillValidAdultBaseline();
+    selectMexicoBirthplace();
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        country: "Mexico",
+        state: "Jalisco",
+        city: "Guadalajara",
+        birthCountry: "Mexico",
+        birthState: "Baja California",
+        birthCity: "Mexicali",
+      }),
+    );
+  });
+
+  test("allows create when birthplace is empty", () => {
+    renderCreatePage();
+
+    fillValidAdultBaseline();
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).not.toHaveProperty("birthCountry");
+    expect(payload).not.toHaveProperty("birthState");
+    expect(payload).not.toHaveProperty("birthCity");
+  });
+
+  test("blocks create when birthplace is partial", () => {
+    renderCreatePage();
+
+    fillValidAdultBaseline();
+    fireEvent.change(birthCountrySelect(), { target: { value: "MX" } });
+    submitForm();
+
+    expect(toast.error).toHaveBeenCalledWith("Birthplace complete required");
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   test("changing residence country does not change the phone country dial code", () => {

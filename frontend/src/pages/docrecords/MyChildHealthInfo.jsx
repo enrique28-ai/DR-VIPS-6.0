@@ -157,11 +157,22 @@ export default function MyChildHealthInfo() {
   const countryRaw = scalarValue(snapshot?.country);
   const stateRaw = scalarValue(snapshot?.state);
   const cityRaw = scalarValue(snapshot?.city);
+  const birthCountryRaw = scalarValue(snapshot?.birthCountry);
+  const birthStateRaw = scalarValue(snapshot?.birthState);
+  const birthCityRaw = scalarValue(snapshot?.birthCity);
 
   const locationVal = [
     localizeCountryName(countryRaw, i18n.language) || countryRaw,
     localizeStateName({ countryName: countryRaw, stateName: stateRaw, t }) || stateRaw,
     localizeCityName({ countryName: countryRaw, stateName: stateRaw, cityName: cityRaw, t }) || cityRaw,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const birthplaceVal = [
+    localizeCountryName(birthCountryRaw, i18n.language) || birthCountryRaw,
+    localizeStateName({ countryName: birthCountryRaw, stateName: birthStateRaw, t }) || birthStateRaw,
+    localizeCityName({ countryName: birthCountryRaw, stateName: birthStateRaw, cityName: birthCityRaw, t }) || birthCityRaw,
   ]
     .filter(Boolean)
     .join(", ");
@@ -172,6 +183,9 @@ export default function MyChildHealthInfo() {
   const countryAlts = getAlts(snapshot?.country);
   const stateAlts = getAlts(snapshot?.state);
   const cityAlts = getAlts(snapshot?.city);
+  const birthCountryAlts = getAlts(snapshot?.birthCountry);
+  const birthStateAlts = getAlts(snapshot?.birthState);
+  const birthCityAlts = getAlts(snapshot?.birthCity);
 
   const maxLoc = Math.max(countryAlts.length, stateAlts.length, cityAlts.length);
   const prevLocations =
@@ -186,6 +200,23 @@ export default function MyChildHealthInfo() {
         }).filter((loc) => {
           const isCurrent =
             loc.country === countryRaw && loc.state === stateRaw && loc.city === cityRaw;
+          return !isCurrent;
+        })
+      : [];
+
+  const maxBirthLoc = Math.max(birthCountryAlts.length, birthStateAlts.length, birthCityAlts.length);
+  const prevBirthplaces =
+    maxBirthLoc > 1
+      ? Array.from({ length: maxBirthLoc - 1 }, (_, k) => {
+          const i = k + 1;
+          return {
+            country: birthCountryAlts[i] ?? birthCountryAlts[0] ?? birthCountryRaw,
+            state: birthStateAlts[i] ?? birthStateAlts[0] ?? birthStateRaw,
+            city: birthCityAlts[i] ?? birthCityAlts[0] ?? birthCityRaw,
+          };
+        }).filter((loc) => {
+          const isCurrent =
+            loc.country === birthCountryRaw && loc.state === birthStateRaw && loc.city === birthCityRaw;
           return !isCurrent;
         })
       : [];
@@ -350,6 +381,33 @@ export default function MyChildHealthInfo() {
                 <p>{t("myHealthInfo.common.previouslyRecordedLocations")}</p>
                 <div className="mt-1 space-y-1">
                   {prevLocations.map((loc, idx) => (
+                    <p key={idx}>
+                      <span className="font-medium">
+                        {[
+                          localizeCountryName(loc.country, i18n.language),
+                          localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
+                          localizeCityName({ countryName: loc.country, stateName: loc.state, cityName: loc.city, t }),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("patients.create.placeOfBirth")}
+            </span>
+            <span className="font-medium text-slate-800">{birthplaceVal || t("myHealthInfo.common.notSpecified")}</span>
+            {prevBirthplaces.length > 0 && (
+              <div className="mt-1 text-xs text-slate-600">
+                <p>{t("myHealthInfo.common.previouslyRecordedBirthplaces")}</p>
+                <div className="mt-1 space-y-1">
+                  {prevBirthplaces.map((loc, idx) => (
                     <p key={idx}>
                       <span className="font-medium">
                         {[

@@ -31,6 +31,9 @@ const SYNC_FIELDS_SCALAR = [
   "country",
   "state",
   "city",
+  "birthCountry",
+  "birthState",
+  "birthCity",
   "phone",
   "phoneDigits",
   "phoneCountry",
@@ -331,6 +334,15 @@ export const rejectPatientProfileService = async ({ user, profileId }) => {
   const cityVal = sv(snapshot.city);
   if (cityVal !== undefined) canonical.city = cityVal;
 
+  const birthCountryVal = sv(snapshot.birthCountry);
+  if (birthCountryVal !== undefined) canonical.birthCountry = birthCountryVal;
+
+  const birthStateVal = sv(snapshot.birthState);
+  if (birthStateVal !== undefined) canonical.birthState = birthStateVal;
+
+  const birthCityVal = sv(snapshot.birthCity);
+  if (birthCityVal !== undefined) canonical.birthCity = birthCityVal;
+
   const phoneVal = sv(snapshot.phone);
   if (phoneVal !== undefined) {
     canonical.phone = phoneVal;
@@ -621,6 +633,15 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
 
   const cityVal = sv(snapshot.city);
   if (cityVal !== undefined) canonical.city = cityVal;
+
+  const birthCountryVal = sv(snapshot.birthCountry);
+  if (birthCountryVal !== undefined) canonical.birthCountry = birthCountryVal;
+
+  const birthStateVal = sv(snapshot.birthState);
+  if (birthStateVal !== undefined) canonical.birthState = birthStateVal;
+
+  const birthCityVal = sv(snapshot.birthCity);
+  if (birthCityVal !== undefined) canonical.birthCity = birthCityVal;
 
   const phoneVal = sv(snapshot.phone);
   if (phoneVal !== undefined) {

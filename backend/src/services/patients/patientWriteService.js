@@ -50,6 +50,9 @@ const APPROVAL_SYNC_FIELDS_SCALAR = [
   "country",
   "state",
   "city",
+  "birthCountry",
+  "birthState",
+  "birthCity",
   "phone",
   "phoneDigits",
   "phoneCountry",
@@ -84,6 +87,41 @@ const hasAnthroInput = (obj) =>
   hasOwn(obj, "weight");
 const hasExplicitHeightPart = (obj) =>
   hasOwn(obj, "heightFeet") || hasOwn(obj, "heightInches");
+
+const BIRTHPLACE_FIELDS = ["birthCountry", "birthState", "birthCity"];
+const hasAnyBirthplaceInput = (obj) => BIRTHPLACE_FIELDS.some((field) => hasOwn(obj, field));
+const currentHasBirthplace = (current) =>
+  BIRTHPLACE_FIELDS.some((field) => normStr(current?.[field]));
+
+const normalizeBirthplaceInput = (body, { current } = {}) => {
+  if (!hasAnyBirthplaceInput(body)) return { shouldSet: false, value: {} };
+
+  const value = {
+    birthCountry: normStr(body.birthCountry),
+    birthState: normStr(body.birthState),
+    birthCity: normStr(body.birthCity),
+  };
+  const filledCount = BIRTHPLACE_FIELDS.filter((field) => value[field]).length;
+
+  if (filledCount === 0) {
+    if (currentHasBirthplace(current)) {
+      const err = new Error("Clearing birthplace is not supported in this update.");
+      err.status = 400;
+      err.errorCode = "BIRTHPLACE_CLEAR_UNSUPPORTED";
+      throw err;
+    }
+    return { shouldSet: false, value: {} };
+  }
+
+  if (filledCount !== BIRTHPLACE_FIELDS.length) {
+    const err = new Error("Birthplace country, state/province and city must be provided together.");
+    err.status = 400;
+    err.errorCode = "BIRTHPLACE_PARTIAL";
+    throw err;
+  }
+
+  return { shouldSet: true, value };
+};
 
 const throwPhoneCountryRequiresPhone = () => {
   const err = new Error("Phone country requires phone");
@@ -173,6 +211,9 @@ const collectEffectiveNormalChangedFieldsFromBody = ({ current, body }) => {
   if ("country" in body && normStr(body.country) !== normStr(current.country)) changed.add("country");
   if ("state" in body && normStr(body.state) !== normStr(current.state)) changed.add("state");
   if ("city" in body && normStr(body.city) !== normStr(current.city)) changed.add("city");
+  if ("birthCountry" in body && normStr(body.birthCountry) !== normStr(current.birthCountry)) changed.add("birthCountry");
+  if ("birthState" in body && normStr(body.birthState) !== normStr(current.birthState)) changed.add("birthState");
+  if ("birthCity" in body && normStr(body.birthCity) !== normStr(current.birthCity)) changed.add("birthCity");
   if ("phoneCountry" in body && normStr(body.phoneCountry) !== normStr(current.phoneCountry)) changed.add("phoneCountry");
   if ("phoneCountryIso" in body && normUpper(body.phoneCountryIso) !== normUpper(current.phoneCountryIso)) changed.add("phoneCountryIso");
   if ("parentEmail" in body && normLower(body.parentEmail) !== normLower(current.parentEmail)) changed.add("parentEmail");
@@ -286,6 +327,9 @@ const collectEffectiveChangedFields = ({ current, update, unset }) => {
   if ("country" in update && normStr(update.country) !== normStr(current.country)) changed.add("country");
   if ("state" in update && normStr(update.state) !== normStr(current.state)) changed.add("state");
   if ("city" in update && normStr(update.city) !== normStr(current.city)) changed.add("city");
+  if ("birthCountry" in update && normStr(update.birthCountry) !== normStr(current.birthCountry)) changed.add("birthCountry");
+  if ("birthState" in update && normStr(update.birthState) !== normStr(current.birthState)) changed.add("birthState");
+  if ("birthCity" in update && normStr(update.birthCity) !== normStr(current.birthCity)) changed.add("birthCity");
   if ("phone" in update && normStr(update.phone) !== normStr(current.phone)) changed.add("phone");
   if ("phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changed.add("phoneDigits");
   if ("phoneCountry" in update && normStr(update.phoneCountry) !== normStr(current.phoneCountry)) changed.add("phoneCountry");
@@ -407,6 +451,9 @@ export const createPatientService = async ({ user, body }) => {
     country,
     state,
     city,
+    birthCountry,
+    birthState,
+    birthCity,
     children,
     childrenCount,
     parentEmail,
@@ -454,6 +501,7 @@ export const createPatientService = async ({ user, body }) => {
   }
 
   const isMinor = ageNum < 18;
+  const birthplace = normalizeBirthplaceInput(body);
   const requestedMeasurementSystem = normLower(measurementSystem);
   const hasLegacyHeight = height !== undefined && height !== null && height !== "";
   const hasExplicitHeight = hasExplicitHeightPart(body);
@@ -761,6 +809,7 @@ export const createPatientService = async ({ user, body }) => {
     country: String(country).trim(),
     state: String(state).trim(),
     city: String(city).trim(),
+    ...(birthplace.shouldSet ? birthplace.value : {}),
     createdBy: user._id,
     owners: [user._id],
     lastEditedBy: user._id,
@@ -801,6 +850,9 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     country,
     state,
     city,
+    birthCountry,
+    birthState,
+    birthCity,
     children,
     childrenCount,
     parentEmail,
@@ -1321,6 +1373,13 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     update.city = ct;
   }
 
+  const birthplace = normalizeBirthplaceInput(body, { current });
+  if (birthplace.shouldSet) {
+    update.birthCountry = birthplace.value.birthCountry;
+    update.birthState = birthplace.value.birthState;
+    update.birthCity = birthplace.value.birthCity;
+  }
+
   if ("gender" in body) {
     const g = normGender(gender);
     if (g !== "male" && g !== "female") {
@@ -1447,6 +1506,9 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     if (!changesFound && "country" in update && normStr(update.country) !== normStr(current.country)) changesFound = true;
     if (!changesFound && "state" in update && normStr(update.state) !== normStr(current.state)) changesFound = true;
     if (!changesFound && "city" in update && normStr(update.city) !== normStr(current.city)) changesFound = true;
+    if (!changesFound && "birthCountry" in update && normStr(update.birthCountry) !== normStr(current.birthCountry)) changesFound = true;
+    if (!changesFound && "birthState" in update && normStr(update.birthState) !== normStr(current.birthState)) changesFound = true;
+    if (!changesFound && "birthCity" in update && normStr(update.birthCity) !== normStr(current.birthCity)) changesFound = true;
     if (!changesFound && "phone" in update && normStr(update.phone) !== normStr(current.phone)) changesFound = true;
     if (!changesFound && "phoneDigits" in update && normStr(update.phoneDigits) !== normStr(current.phoneDigits)) changesFound = true;
     if (!changesFound && "phoneCountry" in update && normStr(update.phoneCountry) !== normStr(current.phoneCountry)) changesFound = true;
