@@ -145,9 +145,9 @@ function isDeathStatusOnlyEdit(patient, payload, phoneCountryIso) {
     normStr(payload.country) !== normStr(patient.country) ||
     normStr(payload.state) !== normStr(patient.state) ||
     normStr(payload.city) !== normStr(patient.city) ||
-    normStr(payload.birthCountry) !== normStr(patient.birthCountry) ||
-    normStr(payload.birthState) !== normStr(patient.birthState) ||
-    normStr(payload.birthCity) !== normStr(patient.birthCity) ||
+    ("birthCountry" in payload && normStr(payload.birthCountry) !== normStr(patient.birthCountry)) ||
+    ("birthState" in payload && normStr(payload.birthState) !== normStr(patient.birthState)) ||
+    ("birthCity" in payload && normStr(payload.birthCity) !== normStr(patient.birthCity)) ||
     Boolean(payload.organDonor) !== Boolean(patient.organDonor) ||
     Boolean(payload.bloodDonor) !== Boolean(patient.bloodDonor) ||
     normLower(payload.parentEmail) !== normLower(patient.parentEmail) ||
@@ -397,13 +397,13 @@ const hasBirthplaceInput = Boolean(
   birthCityText.trim()
 );
 const hasCompleteBirthplace = Boolean(birthCountry && birthStateValue && birthCityValue);
-const isBirthplacePartial = hasBirthplaceInput && !hasCompleteBirthplace;
 const patientHasBirthplace = Boolean(
   patient?.birthCountry ||
   patient?.birthState ||
   patient?.birthCity
 );
-const isClearingExistingBirthplace = patientHasBirthplace && !hasBirthplaceInput;
+const isBirthplaceLocked = patientHasBirthplace;
+const isBirthplacePartial = !isBirthplaceLocked && hasBirthplaceInput && !hasCompleteBirthplace;
 
 const onPhoneCountryChange = (e) => {
   const iso = e.target.value;
@@ -873,10 +873,6 @@ if (isMinor) {
  if (!countryIso) { toast.error(t("patients.create.countryRequired")); return; }
  if (!hasState)   { toast.error(t("patients.create.stateRequired")); return; }
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
- if (isClearingExistingBirthplace) {
-   toast.error(t("patients.edit.birthplaceClearUnsupported"));
-   return;
- }
  if (isBirthplacePartial) {
    toast.error(t("patients.create.birthplaceCompleteRequired"));
    return;
@@ -903,7 +899,7 @@ if (isMinor) {
       country: country,
       state: stateName || stateText,
       city:  cityName  || cityText,
-      ...(hasCompleteBirthplace
+      ...(!isBirthplaceLocked && hasCompleteBirthplace
         ? {
             birthCountry,
             birthState: birthStateValue,
@@ -1299,66 +1295,107 @@ if (isMinor) {
 
           <div>
             <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
-            <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-gray-700">{t("patients.create.birthCountry")}</label>
-            <select
-              id="patient-edit-birth-country"
-              value={birthCountryIso}
-              onChange={onBirthCountryChange}
-              className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={updatePatient.isPending}
-            >
-              <option value="">{t("patients.create.selectCountryOption")}</option>
-              {localizedCountries.map((c) => (
-                <option key={c.isoCode} value={c.isoCode}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+            {isBirthplaceLocked ? (
+              <>
+                <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-gray-700">
+                  {t("patients.create.birthCountry")}<span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="patient-edit-birth-country"
+                  value={patient?.birthCountry || ""}
+                  disabled
+                  readOnly
+                  className="bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
 
-            <label htmlFor={birthStates.length > 0 ? "patient-edit-birth-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthState")}</label>
-            {birthStates.length > 0 ? (
-              <select
-                id="patient-edit-birth-state"
-                value={birthStateIso}
-                onChange={onBirthStateChange}
-                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">{t("patients.create.selectStateOption")}</option>
-                {birthStates.map((s) => (
-                  <option key={s.isoCode} value={s.isoCode}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                placeholder={t("patients.create.birthState")}
-                value={birthStateText}
-                onChange={(e)=>setBirthStateText(e.target.value)}
-              />
-            )}
+                <label htmlFor="patient-edit-birth-state" className="block text-sm font-medium text-gray-700">
+                  {t("patients.create.birthState")}<span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="patient-edit-birth-state"
+                  value={patient?.birthState || ""}
+                  disabled
+                  readOnly
+                  className="bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
 
-            <label htmlFor={birthCities.length > 0 ? "patient-edit-birth-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthCity")}</label>
-            {birthCities.length > 0 ? (
-              <select
-                id="patient-edit-birth-city"
-                value={birthCityName}
-                onChange={onBirthCityChange}
-                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">{t("patients.create.selectCityOption")}</option>
-                {birthCities.map((ct) => (
-                  <option key={ct.name} value={ct.name}>
-                    {ct.label}
-                  </option>
-                ))}
-              </select>
+                <label htmlFor="patient-edit-birth-city" className="block text-sm font-medium text-gray-700">
+                  {t("patients.create.birthCity")}<span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="patient-edit-birth-city"
+                  value={patient?.birthCity || ""}
+                  disabled
+                  readOnly
+                  className="bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+
+                <p className="text-xs text-gray-500 mt-1">{t("patients.edit.birthplaceImmutable")}</p>
+              </>
             ) : (
-              <Input
-                placeholder={t("patients.create.birthCity")}
-                value={birthCityText}
-                onChange={(e)=>setBirthCityText(e.target.value)}
-              />
+              <>
+                <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-gray-700">{t("patients.create.birthCountry")}</label>
+                <select
+                  id="patient-edit-birth-country"
+                  value={birthCountryIso}
+                  onChange={onBirthCountryChange}
+                  className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={updatePatient.isPending}
+                >
+                  <option value="">{t("patients.create.selectCountryOption")}</option>
+                  {localizedCountries.map((c) => (
+                    <option key={c.isoCode} value={c.isoCode}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor={birthStates.length > 0 ? "patient-edit-birth-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthState")}</label>
+                {birthStates.length > 0 ? (
+                  <select
+                    id="patient-edit-birth-state"
+                    value={birthStateIso}
+                    onChange={onBirthStateChange}
+                    className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">{t("patients.create.selectStateOption")}</option>
+                    {birthStates.map((s) => (
+                      <option key={s.isoCode} value={s.isoCode}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    placeholder={t("patients.create.birthState")}
+                    value={birthStateText}
+                    onChange={(e)=>setBirthStateText(e.target.value)}
+                  />
+                )}
+
+                <label htmlFor={birthCities.length > 0 ? "patient-edit-birth-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthCity")}</label>
+                {birthCities.length > 0 ? (
+                  <select
+                    id="patient-edit-birth-city"
+                    value={birthCityName}
+                    onChange={onBirthCityChange}
+                    className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">{t("patients.create.selectCityOption")}</option>
+                    {birthCities.map((ct) => (
+                      <option key={ct.name} value={ct.name}>
+                        {ct.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    placeholder={t("patients.create.birthCity")}
+                    value={birthCityText}
+                    onChange={(e)=>setBirthCityText(e.target.value)}
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -1608,7 +1645,7 @@ if (isMinor) {
               (!isMinor && hasChildren === "yes" && (childrenCount < 1 || childrenNames.slice(0, childrenCount).some(n => !String(n || "").trim()))) ||
               isMinorPhoneInvalid || !gender || !organDonor || !bloodDonor ||  !system
               || (system === "metric" ? !height : (!heightFeet || heightInches === "")) || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim())
-              || isBirthplacePartial || isClearingExistingBirthplace
+              || isBirthplacePartial
               || (hasDiseases === "yes" && form.diseases.trim() === "") || (hasAllergies === "yes" && form.allergies.trim() === "") 
               || (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX 
               || isDeathDateInvalid || isDeathCauseInvalid || isHeightInvalidForBtn || isWeightInvalidForBtn || updatePatient.isPending}>

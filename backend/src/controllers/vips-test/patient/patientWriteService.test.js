@@ -1329,7 +1329,7 @@ test("updatePatientService accepts residence update when valid phone and phone c
   }
 });
 
-test("updatePatientService updates birthplace without changing residence", async () => {
+test("updatePatientService rejects changing existing birthplace", async () => {
   restorePatientMethods();
 
   const user = { _id: "doctor-id" };
@@ -1340,8 +1340,8 @@ test("updatePatientService updates birthplace without changing residence", async
     state: "California",
     city: "San Diego",
     birthCountry: "Mexico",
-    birthState: "Baja California",
-    birthCity: "Mexicali",
+    birthState: "",
+    birthCity: "",
     updatedAt: new Date("2026-01-02T12:00:00.000Z"),
     approvedAt: new Date("2026-01-02T12:00:00.000Z"),
   });
@@ -1349,11 +1349,8 @@ test("updatePatientService updates birthplace without changing residence", async
   const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
   const updateCalls = [];
 
-  Patient.findOneAndUpdate = (query, updateDoc, options) => {
-    updateCalls.push({ query, updateDoc, options });
-    return {
-      lean: async () => applyUpdateForTest(current, updateDoc),
-    };
+  Patient.findOneAndUpdate = () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for immutable birthplace");
   };
   PatientHistory.create = async () => {
     throw new Error("PatientHistory.create should not be called for normal adult edits");
@@ -1363,27 +1360,28 @@ test("updatePatientService updates birthplace without changing residence", async
   };
 
   try {
-    const result = await updatePatientService({
-      user,
-      patientId: current._id,
-      body: {
-        birthCountry: "Canada",
-        birthState: "Ontario",
-        birthCity: "Toronto",
-      },
-    });
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            birthCountry: "Canada",
+            birthState: "Ontario",
+            birthCity: "Toronto",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "BIRTHPLACE_IMMUTABLE");
+        assert.equal(err.message, "Birthplace cannot be modified once registered.");
+        return true;
+      }
+    );
 
-    assert.equal(patientFindCalls.length, 1);
-    assert.equal(userFindCalls.length, 1);
-    assert.equal(updateCalls.length, 1);
-    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "country"), false);
-    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "state"), false);
-    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "city"), false);
-    assert.equal(updateCalls[0].updateDoc.$set.birthCountry, "Canada");
-    assert.equal(updateCalls[0].updateDoc.$set.birthState, "Ontario");
-    assert.equal(updateCalls[0].updateDoc.$set.birthCity, "Toronto");
-    assert.equal(result.country, "United States");
-    assert.equal(result.birthCountry, "Canada");
+    assert.equal(patientFindCalls.length, 0);
+    assert.equal(userFindCalls.length, 0);
+    assert.equal(updateCalls.length, 0);
   } finally {
     restorePatientMethods();
   }
@@ -1440,6 +1438,268 @@ test("updatePatientService preserves existing birthplace when omitted from updat
     assert.equal(result.birthCountry, "Mexico");
     assert.equal(result.birthState, "Baja California");
     assert.equal(result.birthCity, "Mexicali");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService rejects clearing existing birthplace", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+
+  Patient.findOneAndUpdate = () => {
+    throw new Error("Patient.findOneAndUpdate should not be called when clearing birthplace");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called when clearing birthplace");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called when clearing birthplace");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: {
+            birthCountry: "",
+            birthState: "",
+            birthCity: "",
+          },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "BIRTHPLACE_CLEAR_UNSUPPORTED");
+        return true;
+      }
+    );
+
+    assert.equal(patientFindCalls.length, 0);
+    assert.equal(userFindCalls.length, 0);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService treats identical existing birthplace as a no-op", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    birthCountry: "Mexico",
+    birthState: "Baja California",
+    birthCity: "Mexicali",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        city: "Los Angeles",
+        birthCountry: "Mexico",
+        birthState: "Baja California",
+        birthCity: "Mexicali",
+      },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.city, "Los Angeles");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthCountry"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthState"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthCity"), false);
+    assert.equal(result.city, "Los Angeles");
+    assert.equal(result.birthCountry, "Mexico");
+    assert.equal(result.birthState, "Baja California");
+    assert.equal(result.birthCity, "Mexicali");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService allows legacy patients without birthplace to edit when omitted", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    country: "United States",
+    state: "California",
+    city: "San Diego",
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: { city: "Los Angeles" },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.city, "Los Angeles");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthCountry"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthState"), false);
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "birthCity"), false);
+    assert.equal(result.city, "Los Angeles");
+    assert.equal(Object.hasOwn(result, "birthCountry"), false);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService allows complete birthplace backfill for legacy patients", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+  const updateCalls = [];
+
+  Patient.findOneAndUpdate = (query, updateDoc, options) => {
+    updateCalls.push({ query, updateDoc, options });
+    return {
+      lean: async () => applyUpdateForTest(current, updateDoc),
+    };
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for normal adult edits");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for normal adult edits");
+  };
+
+  try {
+    const result = await updatePatientService({
+      user,
+      patientId: current._id,
+      body: {
+        birthCountry: "Mexico",
+        birthState: "Baja California",
+        birthCity: "Mexicali",
+      },
+    });
+
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(userFindCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].updateDoc.$set.birthCountry, "Mexico");
+    assert.equal(updateCalls[0].updateDoc.$set.birthState, "Baja California");
+    assert.equal(updateCalls[0].updateDoc.$set.birthCity, "Mexicali");
+    assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "country"), false);
+    assert.equal(result.birthCountry, "Mexico");
+    assert.equal(result.birthState, "Baja California");
+    assert.equal(result.birthCity, "Mexicali");
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("updatePatientService rejects partial birthplace backfill for legacy patients", async () => {
+  restorePatientMethods();
+
+  const user = { _id: "doctor-id" };
+  const current = makeAdultPatient({
+    owners: [user._id],
+    createdBy: user._id,
+    updatedAt: new Date("2026-01-02T12:00:00.000Z"),
+    approvedAt: new Date("2026-01-02T12:00:00.000Z"),
+  });
+  mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+  const { patientFindCalls, userFindCalls } = mockNoPendingPortalDecision(current);
+
+  Patient.findOneAndUpdate = () => {
+    throw new Error("Patient.findOneAndUpdate should not be called for partial birthplace");
+  };
+  PatientHistory.create = async () => {
+    throw new Error("PatientHistory.create should not be called for partial birthplace");
+  };
+  User.findOneAndUpdate = async () => {
+    throw new Error("User.findOneAndUpdate should not be called for partial birthplace");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        updatePatientService({
+          user,
+          patientId: current._id,
+          body: { birthCountry: "Mexico" },
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "BIRTHPLACE_PARTIAL");
+        return true;
+      }
+    );
+
+    assert.equal(patientFindCalls.length, 0);
+    assert.equal(userFindCalls.length, 0);
   } finally {
     restorePatientMethods();
   }

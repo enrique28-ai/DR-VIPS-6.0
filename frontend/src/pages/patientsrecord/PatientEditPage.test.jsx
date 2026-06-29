@@ -50,6 +50,7 @@ vi.mock("react-i18next", () => ({
         "patients.edit.childrenNamesImmutable": "Existing child names cannot be changed",
         "patients.edit.childrenNamesDuplicate": "Child names must be unique",
         "patients.edit.causeRequired": "Cause of death required",
+        "patients.edit.birthplaceImmutable": "Place of birth cannot be modified once registered.",
         "patients.create.fullname": "Full name",
         "patients.create.email": "Email",
         "patients.create.phoneCountry": "Phone Country",
@@ -310,7 +311,7 @@ describe("PatientEditPage phone country behavior", () => {
     expect(payload.phoneCountryIso).not.toBe("MX");
   });
 
-  test("initializes and submits residence and birthplace separately", async () => {
+  test("renders existing birthplace locked and omits it from unrelated edit payload", async () => {
     renderEditPage(
       baseAdultPatient({
         birthCountry: "Mexico",
@@ -320,13 +321,29 @@ describe("PatientEditPage phone country behavior", () => {
     );
 
     await waitForPatientForm();
-    expect(birthCountrySelect()).toHaveValue("MX");
-    expect(birthStateSelect()).toHaveValue("BCN");
-    expect(birthCitySelect()).toHaveValue("Mexicali");
+    const birthCountryInput = screen.getByLabelText(/Birth Country/i);
+    const birthStateInput = screen.getByLabelText(/Birth State/i);
+    const birthCityInput = screen.getByLabelText(/Birth City/i);
 
-    fireEvent.change(birthCountrySelect(), { target: { value: "US" } });
-    fireEvent.change(birthStateSelect(), { target: { value: "CA" } });
-    fireEvent.change(birthCitySelect(), { target: { value: "Los Angeles" } });
+    expect(birthCountryInput).toHaveValue("Mexico");
+    expect(birthStateInput).toHaveValue("Baja California");
+    expect(birthCityInput).toHaveValue("Mexicali");
+    expect(birthCountryInput).toBeDisabled();
+    expect(birthStateInput).toBeDisabled();
+    expect(birthCityInput).toBeDisabled();
+    expect(document.querySelector('label[for="patient-edit-birth-country"]')).toHaveTextContent(
+      "Birth Country*",
+    );
+    expect(document.querySelector('label[for="patient-edit-birth-state"]')).toHaveTextContent(
+      "Birth State*",
+    );
+    expect(document.querySelector('label[for="patient-edit-birth-city"]')).toHaveTextContent(
+      "Birth City*",
+    );
+    expect(
+      screen.getByText("Place of birth cannot be modified once registered."),
+    ).toBeInTheDocument();
+
     submitForm();
 
     expect(mutate).toHaveBeenCalledTimes(1);
@@ -336,11 +353,28 @@ describe("PatientEditPage phone country behavior", () => {
         country: "Mexico",
         state: "Jalisco",
         city: "Guadalajara",
-        birthCountry: "United States",
-        birthState: "California",
-        birthCity: "Los Angeles",
       }),
     );
+    expect(payload).not.toHaveProperty("birthCountry");
+    expect(payload).not.toHaveProperty("birthState");
+    expect(payload).not.toHaveProperty("birthCity");
+  });
+
+  test("locks birthplace when any existing birthplace value is present", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        birthCountry: "Mexico",
+        birthState: "",
+        birthCity: "",
+      }),
+    );
+
+    await waitForPatientForm();
+
+    expect(screen.getByLabelText(/Birth Country/i)).toBeDisabled();
+    expect(screen.getByLabelText(/Birth Country/i)).toHaveValue("Mexico");
+    expect(screen.getByLabelText(/Birth State/i)).toBeDisabled();
+    expect(screen.getByLabelText(/Birth City/i)).toBeDisabled();
   });
 
   test("allows edit when legacy birthplace is empty", async () => {
@@ -354,6 +388,26 @@ describe("PatientEditPage phone country behavior", () => {
     expect(payload).not.toHaveProperty("birthCountry");
     expect(payload).not.toHaveProperty("birthState");
     expect(payload).not.toHaveProperty("birthCity");
+  });
+
+  test("allows legacy patient to submit complete birthplace", async () => {
+    renderEditPage(baseAdultPatient());
+
+    await waitForPatientForm();
+    fireEvent.change(birthCountrySelect(), { target: { value: "MX" } });
+    fireEvent.change(birthStateSelect(), { target: { value: "BCN" } });
+    fireEvent.change(birthCitySelect(), { target: { value: "Mexicali" } });
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const payload = mutate.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        birthCountry: "Mexico",
+        birthState: "Baja California",
+        birthCity: "Mexicali",
+      }),
+    );
   });
 
   test("blocks edit when birthplace is partial", async () => {

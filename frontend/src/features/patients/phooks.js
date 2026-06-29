@@ -23,6 +23,7 @@ const patientErrorKey = (code) => {
     PENDING_GUARDIAN_DECISION: "patients.errors.pendingGuardianDecision",
     PATIENT_DECEASED_READONLY: "patients.errors.patientDeceasedReadonly",
     DEATH_STATUS_UPDATE_ONLY: "patients.errors.deathStatusUpdateOnly",
+    BIRTHPLACE_IMMUTABLE: "patients.edit.birthplaceImmutable",
     GUARDIAN_UNAVAILABLE: "patients.errors.guardianUnavailable",
     GUARDIAN_REASSIGNMENT_NOT_MINOR: "patients.errors.guardianReassignmentNotMinor",
     CURRENT_GUARDIAN_NOT_UNAVAILABLE: "patients.errors.currentGuardianNotUnavailable",

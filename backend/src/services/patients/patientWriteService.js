@@ -92,6 +92,8 @@ const BIRTHPLACE_FIELDS = ["birthCountry", "birthState", "birthCity"];
 const hasAnyBirthplaceInput = (obj) => BIRTHPLACE_FIELDS.some((field) => hasOwn(obj, field));
 const currentHasBirthplace = (current) =>
   BIRTHPLACE_FIELDS.some((field) => normStr(current?.[field]));
+const birthplaceMatchesCurrent = (value, current) =>
+  BIRTHPLACE_FIELDS.every((field) => normStr(value[field]) === normStr(current?.[field]));
 
 const normalizeBirthplaceInput = (body, { current, requireComplete = false } = {}) => {
   if (!hasAnyBirthplaceInput(body)) {
@@ -125,6 +127,15 @@ const normalizeBirthplaceInput = (body, { current, requireComplete = false } = {
       throw err;
     }
     return { shouldSet: false, value: {} };
+  }
+
+  if (currentHasBirthplace(current)) {
+    if (birthplaceMatchesCurrent(value, current)) return { shouldSet: false, value: {} };
+
+    const err = new Error("Birthplace cannot be modified once registered.");
+    err.status = 400;
+    err.errorCode = "BIRTHPLACE_IMMUTABLE";
+    throw err;
   }
 
   if (filledCount !== BIRTHPLACE_FIELDS.length) {

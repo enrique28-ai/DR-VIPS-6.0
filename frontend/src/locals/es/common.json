@@ -388,6 +388,7 @@
       "cancel": "Cancelar",
       "save": "Guardar cambios",
       "birthplaceClearUnsupported": "No se permite borrar un lugar de nacimiento existente en esta actualización.",
+      "birthplaceImmutable": "El lugar de nacimiento no puede modificarse una vez registrado.",
       "saving": "Guardando...",
       "notFoundTitle": "Paciente no encontrado",
       "notFoundText": "Puede que se haya borrado o que no tengas acceso.",

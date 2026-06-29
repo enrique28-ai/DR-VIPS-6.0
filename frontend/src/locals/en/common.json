@@ -417,7 +417,8 @@
     "dateOfDeathPlaceholder": "YYYY-MM-DD",
     "childrenNamesImmutable": "Existing children names cannot be edited.",
     "childrenNamesDuplicate": "Children names must be unique.",
-    "birthplaceClearUnsupported": "Clearing an existing place of birth is not supported in this update."
+    "birthplaceClearUnsupported": "Clearing an existing place of birth is not supported in this update.",
+    "birthplaceImmutable": "Place of birth cannot be modified once registered."
   },
 
   "detail": {
