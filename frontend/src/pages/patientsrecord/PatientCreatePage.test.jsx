@@ -126,13 +126,19 @@ const renderCreatePage = () => {
   );
 };
 
-const phoneCountrySelect = () => screen.getByRole("combobox", { name: /Phone Country/i });
-const residenceCountrySelect = () => screen.getByRole("combobox", { name: /Residence Country/i });
-const stateSelect = () => screen.getByRole("combobox", { name: /Residence State/i });
-const citySelect = () => screen.getByRole("combobox", { name: /Residence City/i });
-const birthCountrySelect = () => screen.getByRole("combobox", { name: /Birth Country/i });
-const birthStateSelect = () => screen.getByRole("combobox", { name: /Birth State/i });
-const birthCitySelect = () => screen.getByRole("combobox", { name: /Birth City/i });
+const selectById = (id) => {
+  const element = document.getElementById(id);
+  expect(element).toBeInTheDocument();
+  return element;
+};
+
+const phoneCountrySelect = () => selectById("patient-create-phone-country");
+const residenceCountrySelect = () => selectById("patient-create-residence-country");
+const stateSelect = () => selectById("patient-create-residence-state");
+const citySelect = () => selectById("patient-create-residence-city");
+const birthCountrySelect = () => selectById("patient-create-birth-country");
+const birthStateSelect = () => selectById("patient-create-birth-state");
+const birthCitySelect = () => selectById("patient-create-birth-city");
 const submitButton = () => screen.getByRole("button", { name: "Submit" });
 const submitForm = () => fireEvent.submit(submitButton().closest("form"));
 
