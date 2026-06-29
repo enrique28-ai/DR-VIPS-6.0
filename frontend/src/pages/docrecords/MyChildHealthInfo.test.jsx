@@ -28,7 +28,7 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.sections.basic.ageWithYears": `${options.age} years`,
         "myHealthInfo.sections.basic.gender": "Gender",
         "myHealthInfo.sections.basic.bloodType": "Blood type",
-        "myHealthInfo.sections.basic.location": "Country / State / City",
+        "myHealthInfo.sections.basic.location": "Place of Residence",
         "myHealthInfo.sections.basic.phone": "Phone",
         "myChildren.childNotFound": "Child not found or no longer accessible.",
         "myChildren.healthInfo": "Health Info",
@@ -405,6 +405,8 @@ describe("MyChildHealthInfo phone country display", () => {
   test("shows birthplace from child snapshot when present", () => {
     renderChildHealthInfo();
 
+    expect(screen.getByText("Place of Residence")).toBeInTheDocument();
+    expect(screen.getByText("Mexico, Jalisco, Guadalajara")).toBeInTheDocument();
     expect(screen.getByText("Place of Birth")).toBeInTheDocument();
     expect(screen.getByText("Mexico, Baja California, Mexicali")).toBeInTheDocument();
   });

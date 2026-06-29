@@ -93,8 +93,16 @@ const hasAnyBirthplaceInput = (obj) => BIRTHPLACE_FIELDS.some((field) => hasOwn(
 const currentHasBirthplace = (current) =>
   BIRTHPLACE_FIELDS.some((field) => normStr(current?.[field]));
 
-const normalizeBirthplaceInput = (body, { current } = {}) => {
-  if (!hasAnyBirthplaceInput(body)) return { shouldSet: false, value: {} };
+const normalizeBirthplaceInput = (body, { current, requireComplete = false } = {}) => {
+  if (!hasAnyBirthplaceInput(body)) {
+    if (requireComplete) {
+      const err = new Error("Birthplace country, state/province and city are required.");
+      err.status = 400;
+      err.errorCode = "BIRTHPLACE_REQUIRED";
+      throw err;
+    }
+    return { shouldSet: false, value: {} };
+  }
 
   const value = {
     birthCountry: normStr(body.birthCountry),
@@ -104,6 +112,12 @@ const normalizeBirthplaceInput = (body, { current } = {}) => {
   const filledCount = BIRTHPLACE_FIELDS.filter((field) => value[field]).length;
 
   if (filledCount === 0) {
+    if (requireComplete) {
+      const err = new Error("Birthplace country, state/province and city are required.");
+      err.status = 400;
+      err.errorCode = "BIRTHPLACE_REQUIRED";
+      throw err;
+    }
     if (currentHasBirthplace(current)) {
       const err = new Error("Clearing birthplace is not supported in this update.");
       err.status = 400;
@@ -501,7 +515,7 @@ export const createPatientService = async ({ user, body }) => {
   }
 
   const isMinor = ageNum < 18;
-  const birthplace = normalizeBirthplaceInput(body);
+  const birthplace = normalizeBirthplaceInput(body, { requireComplete: true });
   const requestedMeasurementSystem = normLower(measurementSystem);
   const hasLegacyHeight = height !== undefined && height !== null && height !== "";
   const hasExplicitHeight = hasExplicitHeightPart(body);

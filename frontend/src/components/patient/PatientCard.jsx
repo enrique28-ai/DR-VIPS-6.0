@@ -3,13 +3,28 @@ import { Link } from "react-router-dom";
 import { Pencil, Import, AlertTriangle } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { localizeCountryName } from "../../utilsfront/geoLabels";
+import {
+  localizeCityName,
+  localizeCountryName,
+  localizeStateName,
+} from "../../utilsfront/geoLabels";
 
 
 
   function PatientCard({ patient,  isGlobal = false }) {
   const { t, i18n } = useTranslation();
-   const countryText = localizeCountryName(patient?.country, i18n.language);
+   const residenceText = [
+    localizeCountryName(patient?.country, i18n.language),
+    localizeStateName({ countryName: patient?.country, stateName: patient?.state, t }),
+    localizeCityName({
+      countryName: patient?.country,
+      stateName: patient?.state,
+      cityName: patient?.city,
+      t,
+    }),
+  ]
+    .filter(Boolean)
+    .join(", ");
    const detailLink = isGlobal ? `/patients/global/${patient._id}` : `/patients/${patient._id}`;
 
 
@@ -36,7 +51,7 @@ import { localizeCountryName } from "../../utilsfront/geoLabels";
 
       <ul className="mt-2 text-sm text-gray-600 space-y-1">
         {patient?.age != null && <li>{t("patients.card.age")}: {patient.age}</li>}
-        {patient?.country && <li>{t("patients.card.country")}: {countryText}</li>}
+        {residenceText && <li>{t("patients.create.placeOfResidence")}: {residenceText}</li>}
         {patient?.bloodtype && <li>{t("patients.card.blood")}: {patient.bloodtype}</li>}
         {patient?.email && <li>{t("patients.card.email")}: {patient.email}</li>}
         {patient?.phone && <li>{t("patients.card.phone")}: {patient.phone}</li>}

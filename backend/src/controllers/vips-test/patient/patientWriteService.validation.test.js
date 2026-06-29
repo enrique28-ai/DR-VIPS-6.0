@@ -21,6 +21,9 @@ function makeValidCreateBody(overrides = {}) {
     country: "United States",
     state: "California",
     city: "San Diego",
+    birthCountry: "United States",
+    birthState: "California",
+    birthCity: "San Diego",
     ...overrides,
   };
 }

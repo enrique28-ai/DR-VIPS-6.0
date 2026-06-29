@@ -79,7 +79,7 @@ const none = trOr(t, "patients.history.none", "None");
         <span className="font-medium text-gray-500">{t("patients.card.blood")}:</span> {snapshot.bloodtype ?? "—"}
       </div>
       <div>
-        <span className="font-medium text-gray-500">{t("patients.history.location")}:</span> {location || "—"}
+        <span className="font-medium text-gray-500">{t("patients.create.placeOfResidence")}:</span> {location || "—"}
       </div>
       <div>
         <span className="font-medium text-gray-500">{t("patients.create.placeOfBirth")}:</span>{" "}

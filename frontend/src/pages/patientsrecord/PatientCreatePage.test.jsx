@@ -95,6 +95,7 @@ vi.mock("react-i18next", () => ({
         "patients.create.countryRequired": "Country required",
         "patients.create.stateRequired": "State required",
         "patients.create.cityRequired": "City required",
+        "patients.create.birthplaceRequired": "Birthplace required",
         "patients.create.birthplaceCompleteRequired": "Birthplace complete required",
         "patients.create.ageOutOfRange": "Age out of range",
         "patients.create.heightWeightTooHigh": "Height or weight too high",
@@ -171,7 +172,11 @@ const selectMexicoBirthplace = () => {
   fireEvent.change(birthCitySelect(), { target: { value: "Mexicali" } });
 };
 
-const fillValidAdultBaseline = ({ withPhoneCountry = true, phone = "2025550123" } = {}) => {
+const fillValidAdultBaseline = ({
+  withPhoneCountry = true,
+  phone = "2025550123",
+  withBirthplace = true,
+} = {}) => {
   fillSharedRequiredFields();
   fireEvent.change(screen.getByPlaceholderText("adult@example.com"), {
     target: { value: "adult@example.com" },
@@ -185,9 +190,12 @@ const fillValidAdultBaseline = ({ withPhoneCountry = true, phone = "2025550123" 
   fireEvent.change(screen.getByPlaceholderText("Phone digits"), {
     target: { value: phone },
   });
+  if (withBirthplace) {
+    selectMexicoBirthplace();
+  }
 };
 
-const fillValidMinorBaseline = ({ phone = "" } = {}) => {
+const fillValidMinorBaseline = ({ phone = "", withBirthplace = true } = {}) => {
   fireEvent.change(screen.getByPlaceholderText("Birth date"), {
     target: { value: "2016-01-01" },
   });
@@ -199,6 +207,9 @@ const fillValidMinorBaseline = ({ phone = "" } = {}) => {
     fireEvent.change(screen.getByPlaceholderText("Phone digits"), {
       target: { value: phone },
     });
+  }
+  if (withBirthplace) {
+    selectMexicoBirthplace();
   }
 };
 
@@ -252,23 +263,20 @@ describe("PatientCreatePage phone country behavior", () => {
     );
   });
 
-  test("allows create when birthplace is empty", () => {
+  test("blocks create when birthplace is empty", () => {
     renderCreatePage();
 
-    fillValidAdultBaseline();
+    fillValidAdultBaseline({ withBirthplace: false });
     submitForm();
 
-    expect(mutate).toHaveBeenCalledTimes(1);
-    const payload = mutate.mock.calls[0][0];
-    expect(payload).not.toHaveProperty("birthCountry");
-    expect(payload).not.toHaveProperty("birthState");
-    expect(payload).not.toHaveProperty("birthCity");
+    expect(toast.error).toHaveBeenCalledWith("Birthplace required");
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   test("blocks create when birthplace is partial", () => {
     renderCreatePage();
 
-    fillValidAdultBaseline();
+    fillValidAdultBaseline({ withBirthplace: false });
     fireEvent.change(birthCountrySelect(), { target: { value: "MX" } });
     submitForm();
 
@@ -385,6 +393,7 @@ describe("PatientCreatePage imperial height submission", () => {
     fireEvent.change(screen.getByPlaceholderText("Phone digits"), {
       target: { value: "2025550123" },
     });
+    selectMexicoBirthplace();
   };
 
   const assertInvalidHeightBlocked = () => {

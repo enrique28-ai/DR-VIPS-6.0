@@ -451,6 +451,10 @@ if (isMinor) {
   if (!countryIso) { toast.error(t("patients.create.countryRequired")); return; }
  if (!hasState)   { toast.error(t("patients.create.stateRequired")); return; }
  if (!hasCity)    { toast.error(t("patients.create.cityRequired")); return; }
+ if (!hasBirthplaceInput) {
+   toast.error(t("patients.create.birthplaceRequired"));
+   return;
+ }
  if (isBirthplacePartial) {
    toast.error(t("patients.create.birthplaceCompleteRequired"));
    return;
@@ -492,13 +496,9 @@ if (isMinor) {
         country: country,
         state: stateName || stateText,
         city: cityName || cityText,
-        ...(hasCompleteBirthplace
-          ? {
-              birthCountry,
-              birthState: birthStateValue,
-              birthCity: birthCityValue,
-            }
-          : {}),
+        birthCountry,
+        birthState: birthStateValue,
+        birthCity: birthCityValue,
         measurementSystem: system,
         ...heightPayload,
         weight: Number(weight),
@@ -799,7 +799,9 @@ if (isMinor) {
 
           <div>
             <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
-            <label htmlFor="patient-create-birth-country" className="block text-sm font-medium text-gray-700">{t("patients.create.birthCountry")}</label>
+            <label htmlFor="patient-create-birth-country" className="block text-sm font-medium text-gray-700">
+              {t("patients.create.birthCountry")}<span className="text-red-500">*</span>
+            </label>
             <select
               id="patient-create-birth-country"
               value={birthCountryIso}
@@ -815,7 +817,9 @@ if (isMinor) {
               ))}
             </select>
 
-            <label htmlFor={birthStates.length > 0 ? "patient-create-birth-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthState")}</label>
+            <label htmlFor={birthStates.length > 0 ? "patient-create-birth-state" : undefined} className="block text-sm font-medium text-gray-700">
+              {t("patients.create.birthState")}<span className="text-red-500">*</span>
+            </label>
             {birthStates.length > 0 ? (
               <select
                 id="patient-create-birth-state"
@@ -838,7 +842,9 @@ if (isMinor) {
               />
             )}
 
-            <label htmlFor={birthCities.length > 0 ? "patient-create-birth-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthCity")}</label>
+            <label htmlFor={birthCities.length > 0 ? "patient-create-birth-city" : undefined} className="block text-sm font-medium text-gray-700">
+              {t("patients.create.birthCity")}<span className="text-red-500">*</span>
+            </label>
             {birthCities.length > 0 ? (
               <select
                 id="patient-create-birth-city"
@@ -1074,7 +1080,7 @@ if (isMinor) {
               isMinorPhoneInvalid ||!gender || !organDonor || (hasDiseases === "yes" && form.diseases.trim() === "")||
                !bloodDonor || (hasAllergies === "yes" && form.allergies.trim() === "") || !system || (system === "metric" ? !height : (!heightFeet || heightInches === ""))
                || !weight || !countryIso || !(states.length>0 ? !!stateIso : !!stateText.trim()) || !(cities.length>0 ? !!cityName : !!cityText.trim())
-               || isBirthplacePartial ||  (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX
+               || !hasCompleteBirthplace ||  (hasMedications === "yes" && form.medications.trim() === "") || !Number.isFinite(ageNum) || ageNum < AGE_MIN || ageNum > AGE_MAX
                || isHeightInvalidForBtn || isWeightInvalidForBtn || createPatient.isPending}
             >{createPatient.isPending ? t("patients.create.submitting") :  t("patients.create.submit")}</Button>
           </div>

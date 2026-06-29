@@ -24,7 +24,7 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.sections.basic.fullname": "Full name",
         "myHealthInfo.sections.basic.title": "Basic",
         "myHealthInfo.sections.basic.phone": "Phone",
-        "myHealthInfo.sections.basic.location": "Location",
+        "myHealthInfo.sections.basic.location": "Place of Residence",
         "patients.create.phoneCountry": "Phone country",
         "patients.create.placeOfBirth": "Place of Birth",
       }[key] ?? options.defaultValue ?? key),
@@ -94,6 +94,8 @@ describe("MyHealthInfo phone country display", () => {
   test("shows birthplace from snapshot when present", () => {
     renderHealthInfo(baseSnapshot());
 
+    expect(screen.getByText("Place of Residence")).toBeInTheDocument();
+    expect(screen.getByText("Mexico, Jalisco, Guadalajara")).toBeInTheDocument();
     expect(screen.getByText("Place of Birth")).toBeInTheDocument();
     expect(screen.getByText("Mexico, Baja California, Mexicali")).toBeInTheDocument();
   });

@@ -102,6 +102,9 @@ function makeValidCreateBody(overrides = {}) {
     country: "United States",
     state: "California",
     city: "San Diego",
+    birthCountry: "United States",
+    birthState: "California",
+    birthCity: "San Diego",
     ...overrides,
   };
 }
@@ -510,7 +513,11 @@ test("createPatientService rejects partial birthplace", async () => {
       () =>
         createPatientService({
           user: { _id: "doctor-id" },
-          body: makeValidCreateBody({ birthCountry: "Mexico" }),
+          body: makeValidCreateBody({
+            birthCountry: "Mexico",
+            birthState: "",
+            birthCity: "",
+          }),
         }),
       (err) => {
         assert.equal(err.status, 400);
@@ -523,38 +530,39 @@ test("createPatientService rejects partial birthplace", async () => {
   }
 });
 
-test("createPatientService allows legacy records without birthplace", async () => {
+test("createPatientService rejects missing birthplace", async () => {
   restorePatientMethods();
 
-  const body = makeValidCreateBody({
-    birthCountry: "",
-    birthState: "",
-    birthCity: "",
-  });
-  mockPatientFindOneSequence([
-    { kind: "selectLean", value: null },
-    { kind: "selectLean", value: null, projection: "_id" },
-  ]);
-  mockNoPendingCreateEmailLookup(body.email.toLowerCase());
-  const createCalls = [];
-
-  Patient.create = async (payload) => {
-    createCalls.push(payload);
-    return {
-      toObject: () => ({ _id: "created-patient-id", ...payload }),
-    };
+  Patient.findOne = () => {
+    throw new Error("Patient.findOne should not be called for missing birthplace");
+  };
+  Patient.find = () => {
+    throw new Error("Patient.find should not be called for missing birthplace");
+  };
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for missing birthplace");
+  };
+  Patient.create = async () => {
+    throw new Error("Patient.create should not be called for missing birthplace");
   };
 
   try {
-    await createPatientService({
-      user: { _id: "doctor-id" },
-      body,
-    });
-
-    assert.equal(createCalls.length, 1);
-    assert.equal(Object.hasOwn(createCalls[0], "birthCountry"), false);
-    assert.equal(Object.hasOwn(createCalls[0], "birthState"), false);
-    assert.equal(Object.hasOwn(createCalls[0], "birthCity"), false);
+    await assert.rejects(
+      () =>
+        createPatientService({
+          user: { _id: "doctor-id" },
+          body: makeValidCreateBody({
+            birthCountry: "",
+            birthState: "",
+            birthCity: "",
+          }),
+        }),
+      (err) => {
+        assert.equal(err.status, 400);
+        assert.equal(err.errorCode, "BIRTHPLACE_REQUIRED");
+        return true;
+      }
+    );
   } finally {
     restorePatientMethods();
   }

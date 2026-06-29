@@ -32,6 +32,7 @@ vi.mock("react-i18next", () => ({
         "patients.card.genderMale": "Male",
         "patients.card.genderFemale": "Female",
         "patients.card.blood": "Blood",
+        "patients.create.placeOfResidence": "Place of Residence",
         "patients.create.placeOfBirth": "Place of Birth",
         "patients.create.yes": "Yes",
         "patients.create.no": "No",
@@ -114,7 +115,7 @@ describe("PatientHistoryModal birthplace snapshots", () => {
   test("renders complete birthplace separately from residence", () => {
     renderModal(baseSnapshot());
 
-    const locationLabel = screen.getByText("Location:");
+    const locationLabel = screen.getByText("Place of Residence:");
     expect(locationLabel.parentElement).toHaveTextContent(
       "United States, California, San Diego",
     );
@@ -139,7 +140,7 @@ describe("PatientHistoryModal birthplace snapshots", () => {
 
     const snapshotPanel = screen.getByText("Ana Martinez").closest(".grid");
     expect(snapshotPanel).toBeInTheDocument();
-    expect(within(snapshotPanel).getByText("Location:").parentElement).toHaveTextContent(
+    expect(within(snapshotPanel).getByText("Place of Residence:").parentElement).toHaveTextContent(
       "United States, California, San Diego",
     );
     expect(within(snapshotPanel).getByText("Place of Birth:").parentElement).toHaveTextContent(
