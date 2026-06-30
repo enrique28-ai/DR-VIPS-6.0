@@ -7,7 +7,7 @@ description: Use when working in the DR-VIPS 6.0 MERN medical records app to imp
 
 ## Mission
 
-Help Codex improve DR-VIPS correctness by adding tests incrementally, starting with backend tests. Prefer small safe patches that make `npm test` pass and protect existing medical-record workflows.
+Help the assistant improve DR-VIPS correctness by adding tests incrementally, starting with backend tests. Prefer small safe patches that make `npm test` pass and protect existing medical-record workflows.
 
 ## Ground Rules
 
