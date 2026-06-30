@@ -153,11 +153,37 @@ describe("Navbar", () => {
     const { container } = renderNavbar();
 
     const avatar = getAvatarButton(container);
+    expect(avatar).toHaveAccessibleName("Profile");
+    expect(avatar).toHaveAttribute("aria-controls", "navbar-user-menu");
     fireEvent.click(avatar);
 
     expect(avatar).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu")).toHaveAttribute("id", "navbar-user-menu");
     expect(screen.getByRole("menuitem", { name: "Verify email" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  test("Escape closes an open menu and keeps the avatar button accessible", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: false,
+      role: "doctor",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { container } = renderNavbar();
+
+    const avatar = getAvatarButton(container);
+    fireEvent.click(avatar);
+    expect(screen.getByRole("menuitem", { name: "Verify email" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByRole("menuitem", { name: "Verify email" })).not.toBeInTheDocument();
+    expect(avatar).toHaveAttribute("aria-expanded", "false");
+    expect(avatar).toHaveFocus();
   });
 
   test("clicking Verify Email navigates to /verify-email", () => {

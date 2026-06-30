@@ -43,6 +43,14 @@ const renderCard = (patient, props = {}) =>
     </MemoryRouter>,
   );
 
+const expectCardText = (text) => {
+  expect(
+    screen
+      .getAllByText((_content, element) => element?.textContent === text)
+      .some((element) => element.tagName === "LI"),
+  ).toBe(true);
+};
+
 describe("PatientCard residence display", () => {
   test("shows full place of residence instead of country only", () => {
     renderCard({
@@ -53,9 +61,7 @@ describe("PatientCard residence display", () => {
       city: "Aidenbach",
     });
 
-    expect(
-      screen.getByText("Place of Residence: Germany, Bavaria, Aidenbach"),
-    ).toBeInTheDocument();
+    expectCardText("Place of Residence: Germany, Bavaria, Aidenbach");
     expect(screen.queryByText(/^Country:/)).not.toBeInTheDocument();
   });
 
@@ -66,7 +72,7 @@ describe("PatientCard residence display", () => {
       country: "Germany",
     });
 
-    expect(screen.getByText("Place of Residence: Germany")).toBeInTheDocument();
+    expectCardText("Place of Residence: Germany");
   });
 
   test("shows full place of birth separately from residence", () => {
@@ -81,12 +87,8 @@ describe("PatientCard residence display", () => {
       birthCity: "Mexicali",
     });
 
-    expect(
-      screen.getByText("Place of Residence: Germany, Bavaria, Aidenbach"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Place of Birth: Mexico, Baja California, Mexicali"),
-    ).toBeInTheDocument();
+    expectCardText("Place of Residence: Germany, Bavaria, Aidenbach");
+    expectCardText("Place of Birth: Mexico, Baja California, Mexicali");
     expect(
       screen.queryByText("Place of Residence: Mexico, Baja California, Mexicali"),
     ).not.toBeInTheDocument();
@@ -116,8 +118,8 @@ describe("PatientCard residence display", () => {
       parentEmail: "parent@example.com",
     });
 
-    expect(screen.getByText("Email: minor@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Parent/tutor email: parent@example.com")).toBeInTheDocument();
+    expectCardText("Email: minor@example.com");
+    expectCardText("Parent/tutor email: parent@example.com");
   });
 
   test("does not show parent tutor email for adults", () => {
@@ -129,6 +131,22 @@ describe("PatientCard residence display", () => {
     });
 
     expect(screen.queryByText(/^Parent\/tutor email:/)).not.toBeInTheDocument();
+  });
+
+  test("keeps diagnosis and edit actions for local cards", () => {
+    renderCard({
+      _id: "patient-1",
+      fullname: "Ana Patient",
+    });
+
+    expect(screen.getByRole("link", { name: "View diagnoses" })).toHaveAttribute(
+      "href",
+      "/diagnosis/patient/patient-1",
+    );
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/patients/patient-1/edit",
+    );
   });
 
   test("keeps pending badge and global import action behavior", () => {

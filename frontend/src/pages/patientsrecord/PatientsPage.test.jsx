@@ -44,6 +44,7 @@ vi.mock("react-i18next", () => ({
         "patients.list.pagination.next": "Next",
         "patients.list.pagination.prev": "Previous",
         "patients.list.searchPlaceholder": "Search patients",
+        "loading": "Loading...",
         "patients.title": "Patients",
       };
       if (key === "patients.list.subtitleDefault") {
@@ -166,20 +167,21 @@ describe("PatientsPage", () => {
     vi.clearAllMocks();
   });
 
-  test("renders null while patients are loading without cached data", () => {
+  test("renders a visible loading state while patients are loading without cached data", () => {
     usePatients.mockReturnValue({
       data: undefined,
       isLoading: true,
       isFetching: false,
     });
 
-    const { container } = render(
+    render(
       <MemoryRouter>
         <PatientsPage />
       </MemoryRouter>,
     );
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("heading", { name: "Patients" })).toBeInTheDocument();
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
     expectLastParams({
       q: undefined,
       category: undefined,
@@ -266,7 +268,12 @@ describe("PatientsPage", () => {
   test("opens advanced filters and applies the country filter from localized country options", () => {
     renderPatientsPage();
 
+    const moreButton = screen.getByRole("button", { name: /More/i });
+    expect(moreButton).toHaveAttribute("aria-expanded", "false");
+    expect(moreButton).toHaveAttribute("aria-controls", "patients-advanced-filters");
+
     openAdvancedFilters();
+    expect(moreButton).toHaveAttribute("aria-expanded", "true");
     const countryFilter = filterByText("Country");
     const countrySelect = within(countryFilter).getByRole("combobox");
 
@@ -287,10 +294,14 @@ describe("PatientsPage", () => {
 
     openAdvancedFilters();
     const medicationsFilter = filterByText("Medications");
-    fireEvent.click(within(medicationsFilter).getByRole("button", { name: "Yes" }));
+    const yesButton = within(medicationsFilter).getByRole("button", { name: "Yes" });
+    expect(yesButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(yesButton);
 
     expectLastParams({ hasMedications: true, page: 1 });
-    expect(screen.getByRole("button", { name: /More1/i })).toBeInTheDocument();
+    expect(yesButton).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /More/i })).toHaveTextContent("1");
     expect(screen.getByText("Ana Martinez")).toBeInTheDocument();
     expect(screen.queryByText("Luis Garcia")).not.toBeInTheDocument();
   });

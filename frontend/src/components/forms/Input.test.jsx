@@ -54,6 +54,18 @@ describe("Input", () => {
     expect(screen.getByText("Email")).toBeInTheDocument();
   });
 
+  test("links label to input when id or name is available", () => {
+    renderInput({ id: "patient-email", label: "Email" });
+
+    expect(screen.getByLabelText("Email")).toHaveAttribute("id", "patient-email");
+  });
+
+  test("uses name as a fallback id for label association", () => {
+    renderInput({ name: "phone", label: "Phone" });
+
+    expect(screen.getByLabelText("Phone")).toHaveAttribute("id", "phone");
+  });
+
   test("does not render the label text when label is omitted", () => {
     renderInput();
 
@@ -77,6 +89,16 @@ describe("Input", () => {
 
     const input = screen.getByRole("textbox");
     expect(input.className).toContain("extra-class");
+  });
+
+  test("supports custom container className without dropping input props", () => {
+    const { container } = renderInput({
+      containerClassName: "mb-0",
+      placeholder: "Search",
+    });
+
+    expect(container.firstChild).toHaveClass("mb-0");
+    expect(screen.getByPlaceholderText("Search")).toBeInTheDocument();
   });
 
   test("forwards disabled and required props", () => {
