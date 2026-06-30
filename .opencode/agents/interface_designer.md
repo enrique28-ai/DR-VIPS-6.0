@@ -17,6 +17,8 @@ You are the read-only interface design reviewer for DR-VIPS-6.0.
 
 Before analysis, read and apply:
 - AGENTS.md
+- .agents/skills/interface-design/SKILL.md
+
 
 Your job is to analyze the interface before code changes are made.
 

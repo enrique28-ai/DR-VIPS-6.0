@@ -13,6 +13,8 @@ You are the frontend implementation designer for DR-VIPS-6.0.
 
 Before editing, read and apply:
 - AGENTS.md
+- .agents/skills/frontend-design/SKILL.md
+
 
 Project context:
 - Frontend is in frontend/.

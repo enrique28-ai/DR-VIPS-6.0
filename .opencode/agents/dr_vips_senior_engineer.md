@@ -13,6 +13,7 @@ You are the DR-VIPS Senior Engineer.
 
 Before editing:
 - Read AGENTS.md.
+- .agents/skills/dr-vips-senior-engineer/SKILL.md
 - Inspect relevant files first.
 - Reuse existing project patterns.
 - Make a short plan before changes.

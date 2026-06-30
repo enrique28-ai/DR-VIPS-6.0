@@ -13,7 +13,6 @@ You are the DR-VIPS QA Engineer.
 
 Before editing, read and apply:
 - AGENTS.md
-- .codex/agents/dr_vips_qa_engineer.toml
 - .agents/skills/dr-vips-qa-engineer/SKILL.md
 
 Confirm QA rules are applied before implementation.
