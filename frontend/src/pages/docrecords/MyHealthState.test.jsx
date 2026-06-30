@@ -10,6 +10,7 @@ vi.mock("react-i18next", () => ({
     t: (key, options = {}) => {
       const labels = {
         "diagnoses.empty.title": "No health state records",
+        "common.loading": "Loading...",
         "diagnoses.list.filters.clear": "Clear",
         "diagnoses.list.filters.date": "Date",
         "diagnoses.list.filters.medicines": "Medicines",
@@ -148,13 +149,14 @@ describe("MyHealthState", () => {
     vi.clearAllMocks();
   });
 
-  test("renders null while health state records are loading without cached data", () => {
-    const { container } = renderMyHealthState(undefined, {
+  test("renders a visible loading state while health state records are loading without cached data", () => {
+    renderMyHealthState(undefined, {
       data: undefined,
       isLoading: true,
     });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("heading", { name: "My Health State" })).toBeInTheDocument();
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
     expectLastParams({
       q: undefined,
       date: undefined,
@@ -241,12 +243,19 @@ describe("MyHealthState", () => {
   test("opens advanced filters from More", () => {
     renderMyHealthState();
 
+    const moreButton = screen.getByRole("button", { name: /More/i });
+    expect(moreButton).toHaveAttribute("aria-expanded", "false");
+    expect(moreButton).toHaveAttribute("aria-controls", "my-health-state-advanced-filters");
+
     openAdvancedFilters();
+    expect(moreButton).toHaveAttribute("aria-expanded", "true");
 
     expect(screen.getByText("Date")).toBeInTheDocument();
     expect(screen.getByText("Medicines")).toBeInTheDocument();
     expect(screen.getByText("Treatments")).toBeInTheDocument();
     expect(screen.getByText("Operations")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Date" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Medicines" })).toBeInTheDocument();
   });
 
   test("applies the medicines yes filter and shows active filter count", () => {
@@ -254,10 +263,14 @@ describe("MyHealthState", () => {
 
     openAdvancedFilters();
     const medicinesFilter = filterByText("Medicines");
-    fireEvent.click(within(medicinesFilter).getByRole("button", { name: "Yes" }));
+    const yesButton = within(medicinesFilter).getByRole("button", { name: "Yes" });
+    expect(yesButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(yesButton);
 
     expectLastParams({ hasMedicines: true, page: 1 });
-    expect(screen.getByRole("button", { name: /More1/i })).toBeInTheDocument();
+    expect(yesButton).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /More/i })).toHaveTextContent("1");
     expect(screen.getByText("Flu diagnosis")).toBeInTheDocument();
     expect(screen.queryByText("Sprained ankle")).not.toBeInTheDocument();
   });
