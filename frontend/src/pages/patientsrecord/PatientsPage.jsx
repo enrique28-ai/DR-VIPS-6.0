@@ -399,7 +399,7 @@ export default function PatientsPage() {
     return (
       <LoadingState
         title={t("patients.title")}
-        loadingLabel={t("loading")}
+        loadingLabel={t("common.loading")}
       />
     );
   }
