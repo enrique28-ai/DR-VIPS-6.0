@@ -38,3 +38,6 @@ Report:
 - Commands/tests run.
 - Manual browser test steps.
 """
+[[skills.config]]
+path = ".agents/skills/frontend-designer/SKILL.md"
+enabled = true

@@ -29,3 +29,6 @@ Return:
 4. Risk level: low / medium / high.
 5. Suggested prompt for frontend_designer.
 """
+[[skills.config]]
+path = ".agents/skills/interface-designer/SKILL.md"
+enabled = true
