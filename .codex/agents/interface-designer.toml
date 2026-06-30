@@ -30,5 +30,5 @@ Return:
 5. Suggested prompt for frontend_designer.
 """
 [[skills.config]]
-path = ".agents/skills/interface-designer/SKILL.md"
+path = ".agents/skills/interface-design/SKILL.md"
 enabled = true

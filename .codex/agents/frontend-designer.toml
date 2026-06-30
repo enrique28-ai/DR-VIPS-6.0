@@ -39,5 +39,5 @@ Report:
 - Manual browser test steps.
 """
 [[skills.config]]
-path = ".agents/skills/frontend-designer/SKILL.md"
+path = ".agents/skills/frontend-design/SKILL.md"
 enabled = true
