@@ -25,6 +25,19 @@ import {
   ]
     .filter(Boolean)
     .join(", ");
+   const birthplaceText = [
+    localizeCountryName(patient?.birthCountry, i18n.language),
+    localizeStateName({ countryName: patient?.birthCountry, stateName: patient?.birthState, t }),
+    localizeCityName({
+      countryName: patient?.birthCountry,
+      stateName: patient?.birthState,
+      cityName: patient?.birthCity,
+      t,
+    }),
+  ]
+    .filter(Boolean)
+    .join(", ");
+   const isMinor = Number(patient?.age) < 18;
    const detailLink = isGlobal ? `/patients/global/${patient._id}` : `/patients/${patient._id}`;
 
 
@@ -52,8 +65,10 @@ import {
       <ul className="mt-2 text-sm text-gray-600 space-y-1">
         {patient?.age != null && <li>{t("patients.card.age")}: {patient.age}</li>}
         {residenceText && <li>{t("patients.create.placeOfResidence")}: {residenceText}</li>}
+        {birthplaceText && <li>{t("patients.create.placeOfBirth")}: {birthplaceText}</li>}
         {patient?.bloodtype && <li>{t("patients.card.blood")}: {patient.bloodtype}</li>}
         {patient?.email && <li>{t("patients.card.email")}: {patient.email}</li>}
+        {isMinor && patient?.parentEmail && <li>{t("patients.create.parentEmail")}: {patient.parentEmail}</li>}
         {patient?.phone && <li>{t("patients.card.phone")}: {patient.phone}</li>}
        
         {patient?.gender && (

@@ -20,7 +20,12 @@ vi.mock("react-i18next", () => ({
         "patients.card.causeOfDeath": "Cause of death",
         "patients.card.viewDiagnoses": "View diagnoses",
         "patients.card.edit": "Edit",
+        "patients.card.pending": "Pending Approval",
+        "patients.card.pendingHint": "Changes require patient approval",
         "patients.create.placeOfResidence": "Place of Residence",
+        "patients.create.placeOfBirth": "Place of Birth",
+        "patients.create.parentEmail": "Parent/tutor email",
+        "patients.global.viewToImport": "View & Import",
       }[key] ?? key),
   }),
 }));
@@ -31,10 +36,10 @@ vi.mock("../../utilsfront/geoLabels.js", () => ({
   localizeStateName: ({ stateName }) => stateName || "",
 }));
 
-const renderCard = (patient) =>
+const renderCard = (patient, props = {}) =>
   render(
     <MemoryRouter>
-      <PatientCard patient={patient} />
+      <PatientCard patient={patient} {...props} />
     </MemoryRouter>,
   );
 
@@ -62,5 +67,84 @@ describe("PatientCard residence display", () => {
     });
 
     expect(screen.getByText("Place of Residence: Germany")).toBeInTheDocument();
+  });
+
+  test("shows full place of birth separately from residence", () => {
+    renderCard({
+      _id: "patient-1",
+      fullname: "Ana Patient",
+      country: "Germany",
+      state: "Bavaria",
+      city: "Aidenbach",
+      birthCountry: "Mexico",
+      birthState: "Baja California",
+      birthCity: "Mexicali",
+    });
+
+    expect(
+      screen.getByText("Place of Residence: Germany, Bavaria, Aidenbach"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Place of Birth: Mexico, Baja California, Mexicali"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Place of Residence: Mexico, Baja California, Mexicali"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Place of Birth: Germany, Bavaria, Aidenbach"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("does not show place of birth when birthplace fields are missing", () => {
+    renderCard({
+      _id: "patient-1",
+      fullname: "Ana Patient",
+      country: "Germany",
+      state: "Bavaria",
+      city: "Aidenbach",
+    });
+
+    expect(screen.queryByText(/^Place of Birth:/)).not.toBeInTheDocument();
+  });
+
+  test("shows parent tutor email for minors without replacing patient email", () => {
+    renderCard({
+      _id: "patient-1",
+      fullname: "Ana Patient",
+      age: 17,
+      email: "minor@example.com",
+      parentEmail: "parent@example.com",
+    });
+
+    expect(screen.getByText("Email: minor@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Parent/tutor email: parent@example.com")).toBeInTheDocument();
+  });
+
+  test("does not show parent tutor email for adults", () => {
+    renderCard({
+      _id: "patient-1",
+      fullname: "Ana Patient",
+      age: 18,
+      parentEmail: "parent@example.com",
+    });
+
+    expect(screen.queryByText(/^Parent\/tutor email:/)).not.toBeInTheDocument();
+  });
+
+  test("keeps pending badge and global import action behavior", () => {
+    renderCard(
+      {
+        _id: "patient-1",
+        fullname: "Ana Patient",
+        isPendingApproval: true,
+      },
+      { isGlobal: true },
+    );
+
+    expect(screen.getByText("Pending Approval")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View & Import/i })).toHaveAttribute(
+      "href",
+      "/patients/global/patient-1",
+    );
   });
 });

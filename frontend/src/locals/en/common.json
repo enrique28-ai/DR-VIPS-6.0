@@ -383,7 +383,7 @@
       "childrenCount": "Number of children",
       "childName": "Child name",
       "childNamePlaceholder": "Full name",
-      "parentEmail": "Parent/Guardian Email",
+      "parentEmail": "Parent/tutor email",
       "parentEmailPlaceholder": "parent@domain.com",
       "parentEmailRequired": "Parent email is required for minors.",
       "childrenCountRequired": "Please specify the number of children.",

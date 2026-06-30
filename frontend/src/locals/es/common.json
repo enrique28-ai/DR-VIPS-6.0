@@ -370,7 +370,7 @@
       "childrenCount": "Cantidad de hijos",
       "childName": "Nombre del hijo",
       "childNamePlaceholder": "Nombre completo",
-      "parentEmail": "Correo de padre/tutor",
+      "parentEmail": "Correo del padre/tutor",
       "parentEmailPlaceholder": "padre@dominio.com",
       "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
       "childrenCountRequired": "Indica la cantidad de hijos.",
