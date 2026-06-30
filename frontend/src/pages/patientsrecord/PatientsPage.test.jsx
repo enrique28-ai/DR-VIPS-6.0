@@ -44,7 +44,7 @@ vi.mock("react-i18next", () => ({
         "patients.list.pagination.next": "Next",
         "patients.list.pagination.prev": "Previous",
         "patients.list.searchPlaceholder": "Search patients",
-        "loading": "Loading...",
+        "common.loading": "Loading...",
         "patients.title": "Patients",
       };
       if (key === "patients.list.subtitleDefault") {
