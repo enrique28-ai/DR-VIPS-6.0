@@ -180,6 +180,7 @@ export default function MyHealthState() {
 
   const hasAnyFilter =
     !!raw || !!onDate || hasMeds !== "All" || hasTx !== "All" || hasOps !== "All";
+  const isEmptyWithoutFilters = !isLoading && !hasAnyFilter && items.length === 0;
 
   const display = useMemo(() => {
     let base = items;
@@ -363,107 +364,109 @@ export default function MyHealthState() {
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <Header
           title={t("navbar.myHealthState")}
-          subtitleText={!isLoading && !hasAnyFilter && items.length === 0 ? t("diagnoses.empty.title") : subtitle}
+          subtitleText={isEmptyWithoutFilters ? t("diagnoses.empty.title") : subtitle}
           linkLabel={t("navbar.myHealthInfo")}
         />
 
-        <section className="mb-6" aria-busy={isFetching}>
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 p-4 md:flex-row md:items-start md:gap-4">
-              <form onSubmit={(e) => e.preventDefault()} className="flex-1">
-                <Input
-                  icon={Search}
-                  containerClassName="mb-0"
-                  className="h-11 w-full"
-                  placeholder={t("myHealthState.list.searchPlaceholder")}
-                  aria-label={t("myHealthState.list.searchPlaceholder")}
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setPage(1);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.preventDefault();
-                  }}
-                />
-              </form>
-
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => setShowMore((s) => !s)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  title={t("diagnoses.list.filters.more")}
-                  aria-expanded={showMore}
-                  aria-controls={ADVANCED_FILTERS_ID}
-                >
-                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                  {t("diagnoses.list.filters.more")}
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${showMore ? "rotate-180" : ""}`}
-                    aria-hidden="true"
-                  />
-                  {activeFiltersCount > 0 && (
-                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-semibold text-white">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                >
-                  {t("diagnoses.list.filters.clear")}
-                </button>
-              </div>
-            </div>
-
-            <div
-              id={ADVANCED_FILTERS_ID}
-              className={`${showMore ? "grid" : "hidden"} grid-cols-1 gap-3 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-4`}
-            >
-              <FilterGroup label={t("diagnoses.list.filters.date")}>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="min-w-0 flex-1">
-                    <LocalizedDatePicker
-                      value={onDate}
-                      onChange={(val) => {
-                        setOnDate(val);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOnDate(todayLocal());
+        {!isEmptyWithoutFilters && (
+          <section className="mb-6" aria-busy={isFetching}>
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 p-4 md:flex-row md:items-start md:gap-4">
+                <form onSubmit={(e) => e.preventDefault()} className="flex-1">
+                  <Input
+                    icon={Search}
+                    containerClassName="mb-0"
+                    className="h-11 w-full"
+                    placeholder={t("myHealthState.list.searchPlaceholder")}
+                    aria-label={t("myHealthState.list.searchPlaceholder")}
+                    value={q}
+                    onChange={(e) => {
+                      setQ(e.target.value);
                       setPage(1);
                     }}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    title={t("diagnoses.list.filters.today")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.preventDefault();
+                    }}
+                  />
+                </form>
+
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowMore((s) => !s)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                    title={t("diagnoses.list.filters.more")}
+                    aria-expanded={showMore}
+                    aria-controls={ADVANCED_FILTERS_ID}
                   >
-                    <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                    {t("diagnoses.list.filters.today")}
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                    {t("diagnoses.list.filters.more")}
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${showMore ? "rotate-180" : ""}`}
+                      aria-hidden="true"
+                    />
+                    {activeFiltersCount > 0 && (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-semibold text-white">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  >
+                    {t("diagnoses.list.filters.clear")}
                   </button>
                 </div>
-              </FilterGroup>
+              </div>
 
-              <FilterGroup label={t("diagnoses.list.filters.medicines")}>
-                {renderFilterButtons(ANSWER_OPTIONS, hasMeds, setHasMeds)}
-              </FilterGroup>
+              <div
+                id={ADVANCED_FILTERS_ID}
+                className={`${showMore ? "grid" : "hidden"} grid-cols-1 gap-3 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-4`}
+              >
+                <FilterGroup label={t("diagnoses.list.filters.date")}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">
+                      <LocalizedDatePicker
+                        value={onDate}
+                        onChange={(val) => {
+                          setOnDate(val);
+                          setPage(1);
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOnDate(todayLocal());
+                        setPage(1);
+                      }}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                      title={t("diagnoses.list.filters.today")}
+                    >
+                      <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                      {t("diagnoses.list.filters.today")}
+                    </button>
+                  </div>
+                </FilterGroup>
 
-              <FilterGroup label={t("diagnoses.list.filters.treatments")}>
-                {renderFilterButtons(ANSWER_OPTIONS, hasTx, setHasTx)}
-              </FilterGroup>
+                <FilterGroup label={t("diagnoses.list.filters.medicines")}>
+                  {renderFilterButtons(ANSWER_OPTIONS, hasMeds, setHasMeds)}
+                </FilterGroup>
 
-              <FilterGroup label={t("diagnoses.list.filters.operations")}>
-                {renderFilterButtons(ANSWER_OPTIONS, hasOps, setHasOps)}
-              </FilterGroup>
+                <FilterGroup label={t("diagnoses.list.filters.treatments")}>
+                  {renderFilterButtons(ANSWER_OPTIONS, hasTx, setHasTx)}
+                </FilterGroup>
+
+                <FilterGroup label={t("diagnoses.list.filters.operations")}>
+                  {renderFilterButtons(ANSWER_OPTIONS, hasOps, setHasOps)}
+                </FilterGroup>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {renderContent()}
 

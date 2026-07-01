@@ -192,6 +192,13 @@ describe("MyHealthState", () => {
     renderMyHealthState(listData([]));
 
     expect(screen.getByTestId("empty-health-state")).toHaveTextContent("Empty health state");
+    expect(screen.queryByPlaceholderText("Search health state")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /More/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Date")).not.toBeInTheDocument();
+    expect(screen.queryByText("Medicines")).not.toBeInTheDocument();
+    expect(screen.queryByText("Treatments")).not.toBeInTheDocument();
+    expect(screen.queryByText("Operations")).not.toBeInTheDocument();
   });
 
   test("trims search params and locally filters displayed cards by title", () => {
@@ -238,6 +245,8 @@ describe("MyHealthState", () => {
     });
     expect(screen.getByText("Try adjusting your filters")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search health state")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /More/i })).toBeInTheDocument();
   });
 
   test("opens advanced filters from More", () => {

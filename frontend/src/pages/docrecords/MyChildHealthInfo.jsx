@@ -41,6 +41,13 @@ import {
   ChipList,
 } from "./myhealthfunctions/healthfunctions.jsx";
 
+function yesNoFromScalar(w, t) {
+  const v = scalarValue(w);
+  if (v === true) return t("myHealthInfo.common.yes");
+  if (v === false) return t("myHealthInfo.common.no");
+  return t("myHealthInfo.common.notSpecified");
+}
+
 function findChildRecord(records, childId) {
   const arr = Array.isArray(records) ? records : [];
   return arr.find(
@@ -143,6 +150,13 @@ export default function MyChildHealthInfo() {
     return String(raw);
   };
 
+  const formatYesNo = (v) =>
+    v === true
+      ? t("myHealthInfo.common.yes")
+      : v === false
+        ? t("myHealthInfo.common.no")
+        : t("myHealthInfo.common.notSpecified");
+
   const bloodtypeVal = scalarValue(snapshot?.bloodtype);
   const phoneVal = scalarValue(snapshot?.phone);
   const phoneCountryVal = scalarValue(snapshot?.phoneCountry);
@@ -154,6 +168,8 @@ export default function MyChildHealthInfo() {
   const birthDateVal = formatDateOnly(snapshot?.birthDate, t, i18n.language);
   const deathDateVal = formatDateOnly(snapshot?.dateOfDeath, t, i18n.language);
   const causeOfDeathVal = snapshot?.causeOfDeath || t("myHealthInfo.common.notSpecified");
+  const organDonorLabel = yesNoFromScalar(snapshot?.organDonor, t);
+  const bloodDonorLabel = yesNoFromScalar(snapshot?.bloodDonor, t);
   const countryRaw = scalarValue(snapshot?.country);
   const stateRaw = scalarValue(snapshot?.state);
   const cityRaw = scalarValue(snapshot?.city);
@@ -446,6 +462,32 @@ export default function MyChildHealthInfo() {
               {t("patients.create.birthDate")}
             </span>
             <span className="font-medium text-slate-800">{birthDateVal}</span>
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.organDonor")}
+            </span>
+            <span className="font-medium text-slate-800">{organDonorLabel}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.basic.organDonor")}
+              wrapper={snapshot?.organDonor}
+              t={t}
+              formatter={formatYesNo}
+            />
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-white p-3">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t("myHealthInfo.sections.basic.bloodDonor")}
+            </span>
+            <span className="font-medium text-slate-800">{bloodDonorLabel}</span>
+            <ScalarHistory
+              label={t("myHealthInfo.sections.basic.bloodDonor")}
+              wrapper={snapshot?.bloodDonor}
+              t={t}
+              formatter={formatYesNo}
+            />
           </div>
 
           {isDeceased && (

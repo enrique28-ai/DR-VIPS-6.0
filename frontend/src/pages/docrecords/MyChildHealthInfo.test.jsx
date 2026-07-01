@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import MyChildHealthInfo from "./MyChildHealthInfo.jsx";
 import {
@@ -21,14 +21,18 @@ vi.mock("react-i18next", () => ({
     t: (key, options = {}) =>
       ({
         "myHealthInfo.common.notSpecified": "Not specified",
+        "myHealthInfo.common.no": "No",
         "myHealthInfo.common.unknownDate": "Unknown date",
+        "myHealthInfo.common.yes": "Yes",
         "myHealthInfo.history.systemUnknown": "Unknown",
         "myHealthInfo.sections.basic.title": "Basic information",
         "myHealthInfo.sections.basic.age": "Age",
         "myHealthInfo.sections.basic.ageWithYears": `${options.age} years`,
         "myHealthInfo.sections.basic.gender": "Gender",
         "myHealthInfo.sections.basic.bloodType": "Blood type",
+        "myHealthInfo.sections.basic.bloodDonor": "Blood donor",
         "myHealthInfo.sections.basic.location": "Place of Residence",
+        "myHealthInfo.sections.basic.organDonor": "Organ donor",
         "myHealthInfo.sections.basic.phone": "Phone",
         "myChildren.childNotFound": "Child not found or no longer accessible.",
         "myChildren.healthInfo": "Health Info",
@@ -86,6 +90,8 @@ const baseSnapshot = (overrides = {}) => ({
   birthState: { value: "Baja California" },
   birthCity: { value: "Mexicali" },
   birthDate: "2016-01-01T12:00:00.000Z",
+  organDonor: { value: true },
+  bloodDonor: { value: false },
   measurementSystem: "metric",
   heightM: 1.35,
   weightKg: 32,
@@ -183,6 +189,37 @@ describe("MyChildHealthInfo", () => {
     expect(screen.getByText("O+")).toBeInTheDocument();
     expect(screen.getByText("Mexico, Jalisco, Guadalajara")).toBeInTheDocument();
     expect(screen.getByText("parent@example.com")).toBeInTheDocument();
+  });
+
+  test("renders child donor fields as yes and no values", () => {
+    renderChildHealthInfo(
+      baseSnapshot({
+        organDonor: { value: true },
+        bloodDonor: { value: false },
+      }),
+    );
+
+    const organDonorCard = screen.getByText("Organ donor").closest("div");
+    const bloodDonorCard = screen.getByText("Blood donor").closest("div");
+
+    expect(within(organDonorCard).getByText("Yes")).toBeInTheDocument();
+    expect(within(bloodDonorCard).getByText("No")).toBeInTheDocument();
+    expect(screen.getByText("parent@example.com")).toBeInTheDocument();
+  });
+
+  test("renders child donor fields as not specified only when values are missing", () => {
+    renderChildHealthInfo(
+      baseSnapshot({
+        organDonor: undefined,
+        bloodDonor: { value: null },
+      }),
+    );
+
+    const organDonorCard = screen.getByText("Organ donor").closest("div");
+    const bloodDonorCard = screen.getByText("Blood donor").closest("div");
+
+    expect(within(organDonorCard).getByText("Not specified")).toBeInTheDocument();
+    expect(within(bloodDonorCard).getByText("Not specified")).toBeInTheDocument();
   });
 
   test("renders the up-to-date banner when no decision is pending", () => {
