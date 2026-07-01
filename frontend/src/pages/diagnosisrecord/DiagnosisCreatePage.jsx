@@ -7,7 +7,18 @@ import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 
-
+function ToggleButton({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${active ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-blue-200 bg-white text-blue-700 hover:border-blue-300 hover:bg-blue-50"}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function DiagnosisCreatePage() {
   const { t } = useTranslation();
@@ -104,22 +115,12 @@ export default function DiagnosisCreatePage() {
                {t("diagnoses.form.requiresMeds")}
             </label>
             <div className="flex gap-2 mb-2" role="group" aria-label= {t("diagnoses.form.requiresMeds")}>
-              <Button
-                type="button"
-                variant={needsMeds === "yes" ? "primary" : "secondary"}
-                onClick={() => setNeedsMeds("yes")}
-                aria-pressed={needsMeds === "yes"}
-              >
+              <ToggleButton active={needsMeds === "yes"} onClick={() => setNeedsMeds("yes")}>
                 {t("diagnoses.form.yes")}
-              </Button>
-              <Button
-                type="button"
-                variant={needsMeds === "no" ? "primary" : "secondary"}
-                onClick={() => setNeedsMeds("no")}
-                aria-pressed={needsMeds === "no"}
-              >
+              </ToggleButton>
+              <ToggleButton active={needsMeds === "no"} onClick={() => setNeedsMeds("no")}>
                 {t("diagnoses.form.no")}
-              </Button>
+              </ToggleButton>
             </div>
             {needsMeds === "yes" && (
               <Input
@@ -138,8 +139,8 @@ export default function DiagnosisCreatePage() {
              {t("diagnoses.form.requiresTx")}
           </label>
           <div className="flex gap-2 mb-2" role="group" aria-label={t("diagnoses.form.requiresTx")}>
-            <Button type="button" variant={needsTx === "yes" ? "primary" : "secondary"} onClick={() => setNeedsTx("yes")} aria-pressed={needsTx === "yes"}>{t("diagnoses.form.yes")}</Button>
-            <Button type="button" variant={needsTx === "no"  ? "primary" : "secondary"} onClick={() => setNeedsTx("no")} aria-pressed={needsTx === "no"}>{t("diagnoses.form.no")}</Button>
+            <ToggleButton active={needsTx === "yes"} onClick={() => setNeedsTx("yes")}>{t("diagnoses.form.yes")}</ToggleButton>
+            <ToggleButton active={needsTx === "no"} onClick={() => setNeedsTx("no")}>{t("diagnoses.form.no")}</ToggleButton>
           </div>
           {needsTx === "yes" && (
             <Input
@@ -158,8 +159,8 @@ export default function DiagnosisCreatePage() {
        {t("diagnoses.form.requiresOps")}
     </label>
     <div className="flex gap-2 mb-2" role="group" aria-label={t("diagnoses.form.requiresOps")}>
-      <Button type="button" variant={needsOps === "yes" ? "primary" : "secondary"} onClick={() => setNeedsOps("yes")} aria-pressed={needsOps === "yes"}> {t("diagnoses.form.yes")}</Button>
-      <Button type="button" variant={needsOps === "no"  ? "primary" : "secondary"} onClick={() => setNeedsOps("no")} aria-pressed={needsOps === "no"}> {t("diagnoses.form.no")}</Button>
+      <ToggleButton active={needsOps === "yes"} onClick={() => setNeedsOps("yes")}> {t("diagnoses.form.yes")}</ToggleButton>
+      <ToggleButton active={needsOps === "no"} onClick={() => setNeedsOps("no")}> {t("diagnoses.form.no")}</ToggleButton>
     </div>
     {needsOps === "yes" && (
       <Input
