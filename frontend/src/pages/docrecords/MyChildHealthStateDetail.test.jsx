@@ -35,6 +35,8 @@ vi.mock("react-i18next", () => ({
         "common.translate": "Translate",
         "diagnoses.detail.notFound": "Diagnosis not found",
         "diagnoses.history.title": "History",
+        "myChildren.back": "Back to children",
+        "myChildren.healthState": "Child health state",
       }[key] ?? key),
   }),
 }));
@@ -117,11 +119,11 @@ describe("MyChildHealthStateDetail", () => {
       isError: false,
     });
 
-    expect(screen.getByText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading");
     expect(useMyChildDiagnosis).toHaveBeenCalledWith("child-profile-id", "diagnosis-1");
   });
 
-  test("renders not-found state when child diagnosis data is missing", () => {
+  test("renders not-found state with recovery action when child diagnosis data is missing", () => {
     renderDetail(null, {
       data: null,
       isLoading: false,
@@ -129,6 +131,9 @@ describe("MyChildHealthStateDetail", () => {
     });
 
     expect(screen.getByText("Diagnosis not found")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to children" }));
+
+    expect(navigateMock).toHaveBeenCalledWith("/docrecords/mychildren");
   });
 
   test("renders diagnosis title and description", () => {

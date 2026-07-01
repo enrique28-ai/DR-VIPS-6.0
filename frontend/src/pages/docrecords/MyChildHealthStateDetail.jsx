@@ -1,11 +1,74 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, History, Loader2, Languages } from "lucide-react";
+import { ArrowLeft, FileText, History, Languages, Loader2 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 
 import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
-import { useMyChildDiagnosis, useTranslateChildDiagnosisHistorySnapshot} from "../../features/diagnostics/dhooks.js";
+import {
+  useMyChildDiagnosis,
+  useTranslateChildDiagnosisHistorySnapshot,
+} from "../../features/diagnostics/dhooks.js";
+
+const FALLBACK_TEXT = "-";
+
+function PageShell({ children }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function LoadingState({ t }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50" aria-busy="true">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <div className="mb-3 h-4 w-36 animate-pulse rounded-full bg-slate-200" />
+              <div className="h-8 w-64 max-w-full animate-pulse rounded-xl bg-slate-200" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <div className="h-11 animate-pulse rounded-xl bg-slate-200 sm:w-28" />
+              <div className="h-11 animate-pulse rounded-xl bg-slate-200 sm:w-28" />
+            </div>
+          </div>
+          <p
+            role="status"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600"
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+            {t("common.loading")}
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function NotFoundState({ onBack, t }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+            <FileText className="h-7 w-7" aria-hidden="true" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+            {t("diagnoses.detail.notFound")}
+          </h1>
+          <Button className="mt-6 sm:w-auto" onClick={onBack}>
+            {t("myChildren.back")}
+          </Button>
+        </section>
+      </div>
+    </main>
+  );
+}
 
 export default function MyChildHealthStateDetail() {
   const { childId, id } = useParams();
@@ -24,62 +87,82 @@ export default function MyChildHealthStateDetail() {
   }, [diagnosis]);
 
   if (isLoading) {
-    return (
-      <main className="p-6 text-center text-gray-500">
-        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-        {t("common.loading")}
-      </main>
-    );
+    return <LoadingState t={t} />;
   }
 
   if (!diagnosis) {
     return (
-      <main className="mx-auto max-w-4xl p-4">
-        <div className="p-6 bg-white border rounded-xl text-gray-600">
-          {t("diagnoses.detail.notFound")}
-        </div>
-      </main>
+      <NotFoundState
+        t={t}
+        onBack={() => {
+          nav("/docrecords/mychildren");
+        }}
+      />
     );
   }
 
+  const title = diagnosis.title;
+  const description = diagnosis.description || FALLBACK_TEXT;
+
   return (
-    <main className="mx-auto max-w-4xl p-4 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <Button variant="secondary" full={false} onClick={() => nav(-1)}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          {t("common.back")}
-        </Button>
+    <PageShell>
+      <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium leading-6 text-slate-600">
+              <FileText className="h-4 w-4 text-blue-600" aria-hidden="true" />
+              {t("myChildren.healthState")}
+            </p>
+            <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              {title}
+            </h1>
+          </div>
 
-        <div className="flex gap-2">
-          <Button variant="secondary" full={false} onClick={() => setHistoryOpen(true)}>
-            <History className="w-4 h-4 mr-2" />
-            {t("diagnoses.history.title")}
-          </Button>
+          <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:flex lg:items-center">
+            <Button variant="secondary" full={false} onClick={() => nav(-1)} className="w-full">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              {t("common.back")}
+            </Button>
 
-          {hasText && (
             <Button
               variant="secondary"
               full={false}
-              loading={translate.isPending}
-              onClick={async () => {
-                const d = await translate.mutateAsync({ childId, diagnosisId: id, lang });
-                // OJO: aquí solo “reemplazas” en UI si quieres; lo común es refetch,
-                // pero como tu endpoint ya devuelve traducido, puedes hacer setState si lo prefieres.
-                // Para simple: recarga la página con invalidateQuery (si lo manejas en hooks),
-                // o ignora y solo úsalo cuando abras detalle.
-              }}
+              onClick={() => setHistoryOpen(true)}
+              className="w-full"
             >
-              <Languages className="w-4 h-4 mr-2" />
-              {t("common.translate")}
+              <History className="h-4 w-4" aria-hidden="true" />
+              {t("diagnoses.history.title")}
             </Button>
-          )}
-        </div>
-      </div>
 
-      <div className="bg-white border rounded-xl p-4 space-y-3">
-        <h1 className="text-2xl font-bold">{diagnosis.title}</h1>
-        <div className="text-sm text-gray-600">{diagnosis.description || "-"}</div>
-      </div>
+            {hasText && (
+              <Button
+                variant="secondary"
+                full={false}
+                loading={translate.isPending}
+                onClick={async () => {
+                  await translate.mutateAsync({ childId, diagnosisId: id, lang });
+                }}
+                className="w-full"
+              >
+                <Languages className="h-4 w-4" aria-hidden="true" />
+                {t("common.translate")}
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+            <FileText className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h2 className="text-base font-semibold text-slate-950">
+            {t("myChildren.healthState")}
+          </h2>
+        </div>
+        <p className="mt-4 break-words text-sm leading-6 text-slate-700">{description}</p>
+      </section>
 
       {historyOpen && (
         <DiagnosisHistoryModal
@@ -89,6 +172,6 @@ export default function MyChildHealthStateDetail() {
           onClose={() => setHistoryOpen(false)}
         />
       )}
-    </main>
+    </PageShell>
   );
 }

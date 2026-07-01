@@ -146,7 +146,7 @@ describe("MyChildrenHome", () => {
     );
   });
 
-  test("renders disabled child links when no source id exists", () => {
+  test("renders disabled non-navigating child actions when no source id exists", () => {
     renderChildrenHome({
       data: [
         childRecord({
@@ -159,13 +159,15 @@ describe("MyChildrenHome", () => {
       ],
     });
 
-    const card = screen.getByText("Unlinked Minor").closest(".bg-white");
-    const healthInfoLink = within(card).getByRole("link", { name: "Health info" });
-    const healthStateLink = within(card).getByRole("link", { name: "Health state" });
+    const card = screen.getByText("Unlinked Minor").closest("article");
+    const healthInfoAction = within(card).getByRole("button", { name: "Health info" });
+    const healthStateAction = within(card).getByRole("button", { name: "Health state" });
 
-    expect(healthInfoLink).toHaveClass("opacity-50");
-    expect(healthInfoLink).toHaveClass("pointer-events-none");
-    expect(healthStateLink).toHaveClass("opacity-50");
-    expect(healthStateLink).toHaveClass("pointer-events-none");
+    expect(within(card).queryByRole("link", { name: "Health info" })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("link", { name: "Health state" })).not.toBeInTheDocument();
+    expect(healthInfoAction).toBeDisabled();
+    expect(healthInfoAction).toHaveAttribute("aria-disabled", "true");
+    expect(healthStateAction).toBeDisabled();
+    expect(healthStateAction).toHaveAttribute("aria-disabled", "true");
   });
 });

@@ -104,7 +104,7 @@ describe("MyChildHealthState", () => {
       },
     });
 
-    expect(screen.getByText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading");
     expect(useMyChildrenHealthInfo).toHaveBeenCalledWith("en");
     expect(useMyChildDiagnoses).toHaveBeenCalledWith(
       "child-profile-id",
@@ -147,6 +147,7 @@ describe("MyChildHealthState", () => {
 
     expect(screen.getByText("Flu diagnosis")).toBeInTheDocument();
     expect(screen.getByText("Fever and cough")).toBeInTheDocument();
+    expect(screen.getByText(new Date("2026-06-21T12:00:00.000Z").toLocaleString("en"))).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Flu diagnosis/i })).toHaveAttribute(
       "href",
       "/docrecords/mychildren/child-profile-id/health-state/diagnosis-1",
