@@ -1,21 +1,22 @@
 import { useNavigate } from "react-router-dom";
 import {
-  User2,
-  Pill,
   Activity,
+  CheckCircle2,
   Droplets,
-  Info,
-  Mail, 
-  Stethoscope,
   History,
-  X,
+  Info,
   Languages,
-   Loader2,
+  Loader2,
+  Mail,
+  Pill,
+  Stethoscope,
+  User2,
+  X,
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 import {
-  useMyHealthInfo,
   useApprovePatientProfile,
+  useMyHealthInfo,
   useRejectPatientProfile,
   useTranslateMyHealthInfo,
 } from "../../features/patients/phooks.js";
@@ -23,20 +24,19 @@ import PatientHistoryModal from "../../components/patient/PatientHistoryModal.js
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import {
-   localizeCountryName,
-   localizeStateName,
-   localizeCityName,
-   getDialCodeByCountryIso,
- } from "../../utilsfront/geoLabels.js";
+  getDialCodeByCountryIso,
+  localizeCityName,
+  localizeCountryName,
+  localizeStateName,
+} from "../../utilsfront/geoLabels.js";
 import { formatHeightForSystem } from "../../utilsfront/measurements.js";
 import {
-  scalarValue,
-  formatDateTime,
-  formatDateOnly,
-  ScalarHistory,
   ChipList,
+  ScalarHistory,
+  formatDateOnly,
+  formatDateTime,
+  scalarValue,
 } from "./myhealthfunctions/healthfunctions.jsx";
-
 
 function yesNoFromScalar(w, t) {
   const v = scalarValue(w);
@@ -45,6 +45,227 @@ function yesNoFromScalar(w, t) {
   return t("myHealthInfo.common.notSpecified");
 }
 
+function PageShell({ children }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function LoadingState({ t }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50" aria-busy="true">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="mb-3 h-4 w-36 animate-pulse rounded-full bg-slate-200" />
+              <div className="h-8 w-64 max-w-full animate-pulse rounded-xl bg-slate-200" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <div className="h-11 animate-pulse rounded-xl bg-slate-200 sm:w-28" />
+              <div className="h-11 animate-pulse rounded-xl bg-slate-200 sm:w-28" />
+            </div>
+          </div>
+          <p
+            role="status"
+            className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-slate-600"
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+            {t("common.loading")}
+          </p>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 h-5 w-40 animate-pulse rounded-full bg-slate-200" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2, 3, 4, 5].map((item) => (
+              <div key={item} className="h-24 animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function EmptyState({ t, onBack }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+            <Info className="h-7 w-7" aria-hidden="true" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+            {t("myHealthInfo.empty.title")}
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
+            {t("myHealthInfo.empty.description")}
+          </p>
+          <Button className="mt-6 sm:w-auto" onClick={onBack}>
+            {t("myHealthInfo.empty.backToState")}
+          </Button>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function SectionCard({ title, icon: Icon, tone = "blue", children }) {
+  const toneClasses = {
+    blue: "bg-blue-50 text-blue-700",
+    rose: "bg-rose-50 text-rose-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+  };
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${toneClasses[tone]}`}
+        >
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+      </div>
+      <div className="p-4 sm:p-5">{children}</div>
+    </section>
+  );
+}
+
+function RecordField({ label, value, icon: Icon, children, className = "" }) {
+  return (
+    <div
+      className={`min-w-0 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 ${className}`}
+    >
+      <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+        {label}
+      </span>
+      {value != null && (
+        <span className="mt-1 block break-words text-sm font-medium leading-6 text-slate-900">
+          {value}
+        </span>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function PreviousLocations({ title, locations, language, t }) {
+  if (locations.length === 0) return null;
+
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+      <p className="font-semibold text-slate-700">{title}</p>
+      <div className="mt-1 space-y-1">
+        {locations.map((loc, idx) => (
+          <p key={idx} className="break-words">
+            {[
+              localizeCountryName(loc.country, language),
+              localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
+              localizeCityName({
+                countryName: loc.country,
+                stateName: loc.state,
+                cityName: loc.city,
+                t,
+              }),
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReviewStatusBanner({ pendingDecision, doctorName, lastUpdated, t }) {
+  if (pendingDecision) {
+    return (
+      <section className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+            <Info className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-amber-950">
+              {t("myHealthInfo.header.pendingReview")}
+            </h2>
+            <p className="mt-1 break-words text-sm leading-6 text-amber-800">
+              {doctorName} - {lastUpdated}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm sm:p-5">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+          <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <p className="min-w-0 break-words text-sm font-medium leading-6 text-emerald-900">
+          {t("myHealthInfo.header.allUpToDate")}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function ConditionColumn({
+  added,
+  approved,
+  changed,
+  icon: Icon,
+  iconClassName,
+  items,
+  label,
+  removed,
+  t,
+}) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+        <Icon className={`h-4 w-4 ${iconClassName}`} aria-hidden="true" />
+        {label}
+      </h3>
+      <div className="mt-3">
+        <ChipList items={items} t={t} />
+      </div>
+      {changed && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-medium text-slate-600">
+            {t("myHealthInfo.changes.previouslyApproved")}
+          </p>
+          <ChipList items={approved} t={t} />
+          {added.length > 0 && (
+            <>
+              <p className="text-xs font-medium text-emerald-700">
+                {t("myHealthInfo.changes.thisWasAdded")}
+              </p>
+              <ChipList items={added} t={t} tone="success" />
+            </>
+          )}
+          {removed.length > 0 && (
+            <>
+              <p className="text-xs font-medium text-rose-700">
+                {t("myHealthInfo.changes.thisWasRemoved")}
+              </p>
+              <ChipList items={removed} t={t} tone="danger" />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MyHealthInfo() {
   const navigate = useNavigate();
@@ -54,50 +275,26 @@ export default function MyHealthInfo() {
   const [translatedData, setTranslatedData] = useState(null);
   const [translatedLang, setTranslatedLang] = useState("");
 
-
-
   const { data: serverData, isLoading, isError } = useMyHealthInfo();
-  
-
-
   const approveMutation = useApprovePatientProfile();
   const rejectMutation = useRejectPatientProfile();
-
   const { mutate: translateHealthInfo, isPending: isTranslating } = useTranslateMyHealthInfo();
 
   const displayData =
     translatedData && translatedLang === i18n.language ? translatedData : serverData;
 
-    
   if (isLoading) {
-    return (
-       <div className="flex justify-center p-10 text-center">
-        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-      </div>
-    );
+    return <LoadingState t={t} />;
   }
 
-   if (isError || !displayData) {
+  if (isError || !displayData || !displayData.hasRecords) {
     return (
-      <main className="mx-auto max-w-5xl p-6 text-center">
-        <h1 className="text-xl font-semibold text-slate-900">{t("myHealthInfo.empty.title")}</h1>
-        <p className="mt-2 text-slate-600">{t("myHealthInfo.empty.description")}</p>
-        <Button className="mt-4" onClick={() => navigate("/docrecords/myhealthstate")}>
-          {t("myHealthInfo.empty.backToState")}
-        </Button>
-      </main>
-    );
-  }
-
-  if (!displayData.hasRecords) {
-    return (
-      <main className="mx-auto max-w-5xl p-6 text-center">
-        <h1 className="text-xl font-semibold text-slate-900">{t("myHealthInfo.empty.title")}</h1>
-        <p className="mt-2 text-slate-600">{t("myHealthInfo.empty.description")}</p>
-        <Button className="mt-4" onClick={() => navigate("/docrecords/myhealthstate")}>
-          {t("myHealthInfo.empty.backToState")}
-        </Button>
-      </main>
+      <EmptyState
+        t={t}
+        onBack={() => {
+          navigate("/docrecords/myhealthstate");
+        }}
+      />
     );
   }
 
@@ -114,8 +311,8 @@ export default function MyHealthInfo() {
     genderLower === "male"
       ? t("patients.card.genderMale")
       : genderLower === "female"
-      ? t("patients.card.genderFemale")
-      : genderRaw || null;
+        ? t("patients.card.genderFemale")
+        : genderRaw || null;
 
   const formatGender = (v) => {
     const raw = scalarValue(v);
@@ -126,10 +323,16 @@ export default function MyHealthInfo() {
     if (s === "female") return t("patients.card.genderFemale");
 
     return String(raw);
+  };
 
-};
+  const formatYesNo = (v) =>
+    v === true
+      ? t("myHealthInfo.common.yes")
+      : v === false
+        ? t("myHealthInfo.common.no")
+        : t("myHealthInfo.common.notSpecified");
 
-   const bloodtypeVal = scalarValue(snapshot?.bloodtype);
+  const bloodtypeVal = scalarValue(snapshot?.bloodtype);
   const phoneVal = scalarValue(snapshot?.phone);
   const phoneCountryVal = scalarValue(snapshot?.phoneCountry);
   const phoneCountryIsoVal = scalarValue(snapshot?.phoneCountryIso);
@@ -147,15 +350,22 @@ export default function MyHealthInfo() {
   const locationVal = [
     localizeCountryName(countryRaw, i18n.language) || countryRaw,
     localizeStateName({ countryName: countryRaw, stateName: stateRaw, t }) || stateRaw,
-    localizeCityName({ countryName: countryRaw, stateName: stateRaw, cityName: cityRaw, t }) || cityRaw,
+    localizeCityName({ countryName: countryRaw, stateName: stateRaw, cityName: cityRaw, t }) ||
+      cityRaw,
   ]
     .filter(Boolean)
     .join(", ");
 
   const birthplaceVal = [
     localizeCountryName(birthCountryRaw, i18n.language) || birthCountryRaw,
-    localizeStateName({ countryName: birthCountryRaw, stateName: birthStateRaw, t }) || birthStateRaw,
-    localizeCityName({ countryName: birthCountryRaw, stateName: birthStateRaw, cityName: birthCityRaw, t }) || birthCityRaw,
+    localizeStateName({ countryName: birthCountryRaw, stateName: birthStateRaw, t }) ||
+      birthStateRaw,
+    localizeCityName({
+      countryName: birthCountryRaw,
+      stateName: birthStateRaw,
+      cityName: birthCityRaw,
+      t,
+    }) || birthCityRaw,
   ]
     .filter(Boolean)
     .join(", ");
@@ -187,7 +397,11 @@ export default function MyHealthInfo() {
         })
       : [];
 
-  const maxBirthLoc = Math.max(birthCountryAlts.length, birthStateAlts.length, birthCityAlts.length);
+  const maxBirthLoc = Math.max(
+    birthCountryAlts.length,
+    birthStateAlts.length,
+    birthCityAlts.length,
+  );
   const prevBirthplaces =
     maxBirthLoc > 1
       ? Array.from({ length: maxBirthLoc - 1 }, (_, k) => {
@@ -199,7 +413,9 @@ export default function MyHealthInfo() {
           };
         }).filter((loc) => {
           const isCurrent =
-            loc.country === birthCountryRaw && loc.state === birthStateRaw && loc.city === birthCityRaw;
+            loc.country === birthCountryRaw &&
+            loc.state === birthStateRaw &&
+            loc.city === birthCityRaw;
           return !isCurrent;
         })
       : [];
@@ -213,13 +429,10 @@ export default function MyHealthInfo() {
   const bloodDonorLabel = yesNoFromScalar(snapshot?.bloodDonor, t);
 
   const measurementSystem =
-    scalarValue(snapshot?.measurementSystem) ??
-    scalarValue(snapshot?.measurementSystemWrapper);
+    scalarValue(snapshot?.measurementSystem) ?? scalarValue(snapshot?.measurementSystemWrapper);
   const useMetric = measurementSystem === "metric";
 
-  const heightMValue =
-    scalarValue(snapshot?.heightM) ??
-    scalarValue(snapshot?.heightWrapper);
+  const heightMValue = scalarValue(snapshot?.heightM) ?? scalarValue(snapshot?.heightWrapper);
 
   const heightDisplay = formatHeightForSystem({
     measurementSystem,
@@ -241,18 +454,23 @@ export default function MyHealthInfo() {
     typeof snapshot?.bmi === "number"
       ? snapshot.bmi.toFixed(2)
       : t("myHealthInfo.common.notCalculated");
- const fullName =
+
+  const fullName =
     scalarValue(snapshot?.fullnameWrapper) ||
     scalarValue(snapshot?.fullname) ||
     t("myHealthInfo.sections.basic.fullname");
 
-   const latestDiseases = Array.isArray(snapshot?.diseases) ? snapshot.diseases : [];
+  const latestDiseases = Array.isArray(snapshot?.diseases) ? snapshot.diseases : [];
   const latestAllergies = Array.isArray(snapshot?.allergies) ? snapshot.allergies : [];
   const latestMedications = Array.isArray(snapshot?.medications) ? snapshot.medications : [];
 
   const approvedDiseases = Array.isArray(snapshot?.commonDiseases) ? snapshot.commonDiseases : [];
-  const approvedAllergies = Array.isArray(snapshot?.commonAllergies) ? snapshot.commonAllergies : [];
-  const approvedMedications = Array.isArray(snapshot?.commonMedications) ? snapshot.commonMedications : [];
+  const approvedAllergies = Array.isArray(snapshot?.commonAllergies)
+    ? snapshot.commonAllergies
+    : [];
+  const approvedMedications = Array.isArray(snapshot?.commonMedications)
+    ? snapshot.commonMedications
+    : [];
 
   const addedDiseases = latestDiseases.filter((d) => !approvedDiseases.includes(d));
   const removedDiseases = approvedDiseases.filter((d) => !latestDiseases.includes(d));
@@ -279,256 +497,191 @@ export default function MyHealthInfo() {
     );
   };
 
- const clearTranslatedData = () => {
+  const clearTranslatedData = () => {
     setTranslatedData(null);
     setTranslatedLang("");
   };
+
   const handleApprove = () => approveMutation.mutate(profileId || latestSource?.id);
   const handleReject = () => rejectMutation.mutate(profileId || latestSource?.id);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-           <h1 className="text-2xl font-bold text-slate-900">{fullName}</h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-            <User2 className="h-4 w-4" /> {t("navbar.myHealthInfo")}
-          </p>
-        </div>
-         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <Button variant="secondary" onClick={() => setShowHistory(true)} className="w-full sm:w-auto">
-            <History className="mr-2 h-4 w-4" />
-            {t("myHealthInfo.history.button")}
-          </Button>
-          <Button variant="secondary" onClick={handleTranslate} disabled={isTranslating} className="w-full sm:w-auto">
-            <Languages className="mr-2 h-4 w-4" />
-            {isTranslating ? t("common.loading") : t("common.translate")}
-          </Button>
-          {translatedData && translatedLang === i18n.language && (
-            <Button variant="secondary" onClick={clearTranslatedData} className="w-full sm:w-auto">
-              <X className="mr-2 h-4 w-4" />
-              {t("myHealthInfo.actions.clearTranslation")}
+    <PageShell>
+      <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium leading-6 text-slate-600">
+              <User2 className="h-4 w-4 text-blue-600" aria-hidden="true" />
+              {t("navbar.myHealthInfo")}
+            </p>
+            <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              {fullName}
+            </h1>
+          </div>
+
+          <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-none lg:flex lg:items-center">
+            <Button
+              variant="secondary"
+              onClick={() => setShowHistory(true)}
+              className="sm:w-auto"
+            >
+              <History className="h-4 w-4" aria-hidden="true" />
+              {t("myHealthInfo.history.button")}
             </Button>
-          )}
-        </div>
-      </div>
-
-
-    {pendingDecision ? (
-        <div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4 shadow-sm">
-          <div className="flex items-start">
-            <Info className="mt-0.5 h-5 w-5 text-amber-500" />
-            <div className="ml-3 flex-1">
-              <h3 className="text-sm font-bold text-amber-800">{t("myHealthInfo.header.pendingReview")}</h3>
-              <p className="mt-1 text-sm text-amber-700">
-                {doctorName} · {lastUpdated}
-              </p>
-            </div>
-             </div>
-        </div>
-      ) : (
-        <div className="flex items-center rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm">
-          <Info className="h-5 w-5 text-emerald-500" />
-          <p className="ml-3 text-sm font-medium text-emerald-800">{t("myHealthInfo.header.allUpToDate")}</p>
-        </div>
-      )}
-
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-          <div className="rounded-lg bg-white p-2 text-indigo-500 shadow-sm">
-            <User2 className="h-4 w-4" />
+            <Button
+              variant="secondary"
+              onClick={handleTranslate}
+              disabled={isTranslating}
+              className="sm:w-auto"
+            >
+              <Languages className="h-4 w-4" aria-hidden="true" />
+              {isTranslating ? t("common.loading") : t("common.translate")}
+            </Button>
+            {translatedData && translatedLang === i18n.language && (
+              <Button
+                variant="secondary"
+                onClick={clearTranslatedData}
+                className="sm:col-span-2 lg:w-auto"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("myHealthInfo.actions.clearTranslation")}
+              </Button>
+            )}
           </div>
-          <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.basic.title")}</h3>
         </div>
+      </header>
 
-            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.age")}
-            </span>
-            <span className="font-medium text-slate-800">
-              {ageVal != null
+      <ReviewStatusBanner
+        pendingDecision={pendingDecision}
+        doctorName={doctorName}
+        lastUpdated={lastUpdated}
+        t={t}
+      />
+
+      <SectionCard title={t("myHealthInfo.sections.basic.title")} icon={User2} tone="blue">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <RecordField
+            label={t("myHealthInfo.sections.basic.age")}
+            value={
+              ageVal != null
                 ? t("myHealthInfo.sections.basic.ageWithYears", { age: ageVal })
-                : t("myHealthInfo.common.notSpecified")}
-            </span>
+                : t("myHealthInfo.common.notSpecified")
+            }
+          >
             <ScalarHistory label={t("myHealthInfo.sections.basic.age")} wrapper={snapshot?.age} t={t} />
-          </div>
+          </RecordField>
 
-             <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.gender")}
-            </span>
-            <span className="font-medium text-slate-800">{genderVal || t("myHealthInfo.common.notSpecified")}</span>
+          <RecordField
+            label={t("myHealthInfo.sections.basic.gender")}
+            value={genderVal || t("myHealthInfo.common.notSpecified")}
+          >
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.gender")}
               wrapper={snapshot?.gender}
               t={t}
               formatter={formatGender}
             />
-          </div>
+          </RecordField>
 
-            <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.bloodType")}
-            </span>
-            <span className="font-medium text-slate-800">{bloodtypeVal || t("myHealthInfo.common.notSpecified")}</span>
+          <RecordField
+            label={t("myHealthInfo.sections.basic.bloodType")}
+            value={bloodtypeVal || t("myHealthInfo.common.notSpecified")}
+          >
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.bloodType")}
               wrapper={snapshot?.bloodtype}
               t={t}
             />
-          </div>
+          </RecordField>
 
-               <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.location")}
-            </span>
-            <span className="font-medium text-slate-800">{locationVal || t("myHealthInfo.common.notSpecified")}</span>
-            {prevLocations.length > 0 && (
-              <div className="mt-1 text-xs text-slate-600">
-                <p>{t("myHealthInfo.common.previouslyRecordedLocations")}</p>
-                <div className="mt-1 space-y-1">
-                  {prevLocations.map((loc, idx) => (
-                    <p key={idx}>
-                      <span className="font-medium">
-                        {[
-                          localizeCountryName(loc.country, i18n.language),
-                          localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
-                          localizeCityName({ countryName: loc.country, stateName: loc.state, cityName: loc.city, t }),
-                        ]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-             )}
-          </div>
+          <RecordField
+            label={t("myHealthInfo.sections.basic.location")}
+            value={locationVal || t("myHealthInfo.common.notSpecified")}
+            className="lg:col-span-2"
+          >
+            <PreviousLocations
+              title={t("myHealthInfo.common.previouslyRecordedLocations")}
+              locations={prevLocations}
+              language={i18n.language}
+              t={t}
+            />
+          </RecordField>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("patients.create.placeOfBirth")}
-            </span>
-            <span className="font-medium text-slate-800">{birthplaceVal || t("myHealthInfo.common.notSpecified")}</span>
-            {prevBirthplaces.length > 0 && (
-              <div className="mt-1 text-xs text-slate-600">
-                <p>{t("myHealthInfo.common.previouslyRecordedBirthplaces")}</p>
-                <div className="mt-1 space-y-1">
-                  {prevBirthplaces.map((loc, idx) => (
-                    <p key={idx}>
-                      <span className="font-medium">
-                        {[
-                          localizeCountryName(loc.country, i18n.language),
-                          localizeStateName({ countryName: loc.country, stateName: loc.state, t }),
-                          localizeCityName({ countryName: loc.country, stateName: loc.state, cityName: loc.city, t }),
-                        ]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <RecordField
+            label={t("patients.create.placeOfBirth")}
+            value={birthplaceVal || t("myHealthInfo.common.notSpecified")}
+            className="lg:col-span-2"
+          >
+            <PreviousLocations
+              title={t("myHealthInfo.common.previouslyRecordedBirthplaces")}
+              locations={prevBirthplaces}
+              language={i18n.language}
+              t={t}
+            />
+          </RecordField>
 
-            <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.phone")}
-            </span>
-            <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-              <Mail className="h-4 w-4 text-slate-500" />
-              {phoneVal || t("myHealthInfo.common.notSpecified")}
-            </span>
+          <RecordField
+            label={t("myHealthInfo.sections.basic.phone")}
+            value={phoneVal || t("myHealthInfo.common.notSpecified")}
+            icon={Mail}
+          >
             {showPhoneCountryMeta && (
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 break-words text-xs font-medium text-slate-600">
                 {t("patients.create.phoneCountry")}: {phoneCountryDisplay}
               </p>
             )}
             <ScalarHistory label={t("myHealthInfo.sections.basic.phone")} wrapper={snapshot?.phone} t={t} />
-          </div>
+          </RecordField>
 
-              <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("patients.create.birthDate")}
-            </span>
-            <span className="font-medium text-slate-800">{birthDateVal}</span>
-          </div>
+          <RecordField label={t("patients.create.birthDate")} value={birthDateVal} />
 
-         <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.organDonor")}
-            </span>
-            <span className="font-medium text-slate-800">{organDonorLabel}</span>
+          <RecordField
+            label={t("myHealthInfo.sections.basic.organDonor")}
+            value={organDonorLabel}
+          >
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.organDonor")}
               wrapper={snapshot?.organDonor}
               t={t}
-              formatter={(v) =>
-                v === true
-                  ? t("myHealthInfo.common.yes")
-                  : v === false
-                    ? t("myHealthInfo.common.no")
-                    : t("myHealthInfo.common.notSpecified")
-              }
+              formatter={formatYesNo}
             />
-          </div>
-            <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.basic.bloodDonor")}
-            </span>
-            <span className="font-medium text-slate-800">{bloodDonorLabel}</span>
+          </RecordField>
+
+          <RecordField
+            label={t("myHealthInfo.sections.basic.bloodDonor")}
+            value={bloodDonorLabel}
+          >
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.bloodDonor")}
               wrapper={snapshot?.bloodDonor}
               t={t}
-              formatter={(v) =>
-                v === true
-                  ? t("myHealthInfo.common.yes")
-                  : v === false
-                    ? t("myHealthInfo.common.no")
-                    : t("myHealthInfo.common.notSpecified")
-              }
+              formatter={formatYesNo}
             />
-          </div>
+          </RecordField>
 
-
-             {isDeceased && (
+          {isDeceased && (
             <>
-              <div className="rounded-lg border border-slate-100 bg-white p-3">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  {t("patients.edit.dateOfDeath")}
-                </span>
-                <span className="font-medium text-slate-800">{deathDateVal}</span>
-              </div>
-
-                <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  {t("myHealthInfo.sections.basic.causeOfDeath")}
-                </span>
-                <span className="font-medium text-slate-800">{causeOfDeathVal}</span>
-              </div>
-             </>
+              <RecordField label={t("patients.edit.dateOfDeath")} value={deathDateVal} />
+              <RecordField
+                label={t("myHealthInfo.sections.basic.causeOfDeath")}
+                value={causeOfDeathVal}
+                className="lg:col-span-2"
+              />
+            </>
           )}
         </div>
-        </section>
+      </SectionCard>
 
-
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-          <div className="rounded-lg bg-white p-2 text-rose-500 shadow-sm">
-            <Activity className="h-4 w-4" />
-          </div>
-        <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.anthropometrics.title")}</h3>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.anthropometrics.height")}
-            </span>
-            <span className="font-medium text-slate-800">{heightDisplay}</span>
+      <SectionCard
+        title={t("myHealthInfo.sections.anthropometrics.title")}
+        icon={Activity}
+        tone="rose"
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <RecordField
+            label={t("myHealthInfo.sections.anthropometrics.height")}
+            value={heightDisplay}
+          >
             <ScalarHistory
               label={t("myHealthInfo.sections.anthropometrics.height")}
               wrapper={snapshot?.heightWrapper}
@@ -546,13 +699,12 @@ export default function MyHealthInfo() {
                     });
               }}
             />
-          </div>
+          </RecordField>
 
-        <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.anthropometrics.weight")}
-            </span>
-            <span className="font-medium text-slate-800">{weightDisplay}</span>
+          <RecordField
+            label={t("myHealthInfo.sections.anthropometrics.weight")}
+            value={weightDisplay}
+          >
             <ScalarHistory
               label={t("myHealthInfo.sections.anthropometrics.weight")}
               wrapper={snapshot?.weightWrapper}
@@ -564,14 +716,9 @@ export default function MyHealthInfo() {
                 return useMetric ? `${v.toFixed(2)} kg` : `${(v / 0.45359237).toFixed(2)} lb`;
               }}
             />
-          </div>
-       
+          </RecordField>
 
-   <div className="rounded-lg border border-slate-100 bg-white p-3">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {t("myHealthInfo.sections.anthropometrics.bmi")}
-            </span>
-            <span className="font-medium text-slate-800">{bmiDisplay}</span>
+          <RecordField label={t("myHealthInfo.sections.anthropometrics.bmi")} value={bmiDisplay}>
             <ScalarHistory
               label={t("myHealthInfo.sections.anthropometrics.bmi")}
               wrapper={snapshot?.bmiWrapper}
@@ -581,121 +728,89 @@ export default function MyHealthInfo() {
                 return v.toFixed(2);
               }}
             />
-          </div>
-        
-
+          </RecordField>
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-          <div className="rounded-lg bg-white p-2 text-emerald-500 shadow-sm">
-            <Stethoscope className="h-4 w-4" />
-          </div>
-        
-
-  <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.conditions.title")}</h3>
+      <SectionCard
+        title={t("myHealthInfo.sections.conditions.title")}
+        icon={Stethoscope}
+        tone="emerald"
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <ConditionColumn
+            label={t("myHealthInfo.sections.conditions.diseases")}
+            icon={Activity}
+            iconClassName="text-rose-500"
+            items={latestDiseases}
+            changed={diseasesChanged}
+            approved={approvedDiseases}
+            added={addedDiseases}
+            removed={removedDiseases}
+            t={t}
+          />
+          <ConditionColumn
+            label={t("myHealthInfo.sections.conditions.allergies")}
+            icon={Droplets}
+            iconClassName="text-amber-500"
+            items={latestAllergies}
+            changed={allergiesChanged}
+            approved={approvedAllergies}
+            added={addedAllergies}
+            removed={removedAllergies}
+            t={t}
+          />
+          <ConditionColumn
+            label={t("myHealthInfo.sections.conditions.medications")}
+            icon={Pill}
+            iconClassName="text-blue-500"
+            items={latestMedications}
+            changed={medicationsChanged}
+            approved={approvedMedications}
+            added={addedMedications}
+            removed={removedMedications}
+            t={t}
+          />
         </div>
-
-        <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
-          <div className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Activity className="h-4 w-4 text-rose-400" /> {t("myHealthInfo.sections.conditions.diseases")}
-            </h4>
-            <ChipList items={latestDiseases} t={t} />
-            {diseasesChanged && (
-              <>
-                <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
-                <ChipList items={approvedDiseases} t={t} />
-                {addedDiseases.length > 0 && (
-                  <>
-                    <p className="text-xs text-emerald-700">{t("myHealthInfo.changes.thisWasAdded")}</p>
-                    <ChipList items={addedDiseases} t={t} tone="success" />
-                  </>
-                )}
-                {removedDiseases.length > 0 && (
-                  <>
-                    <p className="text-xs text-rose-700">{t("myHealthInfo.changes.thisWasRemoved")}</p>
-                    <ChipList items={removedDiseases} t={t} tone="danger" />
-                  </>
-                )}
-              </>
-            )}
-          </div>
-       <div className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Droplets className="h-4 w-4 text-amber-400" /> {t("myHealthInfo.sections.conditions.allergies")}
-            </h4>
-            <ChipList items={latestAllergies} t={t} />
-            {allergiesChanged && (
-              <>
-                <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
-                <ChipList items={approvedAllergies} t={t} />
-                {addedAllergies.length > 0 && (
-                  <>
-                    <p className="text-xs text-emerald-700">{t("myHealthInfo.changes.thisWasAdded")}</p>
-                    <ChipList items={addedAllergies} t={t} tone="success" />
-                  </>
-                )}
-                {removedAllergies.length > 0 && (
-                  <>
-                    <p className="text-xs text-rose-700">{t("myHealthInfo.changes.thisWasRemoved")}</p>
-                    <ChipList items={removedAllergies} t={t} tone="danger" />
-                  </>
-                )}
-              </>
-            )}
-          </div>
-      <div className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Pill className="h-4 w-4 text-blue-400" /> {t("myHealthInfo.sections.conditions.medications")}
-            </h4>
-            <ChipList items={latestMedications} t={t} />
-            {medicationsChanged && (
-              <>
-                <p className="text-xs text-slate-600">{t("myHealthInfo.changes.previouslyApproved")}</p>
-                <ChipList items={approvedMedications} t={t} />
-                {addedMedications.length > 0 && (
-                  <>
-                    <p className="text-xs text-emerald-700">{t("myHealthInfo.changes.thisWasAdded")}</p>
-                    <ChipList items={addedMedications} t={t} tone="success" />
-                  </>
-                )}
-                {removedMedications.length > 0 && (
-                  <>
-                    <p className="text-xs text-rose-700">{t("myHealthInfo.changes.thisWasRemoved")}</p>
-                    <ChipList items={removedMedications} t={t} tone="danger" />
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </section>
+      </SectionCard>
 
       {latestSource && pendingDecision && (
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-700">{t("myHealthInfo.actions.approveIntro")}</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={handleApprove} disabled={approveMutation.isPending || rejectMutation.isPending}>
-              {approveMutation.isPending
-                ? t("myHealthInfo.actions.approving")
-                : t("myHealthInfo.actions.approve")}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={handleReject}
-               disabled={approveMutation.isPending || rejectMutation.isPending}
-            >
-              {rejectMutation.isPending
-                ? t("myHealthInfo.actions.rejecting")
-                : t("myHealthInfo.actions.reject")}
-            </Button>
+        <section className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-amber-950">
+                {t("myHealthInfo.header.pendingReview")}
+              </h2>
+              <p className="mt-1 break-words text-sm leading-6 text-amber-800">
+                {t("myHealthInfo.actions.approveIntro")}
+              </p>
+            </div>
+            <div className="grid gap-2 sm:flex sm:shrink-0 sm:items-center">
+              <Button
+                onClick={handleApprove}
+                disabled={approveMutation.isPending || rejectMutation.isPending}
+                className="sm:w-auto"
+              >
+                {approveMutation.isPending
+                  ? t("myHealthInfo.actions.approving")
+                  : t("myHealthInfo.actions.approve")}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleReject}
+                disabled={approveMutation.isPending || rejectMutation.isPending}
+                className="sm:w-auto"
+              >
+                {rejectMutation.isPending
+                  ? t("myHealthInfo.actions.rejecting")
+                  : t("myHealthInfo.actions.reject")}
+              </Button>
+            </div>
           </div>
         </section>
       )}
 
-     {showHistory && <PatientHistoryModal onClose={() => setShowHistory(false)} />}
-    </div>
+      {showHistory && <PatientHistoryModal onClose={() => setShowHistory(false)} />}
+    </PageShell>
   );
 }
