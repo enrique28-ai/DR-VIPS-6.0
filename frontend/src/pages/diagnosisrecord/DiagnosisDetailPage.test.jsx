@@ -28,6 +28,7 @@ vi.mock("react-i18next", () => ({
     i18n: { language: "en" },
     t: (key) =>
       ({
+        "common.loading": "Loading",
         "common.translate": "Translate",
         "diagnoses.detail.back": "Back",
         "diagnoses.detail.backToList": "Back to list",
@@ -97,14 +98,14 @@ describe("DiagnosisDetailPage", () => {
     useTranslateDiagnosis.mockReturnValue({ mutate: translate, isPending: false });
   });
 
-  test("renders null while the diagnosis is loading without cached data", () => {
-    const { container } = renderDetailPage(undefined, {
+  test("renders a loading state while the diagnosis is loading without cached data", () => {
+    renderDetailPage(undefined, {
       data: undefined,
       isLoading: true,
       isError: false,
     });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText("Loading")).toBeInTheDocument();
     expect(useDiagnosis).toHaveBeenCalledWith("diagnosis-1");
   });
 

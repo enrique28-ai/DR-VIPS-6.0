@@ -17,6 +17,7 @@ vi.mock("react-i18next", () => ({
     i18n: { language: "en" },
     t: (key, options = {}) => {
       const labels = {
+        "common.loading": "Loading",
         "diagnoses.create.cta": "Create diagnosis",
         "diagnoses.empty.title": "No diagnoses",
         "diagnoses.list.filters.backToPatient": "Back to patient",
@@ -148,13 +149,14 @@ describe("DiagnosesByPatientPage", () => {
     vi.clearAllMocks();
   });
 
-  test("renders null while diagnoses are loading without cached data", () => {
-    const { container } = renderListPage(undefined, {
+  test("renders a loading state while diagnoses are loading without cached data", () => {
+    renderListPage(undefined, {
       data: undefined,
       isLoading: true,
     });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Diagnoses" })).toBeInTheDocument();
     expectLastParams({
       q: undefined,
       date: undefined,
