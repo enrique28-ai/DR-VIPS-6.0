@@ -16,6 +16,7 @@ import {
  import LocalizedDatePicker from "../../components/forms/LocalizedDatePicker.jsx";
 import { useTranslation } from "react-i18next";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { ArrowLeft } from "lucide-react";
 import {
   feetInchesToDecimalFeet,
   feetInchesToMeters,
@@ -509,22 +510,23 @@ if (isMinor) {
 
 
   return (
-    <main className="mx-auto max-w-2xl p-4">
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-4">
-        <Link to="/patients" className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-100">
-           {t("patients.create.back")}
+        <Link to="/patients" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {t("patients.create.back")}
         </Link>
       </div>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-4">{t("patients.create.title")}</h1>
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950 mb-6">{t("patients.create.title")}</h1>
 
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={createPatient.isPending}>
-          <label className="block text-sm font-medium text-gray-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-slate-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
           <Input name="fullname" value={form.fullname} onChange={onChange} required placeholder={t("patients.create.fullnamePlaceholder")} />
          {!isMinor && (
   <>
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-slate-700">
       {t("patients.create.email")}<span className="text-red-500">*</span>
     </label>
 
@@ -546,7 +548,7 @@ if (isMinor) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div>
-      <label htmlFor="patient-create-phone-country" className="block text-sm font-medium text-gray-700">
+      <label htmlFor="patient-create-phone-country" className="block text-sm font-medium text-slate-700">
         {t("patients.create.phoneCountry")}{(!isMinor || phoneDigits) && <span className="text-red-500">*</span>}
       </label>
       <select
@@ -568,7 +570,7 @@ if (isMinor) {
         })}
       </select>
 
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-slate-700">
         {t("patients.create.phone")}{!isMinor && <span className="text-red-500">*</span>}
       </label>
 
@@ -576,7 +578,7 @@ if (isMinor) {
         <Input
           value={phoneDialCode}
           readOnly
-          className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-700"
+          className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-slate-700"
           placeholder="+CC"
         />
         <Input
@@ -601,7 +603,7 @@ if (isMinor) {
 
   <div>
     <div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
     {t("patients.create.birthDate")} <span className="text-red-500">*</span>
   </label>
 
@@ -624,7 +626,7 @@ if (isMinor) {
             {/* Children / Parent email */}
 {isMinor ? (
   <div>
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-slate-700">
       {t("patients.create.parentEmail")}<span className="text-red-500">*</span>
     </label>
     <Input
@@ -640,7 +642,7 @@ if (isMinor) {
   </div>
 ) : (
   <div className="sm:col-span-2">
-    <label className="block text-sm font-medium text-gray-700">{t("patients.create.hasChildren")}</label>
+    <label className="block text-sm font-medium text-slate-700">{t("patients.create.hasChildren")}</label>
 
     <div className="mt-2 flex gap-4">
       <label className="inline-flex items-center gap-2">
@@ -706,7 +708,7 @@ if (isMinor) {
 )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
             <select
               name="bloodtype"
               value={form.bloodtype}
@@ -723,7 +725,7 @@ if (isMinor) {
           <div>
            <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.residence")}</h2>
            {/* Country */}
- <label htmlFor="patient-create-residence-country" className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
+ <label htmlFor="patient-create-residence-country" className="block text-sm font-medium text-slate-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
  <select
    id="patient-create-residence-country"
    value={countryIso}
@@ -742,7 +744,7 @@ if (isMinor) {
  </select>
 
  {/* State/Province */}
- <label htmlFor={states.length > 0 ? "patient-create-residence-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
+ <label htmlFor={states.length > 0 ? "patient-create-residence-state" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
  {states.length > 0 ? (
    <select
      id="patient-create-residence-state"
@@ -769,7 +771,7 @@ if (isMinor) {
  )}
 
  {/* City */}
- <label htmlFor={cities.length > 0 ? "patient-create-residence-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
+ <label htmlFor={cities.length > 0 ? "patient-create-residence-city" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
  {cities.length > 0 ? (
    <select
      id="patient-create-residence-city"
@@ -799,7 +801,7 @@ if (isMinor) {
 
           <div>
             <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
-            <label htmlFor="patient-create-birth-country" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="patient-create-birth-country" className="block text-sm font-medium text-slate-700">
               {t("patients.create.birthCountry")}<span className="text-red-500">*</span>
             </label>
             <select
@@ -817,7 +819,7 @@ if (isMinor) {
               ))}
             </select>
 
-            <label htmlFor={birthStates.length > 0 ? "patient-create-birth-state" : undefined} className="block text-sm font-medium text-gray-700">
+            <label htmlFor={birthStates.length > 0 ? "patient-create-birth-state" : undefined} className="block text-sm font-medium text-slate-700">
               {t("patients.create.birthState")}<span className="text-red-500">*</span>
             </label>
             {birthStates.length > 0 ? (
@@ -842,7 +844,7 @@ if (isMinor) {
               />
             )}
 
-            <label htmlFor={birthCities.length > 0 ? "patient-create-birth-city" : undefined} className="block text-sm font-medium text-gray-700">
+            <label htmlFor={birthCities.length > 0 ? "patient-create-birth-city" : undefined} className="block text-sm font-medium text-slate-700">
               {t("patients.create.birthCity")}<span className="text-red-500">*</span>
             </label>
             {birthCities.length > 0 ? (
@@ -869,7 +871,7 @@ if (isMinor) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasDiseases")}</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasDiseases")}</label>
             <div className="flex gap-2 mb-2">
               <Button type="button" variant={hasDiseases === "yes" ? "primary" : "secondary"} onClick={() => setHasDiseases("yes")}>{t("patients.create.yes")}</Button>
               <Button type="button" variant={hasDiseases === "no"  ? "primary" : "secondary"} onClick={() => setHasDiseases("no")}>{t("patients.create.no")}</Button>
@@ -888,7 +890,7 @@ if (isMinor) {
 
            {/* Allergies */}
      <div>
-       <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasAllergies")}</label>
+       <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasAllergies")}</label>
        <div className="flex gap-2 mb-2">
          <Button type="button" variant={hasAllergies === "yes" ? "primary" : "secondary"} onClick={() => setHasAllergies("yes")}>{t("patients.create.yes")}</Button>
          <Button type="button" variant={hasAllergies === "no"  ? "primary" : "secondary"} onClick={() => setHasAllergies("no")}>{t("patients.create.no")}</Button>
@@ -907,7 +909,7 @@ if (isMinor) {
 
     {/* Medications (recurrent) */}
    <div>
-     <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasMedications")}</label>
+     <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasMedications")}</label>
      <div className="flex gap-2 mb-2">
        <Button type="button" variant={hasMedications === "yes" ? "primary" : "secondary"} onClick={() => setHasMedications("yes")}>{t("patients.create.yes")}</Button>
        <Button type="button" variant={hasMedications === "no"  ? "primary" : "secondary"} onClick={() => setHasMedications("no")}>{t("patients.create.no")}</Button>
@@ -926,7 +928,7 @@ if (isMinor) {
 
           {/* Gender (required) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               {t("patients.create.gender")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -949,7 +951,7 @@ if (isMinor) {
 
           {/* Organ donor (required) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.organDonor")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -972,7 +974,7 @@ if (isMinor) {
 
           {/* Blood donor (required) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.bloodDonor")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -995,7 +997,7 @@ if (isMinor) {
 
            {/* Measurement system + Height/Weight */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.measurementSystem")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -1086,6 +1088,7 @@ if (isMinor) {
           </div>
         </form>
       </section>
+      </div>
     </main>
   );
 }

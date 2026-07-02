@@ -27,6 +27,7 @@ import {
   resolveImperialHeightParts,
   metersToFeetInches,
 } from "../../utilsfront/measurements.js";
+import { ArrowLeft } from "lucide-react";
 function calcAgeFromYmd(birthYmd, refYmd) {
   if (!birthYmd) return NaN;
 
@@ -954,13 +955,15 @@ if (isMinor) {
   if (isLoading) return null; // si prefieres, muestra un spinner aquí
   if (isError || !patient) {
     return (
-      <main className="mx-auto max-w-2xl p-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold">{t("patients.edit.notFoundTitle")}</h1>
-          <div className="mt-4">
-            <Button full={false} variant="secondary" onClick={() => navigate("/patients")}>
-              {t("patients.edit.backToPatients")}
-            </Button>
+      <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+        <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{t("patients.edit.notFoundTitle")}</h1>
+            <div className="mt-4">
+              <Button full={false} variant="secondary" onClick={() => navigate("/patients")}>
+                {t("patients.edit.backToPatients")}
+              </Button>
+            </div>
           </div>
         </div>
       </main>
@@ -970,25 +973,27 @@ if (isMinor) {
   const hasExistingParentEmail = Boolean(patient?.parentEmail);
   const noDisabled = updatePatient.isPending || initialChildrenCount > 0;
   return (
-    <main className="mx-auto max-w-2xl p-4">
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-4">
         <button
+          type="button"
           onClick={handleBack}
-          className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-100"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
-          ← {t("patients.edit.back")}
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {t("patients.edit.back")}
         </button>
       </div>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-4">{t("patients.edit.title")}</h1>
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950 mb-6">{t("patients.edit.title")}</h1>
 
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={updatePatient.isPending}>
-          <label className="block text-sm font-medium text-gray-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-slate-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
           <Input name="fullname" value={form.fullname} onChange={onChange} required />
           {!isMinor && (
   <>
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-slate-700">
       {t("patients.create.email")}<span className="text-red-500">*</span>
     </label>
 
@@ -1016,7 +1021,7 @@ if (isMinor) {
 
        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div>
-      <label htmlFor="patient-edit-phone-country" className="block text-sm font-medium text-gray-700">
+      <label htmlFor="patient-edit-phone-country" className="block text-sm font-medium text-slate-700">
         {t("patients.create.phoneCountry")}{(!isMinor || phoneDigits) && <span className="text-red-500">*</span>}
       </label>
       <select
@@ -1038,7 +1043,7 @@ if (isMinor) {
         })}
       </select>
 
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-slate-700">
         {t("patients.create.phone")}{!isMinor && <span className="text-red-500">*</span>}
       </label>
 
@@ -1046,7 +1051,7 @@ if (isMinor) {
         <Input
           value={phoneDialCode}
           readOnly
-          className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-700"
+          className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-slate-700"
           placeholder="+CC"
         />
         <Input
@@ -1071,7 +1076,7 @@ if (isMinor) {
 
   <div>
     <div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
     {t("patients.create.birthDate")} <span className="text-red-500">*</span>
   </label>
 
@@ -1094,7 +1099,7 @@ if (isMinor) {
           {/* Children / Parent email */}
 {isMinor ? (
   <div>
-    <label className="block text-sm font-medium text-gray-700">
+    <label className="block text-sm font-medium text-slate-700">
       {t("patients.create.parentEmail")}<span className="text-red-500">*</span>
     </label>
   <Input
@@ -1116,7 +1121,7 @@ if (isMinor) {
   </div>
 ) : (
   <div className="sm:col-span-2">
-    <label className="block text-sm font-medium text-gray-700">{t("patients.create.hasChildren")}</label>
+    <label className="block text-sm font-medium text-slate-700">{t("patients.create.hasChildren")}</label>
 
     <div className="mt-2 flex gap-4">
   <label className={`inline-flex items-center gap-2 ${noDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
@@ -1204,7 +1209,7 @@ if (isMinor) {
 
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
             <select
               name="bloodtype"
               value={form.bloodtype}
@@ -1219,7 +1224,7 @@ if (isMinor) {
           <div>
                     <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.residence")}</h2>
                     {/* Country */}
-          <label htmlFor="patient-edit-residence-country" className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
+          <label htmlFor="patient-edit-residence-country" className="block text-sm font-medium text-slate-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
           <select
             id="patient-edit-residence-country"
             value={countryIso}
@@ -1238,7 +1243,7 @@ if (isMinor) {
           </select>
          
           {/* State/Province */}
-          <label htmlFor={states.length > 0 ? "patient-edit-residence-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
+          <label htmlFor={states.length > 0 ? "patient-edit-residence-state" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
           {states.length > 0 ? (
             <select
               id="patient-edit-residence-state"
@@ -1265,7 +1270,7 @@ if (isMinor) {
           )}
          
           {/* City */}
-          <label htmlFor={cities.length > 0 ? "patient-edit-residence-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
+          <label htmlFor={cities.length > 0 ? "patient-edit-residence-city" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
           {cities.length > 0 ? (
             <select
               id="patient-edit-residence-city"
@@ -1297,7 +1302,7 @@ if (isMinor) {
             <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
             {isBirthplaceLocked ? (
               <>
-                <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-slate-700">
                   {t("patients.create.birthCountry")}<span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -1308,7 +1313,7 @@ if (isMinor) {
                   className="bg-gray-100 text-gray-500 cursor-not-allowed"
                 />
 
-                <label htmlFor="patient-edit-birth-state" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="patient-edit-birth-state" className="block text-sm font-medium text-slate-700">
                   {t("patients.create.birthState")}<span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -1319,7 +1324,7 @@ if (isMinor) {
                   className="bg-gray-100 text-gray-500 cursor-not-allowed"
                 />
 
-                <label htmlFor="patient-edit-birth-city" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="patient-edit-birth-city" className="block text-sm font-medium text-slate-700">
                   {t("patients.create.birthCity")}<span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -1334,7 +1339,7 @@ if (isMinor) {
               </>
             ) : (
               <>
-                <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-gray-700">{t("patients.create.birthCountry")}</label>
+                <label htmlFor="patient-edit-birth-country" className="block text-sm font-medium text-slate-700">{t("patients.create.birthCountry")}</label>
                 <select
                   id="patient-edit-birth-country"
                   value={birthCountryIso}
@@ -1350,7 +1355,7 @@ if (isMinor) {
                   ))}
                 </select>
 
-                <label htmlFor={birthStates.length > 0 ? "patient-edit-birth-state" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthState")}</label>
+                <label htmlFor={birthStates.length > 0 ? "patient-edit-birth-state" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.birthState")}</label>
                 {birthStates.length > 0 ? (
                   <select
                     id="patient-edit-birth-state"
@@ -1373,7 +1378,7 @@ if (isMinor) {
                   />
                 )}
 
-                <label htmlFor={birthCities.length > 0 ? "patient-edit-birth-city" : undefined} className="block text-sm font-medium text-gray-700">{t("patients.create.birthCity")}</label>
+                <label htmlFor={birthCities.length > 0 ? "patient-edit-birth-city" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.birthCity")}</label>
                 {birthCities.length > 0 ? (
                   <select
                     id="patient-edit-birth-city"
@@ -1401,7 +1406,7 @@ if (isMinor) {
 
            {/* Diseases toggle + input condicional */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasDiseases")}</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasDiseases")}</label>
             <div className="flex gap-2 mb-2">
               <Button type="button" variant={hasDiseases === "yes" ? "primary" : "secondary"} onClick={() => setHasDiseases("yes")}> {t("patients.create.yes")}</Button>
               <Button type="button" variant={hasDiseases === "no"  ? "primary" : "secondary"} onClick={() => setHasDiseases("no")}>{t("patients.create.no")}</Button>
@@ -1420,7 +1425,7 @@ if (isMinor) {
 
           {/* Allergies toggle + input condicional */}
          <div>
-           <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasAllergies")}</label>
+           <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasAllergies")}</label>
            <div className="flex gap-2 mb-2">
            <Button type="button" variant={hasAllergies === "yes" ? "primary" : "secondary"} onClick={() => setHasAllergies("yes")}>{t("patients.create.yes")}</Button>
            <Button type="button" variant={hasAllergies === "no"  ? "primary" : "secondary"} onClick={() => setHasAllergies("no")}>{t("patients.create.no")}</Button>
@@ -1439,7 +1444,7 @@ if (isMinor) {
 
        {/* Medications toggle + input condicional */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.create.hasMedications")}</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasMedications")}</label>
         <div className="flex gap-2 mb-2">
           <Button type="button" variant={hasMedications === "yes" ? "primary" : "secondary"} onClick={() => setHasMedications("yes")}>{t("patients.create.yes")}</Button>
           <Button type="button" variant={hasMedications === "no"  ? "primary" : "secondary"} onClick={() => setHasMedications("no")}>{t("patients.create.no")}</Button>
@@ -1458,7 +1463,7 @@ if (isMinor) {
 
            {/* Gender */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.gender")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -1481,7 +1486,7 @@ if (isMinor) {
 
           {/* Organ donor */}
           <div>
-           <label className="block text-sm font-medium text-gray-700 mb-1">
+           <label className="block text-sm font-medium text-slate-700 mb-1">
               {t("patients.create.organDonor")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -1504,7 +1509,7 @@ if (isMinor) {
 
           {/* Blood donor */}
           <div>
-           <label className="block text-sm font-medium text-gray-700 mb-1">
+           <label className="block text-sm font-medium text-slate-700 mb-1">
               {t("patients.create.bloodDonor")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -1528,7 +1533,7 @@ if (isMinor) {
 
           {/* Life status */}
        <div>
-         <label className="block text-sm font-medium text-gray-700 mb-1">{t("patients.edit.status")}</label>
+         <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.edit.status")}</label>
         <div className="flex gap-2">
         <Button type="button" variant={life === "alive" ? "primary" : "secondary"} onClick={() => setLife("alive")}>
            {t("patients.edit.alive")}
@@ -1543,7 +1548,7 @@ if (isMinor) {
 
       <>
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-slate-700 mb-1">
         {t("patients.edit.dateOfDeath")} <span className="text-red-500">*</span>
       </label>
 
@@ -1566,7 +1571,7 @@ if (isMinor) {
 
            {/* Measurement system + Height/Weight */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               {t("patients.create.measurementSystem")} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -1654,6 +1659,7 @@ if (isMinor) {
           </div>
         </form>
       </section>
+      </div>
     </main>
   );
 }
