@@ -540,7 +540,11 @@ if (isMinor) {
       onBlur={onEmailBlur}
       required
       aria-required="true"
-      aria-describedby="patient-create-email-error"
+      aria-describedby={
+        !isEmailFormatValid && form.email
+          ? "patient-create-email-error"
+          : undefined
+      }
       aria-invalid={!isEmailFormatValid && !!form.email}
     />
 
@@ -819,6 +823,8 @@ if (isMinor) {
               value={birthCountryIso}
               onChange={onBirthCountryChange}
               className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+              required
+              aria-required="true"
               disabled={createPatient.isPending}
             >
               <option value=""> {t("patients.create.selectCountryOption")}</option>
@@ -838,6 +844,8 @@ if (isMinor) {
                 value={birthStateIso}
                 onChange={onBirthStateChange}
                 className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                required
+                aria-required="true"
               >
                 <option value="">{t("patients.create.selectStateOption")}</option>
                 {birthStates.map((s) => (
@@ -863,6 +871,8 @@ if (isMinor) {
                 value={birthCityName}
                 onChange={onBirthCityChange}
                 className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                required
+                aria-required="true"
               >
                 <option value="">{t("patients.create.selectCityOption")}</option>
                 {birthCities.map((ct) => (
