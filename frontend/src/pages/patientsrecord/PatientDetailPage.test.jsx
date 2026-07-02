@@ -206,6 +206,7 @@ describe("PatientDetailPage", () => {
     );
 
     expect(screen.getByText("Loading patient")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   test("renders not-found state and navigates back to patients", () => {
@@ -257,9 +258,6 @@ describe("PatientDetailPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "View diagnoses" }));
     expect(navigate).toHaveBeenCalledWith("/diagnosis/patient/patient-id");
-
-    fireEvent.click(screen.getByRole("button", { name: "Back to patients" }));
-    expect(navigate).toHaveBeenCalledWith("/patients");
   });
 
   test("translates patient details and replaces displayed data on success", async () => {
@@ -348,6 +346,46 @@ describe("PatientDetailPage", () => {
     renderDetailPage(adultPatient());
 
     expect(screen.queryByRole("button", { name: "Reassign guardian" })).not.toBeInTheDocument();
+  });
+
+  test("guardian modal renders with role dialog and aria-modal", () => {
+    renderDetailPage(minorPatient());
+    fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAttribute("aria-labelledby", "guardian-modal-title");
+  });
+
+  test("guardian modal close X closes the modal", () => {
+    renderDetailPage(minorPatient());
+    fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("Escape closes guardian modal", () => {
+    renderDetailPage(minorPatient());
+    fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("backdrop click closes guardian modal", () => {
+    renderDetailPage(minorPatient());
+    fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(dialog.parentElement);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("inside modal click does not close guardian modal", () => {
+    renderDetailPage(minorPatient());
+    fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(dialog);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 

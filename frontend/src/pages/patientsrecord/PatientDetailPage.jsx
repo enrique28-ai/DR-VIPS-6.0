@@ -1,4 +1,4 @@
-import { useMemo, useState,  useEffect  } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
 import { usePatient, useReassignGuardian, useTranslatePatient } from "../../features/patients/phooks.js";
@@ -40,13 +40,18 @@ const bmiBackendToKey = (cat) => {
 };
 
 
-const Chip = ({ icon: Icon, label, value }) => (
-   <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700">
-     {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
-     <span className="font-medium">{label}:</span>
-     <span>{value}</span>
-   </span>
- );
+const Chip = ({ icon: Icon, label, value, tone = "default" }) => {
+  const toneClass = tone === "danger"
+    ? "border-red-200 bg-red-50 text-red-700"
+    : "border-slate-200 bg-slate-50 text-slate-700";
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${toneClass}`}>
+      {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+      <span className="font-medium">{label}:</span>
+      <span>{value}</span>
+    </span>
+  );
+};
 
 
 export default function PatientDetailPage() {
@@ -70,6 +75,19 @@ useEffect(() => {
   setShowGuardianForm(false);
   setNewParentEmail("");
 }, [id]);
+
+const guardianPanelRef = useRef(null);
+
+useEffect(() => {
+  if (!showGuardianForm) return;
+  const previousActive = document.activeElement;
+  guardianPanelRef.current?.focus();
+  return () => {
+    if (previousActive && typeof previousActive.focus === "function") {
+      previousActive.focus();
+    }
+  };
+}, [showGuardianForm]);
 
 const isTranslatedActive = !!translated.data && translated.lang === i18n.language;
 const patientView = isTranslatedActive ? translated.data : patient;
@@ -121,11 +139,19 @@ const birthplaceText = useMemo(() => {
 
   if (isLoading) {
     return (
-      <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <main className="min-h-[calc(100vh-4rem)] bg-slate-50" aria-busy="true">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm text-slate-600">
-             {t("patients.detail.loading")}
-          </div>
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-3 h-4 w-36 animate-pulse rounded-full bg-slate-200" />
+            <div className="h-8 w-64 max-w-full animate-pulse rounded-xl bg-slate-200" />
+            <p
+              role="status"
+              className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-slate-600"
+            >
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+              {t("patients.detail.loading")}
+            </p>
+          </section>
         </div>
       </main>
     );
@@ -135,6 +161,9 @@ const birthplaceText = useMemo(() => {
       <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <AlertTriangle className="h-7 w-7" aria-hidden="true" />
+            </div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{t("patients.detail.notFoundTitle")}</h1>
             <p className="text-slate-600 mt-1">{t("patients.detail.notFoundText")}</p>
             <div className="mt-4">
@@ -265,7 +294,7 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
           {patientView.gender && (
             <Chip icon={User2} label={t("patients.card.gender")} value={patientView.gender === "male" ? t("patients.card.genderMale") : t("patients.card.genderFemale")} />
           )}
-          <Chip icon={Activity} label={t("patients.card.status")} value={patientView.isDeceased ? t("patients.list.filters.options.deceased") : t("patients.list.filters.options.alive")} />
+          <Chip icon={Activity} label={t("patients.card.status")} value={patientView.isDeceased ? t("patients.list.filters.options.deceased") : t("patients.list.filters.options.alive")} tone={patientView.isDeceased ? "danger" : "default"} />
           <Chip icon={Heart} label={t("patients.list.filters.organDonor")} value={patientView.organDonor ?  t("patients.list.filters.options.yes") : t("patients.list.filters.options.no")} />
           <Chip icon={Droplet} label={t("patients.list.filters.bloodDonor")} value={patientView.bloodDonor ? t("patients.list.filters.options.yes") : t("patients.list.filters.options.no")} />
         </div>
@@ -314,10 +343,10 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
             </>
           )}
           {patientView.isDeceased && (
-            <>
-              <dt className="font-medium">{t("patients.detail.causeOfDeath")}</dt>
-              <dd>{patientView.causeOfDeath || "—"}</dd>
-            </>
+            <div className="col-span-full mt-2 rounded-xl border border-red-200 bg-red-50/60 p-3 sm:col-span-2">
+              <dt className="font-medium text-red-800">{t("patients.detail.causeOfDeath")}</dt>
+              <dd className="text-red-700">{patientView.causeOfDeath || "—"}</dd>
+            </div>
           )}
 
           {Array.isArray(diseases) && diseases.length > 0 && (
@@ -401,9 +430,6 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
   </span>
 </Button>
 
-          <Button full={false} variant="secondary" onClick={() => navigate("/patients")}>
-             {t("patients.detail.backButton")}
-          </Button>
           <Button full={false} variant="secondary" onClick={() => setShowHistory(true)}>
           <span className="inline-flex items-center gap-2">
           <History className="h-4 w-4" aria-hidden="true" />
@@ -422,18 +448,33 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
 )}
 
       {showGuardianForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeGuardianForm();
+          }}
+        >
+          <div
+            ref={guardianPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guardian-modal-title"
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") closeGuardianForm();
+            }}
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl outline-none"
+          >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 id="guardian-modal-title" className="text-lg font-semibold text-slate-900">
                 {t("patients.detail.reassignGuardian")}
               </h2>
               <button
                 type="button"
                 onClick={closeGuardianForm}
                 disabled={reassignGuardian.isPending}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
                 aria-label={t("common.close")}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -441,10 +482,11 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
 
             <form onSubmit={handleGuardianSubmit} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label htmlFor="guardian-email" className="mb-1 block text-sm font-medium text-slate-700">
                   {t("patients.detail.newGuardianEmail")}
                 </label>
                 <input
+                  id="guardian-email"
                   type="email"
                   value={newParentEmail}
                   onChange={(e) => setNewParentEmail(e.target.value)}
