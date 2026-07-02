@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { History, X, Languages, Loader2 } from "lucide-react";
 import Button from "../forms/Button.jsx";
@@ -62,53 +62,53 @@ const none = trOr(t, "patients.history.none", "None");
 
 
   return (
-    <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 text-sm text-gray-700">
-      <div className="col-span-full flex items-start justify-between border-b pb-2 mb-1">
-      <div className="font-semibold text-gray-900">{snapshot.fullname || "—"}</div>
+    <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 text-sm text-slate-700">
+      <div className="col-span-full flex items-start justify-between border-b border-slate-100 pb-2 mb-1">
+      <div className="font-semibold text-slate-900">{snapshot.fullname || "—"}</div>
         {right}
       </div>
 
 
       <div>
-        <span className="font-medium text-gray-500">{t("patients.card.age")}:</span> {snapshot.age ?? "—"}
+        <span className="font-medium text-slate-500">{t("patients.card.age")}:</span> {snapshot.age ?? "—"}
       </div>
       <div>
-        <span className="font-medium text-gray-500">{t("patients.card.gender")}:</span> {gender}
+        <span className="font-medium text-slate-500">{t("patients.card.gender")}:</span> {gender}
       </div>
       <div>
-        <span className="font-medium text-gray-500">{t("patients.card.blood")}:</span> {snapshot.bloodtype ?? "—"}
+        <span className="font-medium text-slate-500">{t("patients.card.blood")}:</span> {snapshot.bloodtype ?? "—"}
       </div>
       <div>
-        <span className="font-medium text-gray-500">{t("patients.create.placeOfResidence")}:</span> {location || "—"}
+        <span className="font-medium text-slate-500">{t("patients.create.placeOfResidence")}:</span> {location || "—"}
       </div>
       <div>
-        <span className="font-medium text-gray-500">{t("patients.create.placeOfBirth")}:</span>{" "}
+        <span className="font-medium text-slate-500">{t("patients.create.placeOfBirth")}:</span>{" "}
         {birthplace || trOr(t, "patients.detail.notSpecified", "Not specified")}
       </div>
 
       <div>
-        <span className="font-medium text-gray-500">{t("patients.detail.height")}:</span> {heightText}
+        <span className="font-medium text-slate-500">{t("patients.detail.height")}:</span> {heightText}
       </div>
       <div>
-        <span className="font-medium text-gray-500">{t("patients.detail.weight")}:</span> {weight}
+        <span className="font-medium text-slate-500">{t("patients.detail.weight")}:</span> {weight}
       </div>
 
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">{t("patients.history.deceasedLabel")}:</span>{" "}
+        <span className="font-medium text-slate-500">{t("patients.history.deceasedLabel")}:</span>{" "}
         {snapshot.isDeceased === true ? yes : snapshot.isDeceased === false ? no : "—"}
         {snapshot.isDeceased === true && snapshot.causeOfDeath ? ` · ${snapshot.causeOfDeath}` : ""}
       </div>
 
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">{t("patients.detail.diseases")}:</span>{" "}
+        <span className="font-medium text-slate-500">{t("patients.detail.diseases")}:</span>{" "}
         {Array.isArray(snapshot.diseases) && snapshot.diseases.length ? snapshot.diseases.join(", ") : none}
       </div>
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">{t("patients.detail.allergies")}:</span>{" "}
+        <span className="font-medium text-slate-500">{t("patients.detail.allergies")}:</span>{" "}
         {Array.isArray(snapshot.allergies) && snapshot.allergies.length ? snapshot.allergies.join(", ") : none}
       </div>
       <div className="col-span-full">
-        <span className="font-medium text-gray-500">{t("patients.detail.medications")}:</span>{" "}
+        <span className="font-medium text-slate-500">{t("patients.detail.medications")}:</span>{" "}
         {Array.isArray(snapshot.medications) && snapshot.medications.length ? snapshot.medications.join(", ") : none}
       </div>
     </div>
@@ -121,6 +121,18 @@ export default function PatientHistoryModal({ variant, patientId, onClose }) {
   const [translatedById, setTranslatedById] = useState({});
 const [translatedSnaps, setTranslatedSnaps] = useState({});
 const [translatingId, setTranslatingId] = useState(null);
+
+const panelRef = useRef(null);
+
+useEffect(() => {
+  const previousActive = document.activeElement;
+  panelRef.current?.focus();
+  return () => {
+    if (previousActive && typeof previousActive.focus === "function") {
+      previousActive.focus();
+    }
+  };
+}, []);
 
 const { mutate: translateSnap } = useTranslatePatientHistorySnapshot();
 
@@ -188,25 +200,45 @@ const handleTranslateSnap = (historyId) => {
     : trOr(t, "myHealthInfo.history.systemUnknown", "System/Unknown");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex h-[80vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="patient-history-title"
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
+        className="flex h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl outline-none"
+>
         <div className="flex items-center justify-between border-b border-gray-100 p-4">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <History className="h-5 w-5" />
+          <h2 id="patient-history-title" className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+            <History className="h-5 w-5" aria-hidden="true" />
             {title}
           </h2>
-          <button onClick={onClose} className="rounded-full p-1 hover:bg-gray-100">
-            <X className="h-5 w-5 text-gray-500" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={trOr(t, "common.close", "Close")}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading && (
-            <p className="text-center text-gray-500 py-4">{loadingText}</p>
+            <p className="text-center text-slate-500 py-4">{loadingText}</p>
           )}
 
           {!isLoading && (!history || history.length === 0) && (
-            <p className="text-center text-gray-500 py-4">{emptyText}</p>
+            <p className="text-center text-slate-500 py-4">{emptyText}</p>
           )}
 
           <div className="space-y-3">
@@ -221,18 +253,19 @@ const handleTranslateSnap = (historyId) => {
 
 
               return (
-                <div key={ver._id} className="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+                <div key={ver._id} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                   <button
+                    type="button"
                     onClick={() => toggle(ver._id)}
-                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100 transition-colors"
+                    className="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                   >
                     <div>
-                      <p className="font-medium text-gray-800">{when}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-medium text-slate-800">{when}</p>
+                      <p className="text-xs text-slate-500">
                         {actorLabel}: {editedBy}
                       </p>
                     </div>
-                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded">
                       {expandedId === ver._id
                         ? trOr(t, "common.close", "Close")
                         : trOr(t, "common.view", "View")}
@@ -240,22 +273,24 @@ const handleTranslateSnap = (historyId) => {
                   </button>
 
                  {expandedId === ver._id && (
-  <div className="border-t border-gray-200 bg-white p-4">
+  <div className="border-t border-slate-200 bg-white p-4">
     <SnapshotViewer
       snapshot={snap}
       t={t}
       i18n={i18n}
       right={
   <button
+    type="button"
     onClick={() => handleTranslateSnap(ver._id)}
     disabled={translatingId === ver._id}
-    className="ml-3 rounded-full p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+    aria-label={trOr(t, "common.translate", "Translate")}
+    className="ml-3 inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
     title={trOr(t, "common.translate", "Translate")}
   >
     {translatingId === ver._id ? (
-      <Loader2 className="h-4 w-4 animate-spin" />
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
     ) : (
-      <Languages className="h-4 w-4" />
+      <Languages className="h-4 w-4" aria-hidden="true" />
     )}
   </button>
 }
@@ -270,8 +305,8 @@ const handleTranslateSnap = (historyId) => {
           </div>
         </div>
 
-        <div className="border-t border-gray-100 p-3 flex justify-end">
-          <Button variant="secondary" onClick={onClose}>
+        <div className="flex justify-end border-t border-slate-100 p-3">
+          <Button variant="secondary" full={false} onClick={onClose}>
             {trOr(t, "common.close", "Close")}
           </Button>
         </div>

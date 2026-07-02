@@ -148,3 +148,89 @@ describe("PatientHistoryModal birthplace snapshots", () => {
     );
   });
 });
+
+describe("PatientHistoryModal accessibility", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useChildHistory.mockReturnValue({ data: [], isLoading: false });
+    useMyHistory.mockReturnValue({ data: [], isLoading: false });
+    usePatientHistory.mockReturnValue({ data: [], isLoading: false });
+    useTranslatePatientHistorySnapshot.mockReturnValue({ mutate: vi.fn() });
+  });
+
+  const renderA11yModal = ({ onClose = vi.fn(), variant = "doctor", patientId = "patient-1" } = {}) => {
+    usePatientHistory.mockReturnValue({ data: historyWithSnapshot(baseSnapshot()), isLoading: false });
+    useChildHistory.mockReturnValue({ data: [], isLoading: false });
+    useMyHistory.mockReturnValue({ data: [], isLoading: false });
+    render(<PatientHistoryModal variant={variant} patientId={patientId} onClose={onClose} />);
+    return { onClose };
+  };
+
+  test("renders with role dialog and aria-modal", () => {
+    renderA11yModal();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAttribute("aria-labelledby", "patient-history-title");
+    expect(screen.getByText("Patient History")).toBeInTheDocument();
+  });
+
+  test("close X button calls onClose", () => {
+    const onClose = vi.fn();
+    renderA11yModal({ onClose });
+    const closeButtons = screen.getAllByRole("button", { name: /^Close$/i });
+    fireEvent.click(closeButtons[0]);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("footer Close button calls onClose", () => {
+    const onClose = vi.fn();
+    renderA11yModal({ onClose });
+    const closeButtons = screen.getAllByRole("button", { name: /^Close$/i });
+    fireEvent.click(closeButtons[closeButtons.length - 1]);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("Escape calls onClose", () => {
+    const onClose = vi.fn();
+    renderA11yModal({ onClose });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("backdrop click calls onClose", () => {
+    const onClose = vi.fn();
+    renderA11yModal({ onClose });
+    const overlay = screen.getByRole("dialog").parentElement;
+    fireEvent.click(overlay);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("inside click does not close", () => {
+    const onClose = vi.fn();
+    renderA11yModal({ onClose });
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("expand and collapse history item", () => {
+    renderA11yModal();
+    expect(screen.queryByText("Ana Martinez")).not.toBeInTheDocument();
+    const expandButton = screen.getByText(/Edited by/).closest("button");
+    fireEvent.click(expandButton);
+    expect(screen.getByText("Ana Martinez")).toBeInTheDocument();
+    fireEvent.click(expandButton);
+    expect(screen.queryByText("Ana Martinez")).not.toBeInTheDocument();
+  });
+
+  test("translate payload remains variant patientId historyId lang", () => {
+    const mutate = vi.fn((_payload, options) => options?.onSuccess?.({ approvedSnapshot: { set: baseSnapshot() } }));
+    useTranslatePatientHistorySnapshot.mockReturnValue({ mutate });
+    renderA11yModal({ variant: "doctor", patientId: "patient-1" });
+    fireEvent.click(screen.getByText(/Edited by/).closest("button"));
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+    expect(mutate).toHaveBeenCalledWith(
+      { variant: "doctor", patientId: "patient-1", historyId: "history-1", lang: "en" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+});
