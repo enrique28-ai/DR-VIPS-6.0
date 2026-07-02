@@ -101,4 +101,60 @@ describe("Button", () => {
     const button = screen.getByRole("button", { name: "Click me" });
     expect(button.className).toContain("extra-class");
   });
+
+  test("forwards aria-pressed to the DOM", () => {
+    renderButton({ "aria-pressed": "true" });
+    expect(screen.getByRole("button", { name: "Click me" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  test("forwards aria-label to the DOM", () => {
+    renderButton({ "aria-label": "Save changes" });
+    expect(screen.getByRole("button")).toHaveAttribute("aria-label", "Save changes");
+  });
+
+  test("forwards aria-controls and aria-expanded to the DOM", () => {
+    renderButton({ "aria-controls": "panel-1", "aria-expanded": "true" });
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("aria-controls", "panel-1");
+    expect(button).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("forwards id and name to the DOM", () => {
+    renderButton({ id: "submit-btn", name: "action" });
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("id", "submit-btn");
+    expect(button).toHaveAttribute("name", "action");
+  });
+
+  test("forwards onKeyDown handler", () => {
+    const onKeyDown = vi.fn();
+    renderButton({ onKeyDown });
+    const button = screen.getByRole("button", { name: "Click me" });
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+  });
+
+  test("forwards data attributes to the DOM", () => {
+    renderButton({ "data-testid": "custom-btn", "data-foo": "bar" });
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("data-testid", "custom-btn");
+    expect(button).toHaveAttribute("data-foo", "bar");
+  });
+
+  test("internal disabled wins over rest aria-disabled", () => {
+    renderButton({ disabled: true, "aria-disabled": "false" });
+    const button = screen.getByRole("button", { name: "Click me" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("internal loading wins over rest aria-busy", () => {
+    renderButton({ loading: true, "aria-busy": "false" });
+    const button = screen.getByRole("button", { name: "Click me" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+  });
 });

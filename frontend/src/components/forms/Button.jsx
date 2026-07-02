@@ -10,6 +10,7 @@ export default function Button({
   full = true,
   onClick,
   variant = "primary", // "primary" | "secondary" | "ghost"
+  ...rest
 }) {
   const baseCommon =
     "relative inline-flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold " +
@@ -31,6 +32,7 @@ export default function Button({
 
   return (
     <motion.button
+      {...rest}
       type={type}
       onClick={onClick}
       whileHover={!disabled && !loading ? { scale: 1.01 } : undefined}
