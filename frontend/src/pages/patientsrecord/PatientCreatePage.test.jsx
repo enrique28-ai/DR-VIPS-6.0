@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import PatientCreatePage from "./PatientCreatePage.jsx";
@@ -505,5 +505,59 @@ describe("PatientCreatePage weight conversion round-trip", () => {
     const backToImperialWeightInput = screen.getByPlaceholderText("e.g. 150");
     expect(Number(backToImperialWeightInput.value)).toBeCloseTo(87, 2);
     expect(backToImperialWeightInput.value).not.toBe("86.99");
+  });
+});
+
+describe("PatientCreatePage accessibility", () => {
+  let mutate;
+
+  beforeEach(() => {
+    mutate = vi.fn();
+    vi.clearAllMocks();
+    useCreatePatient.mockReturnValue({ mutate, isPending: false });
+  });
+
+  test("yes/no toggles expose aria-pressed", () => {
+    renderCreatePage();
+    const noButtons = screen.getAllByRole("button", { name: "No" });
+    noButtons.forEach((btn) => {
+      fireEvent.click(btn);
+      expect(btn).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+
+  test("hasChildren No clears child name fields", () => {
+    renderCreatePage();
+    fireEvent.change(screen.getByPlaceholderText("Birth date"), { target: { value: "1990-01-01" } });
+    const hasChildrenGroup = screen.getByRole("group", { name: "Has children" });
+    const yesButton = within(hasChildrenGroup).getByRole("button", { name: "Yes" });
+    fireEvent.click(yesButton);
+    expect(screen.getByPlaceholderText("Child name")).toBeInTheDocument();
+    const noButton = within(hasChildrenGroup).getByRole("button", { name: "No" });
+    fireEvent.click(noButton);
+    expect(screen.queryByPlaceholderText("Child name")).not.toBeInTheDocument();
+  });
+
+  test("hasChildren Yes creates at least one child name field", () => {
+    renderCreatePage();
+    fireEvent.change(screen.getByPlaceholderText("Birth date"), { target: { value: "1990-01-01" } });
+    const hasChildrenGroup = screen.getByRole("group", { name: "Has children" });
+    const yesButton = within(hasChildrenGroup).getByRole("button", { name: "Yes" });
+    fireEvent.click(yesButton);
+    expect(screen.getByPlaceholderText("Child name")).toBeInTheDocument();
+  });
+
+  test("email input is associated with its label by htmlFor", () => {
+    renderCreatePage();
+    fireEvent.change(screen.getByPlaceholderText("Birth date"), { target: { value: "1990-01-01" } });
+    const emailInput = document.getElementById("patient-create-email");
+    expect(emailInput).toBeInTheDocument();
+    const label = document.querySelector('label[for="patient-create-email"]');
+    expect(label).toBeInTheDocument();
+  });
+
+  test("blood type select has an accessible label", () => {
+    renderCreatePage();
+    expect(screen.getByRole("combobox", { name: /Blood type/i })).toBeInTheDocument();
   });
 });

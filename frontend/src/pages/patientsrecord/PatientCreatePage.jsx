@@ -522,15 +522,16 @@ if (isMinor) {
         <h1 className="text-3xl font-semibold tracking-tight text-slate-950 mb-6">{t("patients.create.title")}</h1>
 
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={createPatient.isPending}>
-          <label className="block text-sm font-medium text-slate-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
-          <Input name="fullname" value={form.fullname} onChange={onChange} required placeholder={t("patients.create.fullnamePlaceholder")} />
+          <label htmlFor="patient-create-fullname" className="block text-sm font-medium text-slate-700">{t("patients.create.fullname")}<span className="text-red-500">*</span></label>
+          <Input id="patient-create-fullname" name="fullname" value={form.fullname} onChange={onChange} required aria-required="true" placeholder={t("patients.create.fullnamePlaceholder")} />
          {!isMinor && (
   <>
-    <label className="block text-sm font-medium text-slate-700">
+    <label htmlFor="patient-create-email" className="block text-sm font-medium text-slate-700">
       {t("patients.create.email")}<span className="text-red-500">*</span>
     </label>
 
     <Input
+      id="patient-create-email"
       name="email"
       type="email"
       placeholder={t("patients.create.emailExample")}
@@ -538,10 +539,13 @@ if (isMinor) {
       onChange={onChange}
       onBlur={onEmailBlur}
       required
+      aria-required="true"
+      aria-describedby="patient-create-email-error"
+      aria-invalid={!isEmailFormatValid && !!form.email}
     />
 
     {!isEmailFormatValid && form.email && (
-      <p className="text-xs text-red-600 mt-1">{t("patients.create.invalidEmail")}</p>
+      <p id="patient-create-email-error" role="alert" className="text-xs text-red-600 mt-1">{t("patients.create.invalidEmail")}</p>
     )}
   </>
 )}
@@ -555,7 +559,7 @@ if (isMinor) {
         id="patient-create-phone-country"
         value={phoneCountryIso}
         onChange={onPhoneCountryChange}
-        className="mt-1 mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+        className="mt-1 mb-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
         required={!isMinor || !!phoneDigits}
         disabled={createPatient.isPending}
       >
@@ -570,7 +574,7 @@ if (isMinor) {
         })}
       </select>
 
-      <label className="block text-sm font-medium text-slate-700">
+      <label htmlFor="patient-create-phone" className="block text-sm font-medium text-slate-700">
         {t("patients.create.phone")}{!isMinor && <span className="text-red-500">*</span>}
       </label>
 
@@ -578,10 +582,11 @@ if (isMinor) {
         <Input
           value={phoneDialCode}
           readOnly
-          className="w-28 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-slate-700"
+          className="w-28 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-slate-700"
           placeholder="+CC"
         />
         <Input
+          id="patient-create-phone"
           value={form.phone}
           onChange={onPhoneChange}
           onKeyDown={allowDigitKeys}
@@ -589,12 +594,15 @@ if (isMinor) {
           inputMode="numeric"
           pattern="[0-9]*"
           placeholder={t("patients.create.phoneAreaDigitsPlaceholder")}
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
           required={!isMinor}
+          aria-required={!isMinor}
+          aria-describedby="patient-create-phone-helper"
+          aria-invalid={!!phoneIssueKey}
         />
       </div>
 
-      <p className={`text-xs mt-1 ${phoneIssueKey ? "text-red-600" : "text-gray-500"}`}>
+      <p id="patient-create-phone-helper" className={`text-xs mt-1 ${phoneIssueKey ? "text-red-600" : "text-slate-500"}`}>
         {phoneIssueKey
           ? t(phoneIssueKey)
           : `${t("patients.create.phoneDigitsCounter")}: ${phoneDigits.length}`}
@@ -615,7 +623,7 @@ if (isMinor) {
     required
   />
 
-  <p className="text-xs text-gray-500 mt-1">
+  <p className="text-xs text-slate-500 mt-1">
     {t("patients.create.computedAge")}: {Number.isFinite(ageNum) ? ageNum : "--"}
   </p>
 </div>
@@ -626,10 +634,11 @@ if (isMinor) {
             {/* Children / Parent email */}
 {isMinor ? (
   <div>
-    <label className="block text-sm font-medium text-slate-700">
+    <label htmlFor="patient-create-parent-email" className="block text-sm font-medium text-slate-700">
       {t("patients.create.parentEmail")}<span className="text-red-500">*</span>
     </label>
     <Input
+      id="patient-create-parent-email"
       name="parentEmail"
       type="email"
       value={parentEmail}
@@ -637,6 +646,7 @@ if (isMinor) {
       onBlur={() => setParentEmail(parentEmailNorm)}
       placeholder={t("patients.create.parentEmailPlaceholder")}
       required
+      aria-required="true"
       disabled={createPatient.isPending}
     />
   </div>
@@ -644,36 +654,31 @@ if (isMinor) {
   <div className="sm:col-span-2">
     <label className="block text-sm font-medium text-slate-700">{t("patients.create.hasChildren")}</label>
 
-    <div className="mt-2 flex gap-4">
-      <label className="inline-flex items-center gap-2">
-        <input
-          type="radio"
-          name="hasChildren"
-          value="no"
-          checked={hasChildren === "no"}
-          onChange={() => {
-            setHasChildren("no");
-            setChildrenCountAndResize(0);
-          }}
-          disabled={createPatient.isPending}
-        />
-        <span className="text-sm">{t("patients.create.no")}</span>
-      </label>
-
-      <label className="inline-flex items-center gap-2">
-        <input
-          type="radio"
-          name="hasChildren"
-          value="yes"
-          checked={hasChildren === "yes"}
-          onChange={() => {
-            setHasChildren("yes");
-            if (childrenCount === 0) setChildrenCountAndResize(1);
-          }}
-          disabled={createPatient.isPending}
-        />
-        <span className="text-sm">{t("patients.create.yes")}</span>
-      </label>
+    <div className="mt-2 flex gap-2" role="group" aria-label={t("patients.create.hasChildren")}>
+      <Button
+        type="button"
+        variant={hasChildren === "no" ? "primary" : "secondary"}
+        onClick={() => {
+          setHasChildren("no");
+          setChildrenCountAndResize(0);
+        }}
+        disabled={createPatient.isPending}
+        aria-pressed={hasChildren === "no"}
+      >
+        {t("patients.create.no")}
+      </Button>
+      <Button
+        type="button"
+        variant={hasChildren === "yes" ? "primary" : "secondary"}
+        onClick={() => {
+          setHasChildren("yes");
+          if (childrenCount === 0) setChildrenCountAndResize(1);
+        }}
+        disabled={createPatient.isPending}
+        aria-pressed={hasChildren === "yes"}
+      >
+        {t("patients.create.yes")}
+      </Button>
     </div>
 
     {hasChildren === "yes" && (
@@ -708,13 +713,15 @@ if (isMinor) {
 )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
+            <label htmlFor="patient-create-bloodtype" className="block text-sm font-medium text-slate-700">{t("patients.create.bloodType")}<span className="text-red-500">*</span></label>
             <select
+              id="patient-create-bloodtype"
               name="bloodtype"
               value={form.bloodtype}
               onChange={onChange}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              aria-required="true"
+              className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
               disabled={createPatient.isPending}
             >
               {["O+","O-","A+","A-","B+","B-","AB+","AB-"].map(b => <option key={b} value={b}>{b}</option>)}
@@ -722,16 +729,17 @@ if (isMinor) {
           </div>
 
 
-          <div>
-           <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.residence")}</h2>
+          <fieldset className="space-y-4">
+           <legend className="text-lg font-semibold text-slate-900">{t("patients.create.residence")}</legend>
            {/* Country */}
  <label htmlFor="patient-create-residence-country" className="block text-sm font-medium text-slate-700">{t("patients.create.residenceCountry")}<span className="text-red-500">*</span></label>
  <select
    id="patient-create-residence-country"
    value={countryIso}
    onChange={onCountryChange}
-   className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+   className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
    required
+   aria-required="true"
    disabled={createPatient.isPending}
  >
    <option value=""> {t("patients.create.selectCountryOption")}</option>
@@ -746,13 +754,14 @@ if (isMinor) {
  {/* State/Province */}
  <label htmlFor={states.length > 0 ? "patient-create-residence-state" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.residenceState")}<span className="text-red-500">*</span></label>
  {states.length > 0 ? (
-   <select
-     id="patient-create-residence-state"
-     value={stateIso}
-     onChange={onStateChange}
-     className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-     required
-   >
+    <select
+      id="patient-create-residence-state"
+      value={stateIso}
+      onChange={onStateChange}
+      className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+      required
+      aria-required="true"
+    >
      <option value="">{t("patients.create.selectStateOption")}</option>
      {states.map((s) => (
   <option key={s.isoCode} value={s.isoCode}>
@@ -773,13 +782,14 @@ if (isMinor) {
  {/* City */}
  <label htmlFor={cities.length > 0 ? "patient-create-residence-city" : undefined} className="block text-sm font-medium text-slate-700">{t("patients.create.residenceCity")}<span className="text-red-500">*</span></label>
  {cities.length > 0 ? (
-   <select
-     id="patient-create-residence-city"
-     value={cityName}
-     onChange={onCityChange}
-     className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-     required
-   >
+    <select
+      id="patient-create-residence-city"
+      value={cityName}
+      onChange={onCityChange}
+      className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+      required
+      aria-required="true"
+    >
      <option value="">{t("patients.create.selectCityOption")}</option>
      {cities.map((ct) => (
     <option key={ct.name} value={ct.name}>
@@ -797,10 +807,10 @@ if (isMinor) {
    />
  )}
 
-      </div>
+      </fieldset>
 
-          <div>
-            <h2 className="mb-3 text-lg font-semibold text-gray-900">{t("patients.create.placeOfBirth")}</h2>
+          <fieldset className="space-y-4">
+            <legend className="text-lg font-semibold text-slate-900">{t("patients.create.placeOfBirth")}</legend>
             <label htmlFor="patient-create-birth-country" className="block text-sm font-medium text-slate-700">
               {t("patients.create.birthCountry")}<span className="text-red-500">*</span>
             </label>
@@ -808,7 +818,7 @@ if (isMinor) {
               id="patient-create-birth-country"
               value={birthCountryIso}
               onChange={onBirthCountryChange}
-              className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
               disabled={createPatient.isPending}
             >
               <option value=""> {t("patients.create.selectCountryOption")}</option>
@@ -827,7 +837,7 @@ if (isMinor) {
                 id="patient-create-birth-state"
                 value={birthStateIso}
                 onChange={onBirthStateChange}
-                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
               >
                 <option value="">{t("patients.create.selectStateOption")}</option>
                 {birthStates.map((s) => (
@@ -852,7 +862,7 @@ if (isMinor) {
                 id="patient-create-birth-city"
                 value={birthCityName}
                 onChange={onBirthCityChange}
-                className="mt-1 mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 mb-3 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
               >
                 <option value="">{t("patients.create.selectCityOption")}</option>
                 {birthCities.map((ct) => (
@@ -868,13 +878,13 @@ if (isMinor) {
                 onChange={(e)=>setBirthCityText(e.target.value)}
               />
             )}
-          </div>
+          </fieldset>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasDiseases")}</label>
-            <div className="flex gap-2 mb-2">
-              <Button type="button" variant={hasDiseases === "yes" ? "primary" : "secondary"} onClick={() => setHasDiseases("yes")}>{t("patients.create.yes")}</Button>
-              <Button type="button" variant={hasDiseases === "no"  ? "primary" : "secondary"} onClick={() => setHasDiseases("no")}>{t("patients.create.no")}</Button>
+            <div className="flex gap-2 mb-2" role="group" aria-label={t("patients.create.hasDiseases")}>
+              <Button type="button" variant={hasDiseases === "yes" ? "primary" : "secondary"} onClick={() => setHasDiseases("yes")} aria-pressed={hasDiseases === "yes"}>{t("patients.create.yes")}</Button>
+              <Button type="button" variant={hasDiseases === "no"  ? "primary" : "secondary"} onClick={() => setHasDiseases("no")} aria-pressed={hasDiseases === "no"}>{t("patients.create.no")}</Button>
             </div>
             {hasDiseases === "yes" && (
               <Input
@@ -891,9 +901,9 @@ if (isMinor) {
            {/* Allergies */}
      <div>
        <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasAllergies")}</label>
-       <div className="flex gap-2 mb-2">
-         <Button type="button" variant={hasAllergies === "yes" ? "primary" : "secondary"} onClick={() => setHasAllergies("yes")}>{t("patients.create.yes")}</Button>
-         <Button type="button" variant={hasAllergies === "no"  ? "primary" : "secondary"} onClick={() => setHasAllergies("no")}>{t("patients.create.no")}</Button>
+       <div className="flex gap-2 mb-2" role="group" aria-label={t("patients.create.hasAllergies")}>
+         <Button type="button" variant={hasAllergies === "yes" ? "primary" : "secondary"} onClick={() => setHasAllergies("yes")} aria-pressed={hasAllergies === "yes"}>{t("patients.create.yes")}</Button>
+         <Button type="button" variant={hasAllergies === "no"  ? "primary" : "secondary"} onClick={() => setHasAllergies("no")} aria-pressed={hasAllergies === "no"}>{t("patients.create.no")}</Button>
        </div>
        {hasAllergies === "yes" && (
        <Input
@@ -910,9 +920,9 @@ if (isMinor) {
     {/* Medications (recurrent) */}
    <div>
      <label className="block text-sm font-medium text-slate-700 mb-1">{t("patients.create.hasMedications")}</label>
-     <div className="flex gap-2 mb-2">
-       <Button type="button" variant={hasMedications === "yes" ? "primary" : "secondary"} onClick={() => setHasMedications("yes")}>{t("patients.create.yes")}</Button>
-       <Button type="button" variant={hasMedications === "no"  ? "primary" : "secondary"} onClick={() => setHasMedications("no")}>{t("patients.create.no")}</Button>
+     <div className="flex gap-2 mb-2" role="group" aria-label={t("patients.create.hasMedications")}>
+       <Button type="button" variant={hasMedications === "yes" ? "primary" : "secondary"} onClick={() => setHasMedications("yes")} aria-pressed={hasMedications === "yes"}>{t("patients.create.yes")}</Button>
+       <Button type="button" variant={hasMedications === "no"  ? "primary" : "secondary"} onClick={() => setHasMedications("no")} aria-pressed={hasMedications === "no"}>{t("patients.create.no")}</Button>
      </div>
      {hasMedications === "yes" && (
        <Input
@@ -931,11 +941,12 @@ if (isMinor) {
             <label className="block text-sm font-medium text-slate-700 mb-1">
               {t("patients.create.gender")} <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="group" aria-label={t("patients.create.gender")}>
               <Button
                 type="button"
                 variant={gender === "male" ? "primary" : "secondary"}
                 onClick={() => setGender("male")}
+                aria-pressed={gender === "male"}
               >
                  {t("patients.card.genderMale")}
               </Button>
@@ -943,6 +954,7 @@ if (isMinor) {
                 type="button"
                 variant={gender === "female" ? "primary" : "secondary"}
                 onClick={() => setGender("female")}
+                aria-pressed={gender === "female"}
               >
                 {t("patients.card.genderFemale")}
               </Button>
@@ -954,11 +966,12 @@ if (isMinor) {
             <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.organDonor")} <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="group" aria-label={t("patients.create.organDonor")}>
               <Button
                 type="button"
                 variant={organDonor === "yes" ? "primary" : "secondary"}
                 onClick={() => setOrganDonor("yes")}
+                aria-pressed={organDonor === "yes"}
               >
                 {t("patients.create.yes")}
               </Button>
@@ -966,6 +979,7 @@ if (isMinor) {
                 type="button"
                 variant={organDonor === "no" ? "primary" : "secondary"}
                 onClick={() => setOrganDonor("no")}
+                aria-pressed={organDonor === "no"}
               >
                 {t("patients.create.no")}
               </Button>
@@ -977,11 +991,12 @@ if (isMinor) {
             <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.bloodDonor")} <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="group" aria-label={t("patients.create.bloodDonor")}>
               <Button
                 type="button"
                 variant={bloodDonor === "yes" ? "primary" : "secondary"}
                 onClick={() => setBloodDonor("yes")}
+                aria-pressed={bloodDonor === "yes"}
               >
                 {t("patients.create.yes")}
               </Button>
@@ -989,6 +1004,7 @@ if (isMinor) {
                 type="button"
                 variant={bloodDonor === "no" ? "primary" : "secondary"}
                 onClick={() => setBloodDonor("no")}
+                aria-pressed={bloodDonor === "no"}
               >
                 {t("patients.create.no")}
               </Button>
@@ -1000,11 +1016,12 @@ if (isMinor) {
             <label className="block text-sm font-medium text-slate-700 mb-1">
                {t("patients.create.measurementSystem")} <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="group" aria-label={t("patients.create.measurementSystem")}>
              <Button
                 type="button"
                 variant={system === "metric" ? "primary" : "secondary"}
                 onClick={() => handleSystem("metric")}
+                aria-pressed={system === "metric"}
               >
                   {t("patients.create.systemMetric")}
               </Button>
@@ -1013,6 +1030,7 @@ if (isMinor) {
               type="button"
               variant={system === "imperial" ? "primary" : "secondary"}
               onClick={() => handleSystem("imperial")}
+              aria-pressed={system === "imperial"}
             >
               {t("patients.create.systemImperial")}
             </Button>
