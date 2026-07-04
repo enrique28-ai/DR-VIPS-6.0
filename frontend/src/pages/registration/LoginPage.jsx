@@ -92,14 +92,14 @@ export default function LoginPage() {
         <Button type="submit" className="cursor-pointer" loading={isLoading} disabled={isLoading || (CAPTCHA_ENABLED && !captcha)}> {t("auth.login.button")}</Button>
         
 
-    {/* —— OR —— */}
-        <div className="my-4 flex items-center gap-3">
-          <span className="h-px w-full bg-gray-200" />
-          <span className="text-xs uppercase tracking-widest text-gray-500"> {t("auth.login.divider")}</span>
-          <span className="h-px w-full bg-gray-200" />
+        <div className="my-5 flex items-center gap-3" aria-hidden="true">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+            {t("auth.login.divider")}
+          </span>
+          <span className="h-px flex-1 bg-slate-200" />
         </div>
 
-        {/* Google button estilo ejemplo */}
         <button
           type="button"
           onClick={async () => {
@@ -107,13 +107,13 @@ export default function LoginPage() {
             await googleStart(CAPTCHA_ENABLED ? captcha : undefined);
           }}
           aria-label={t("auth.login.google")}
-          className="cursor-pointer w-full inline-flex items-center justify-center gap-3 rounded-md border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2"
+          className="cursor-pointer w-full inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors duration-150 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:bg-slate-100"
         >
           <GoogleIcon className="h-5 w-5" />
           <span>{t("auth.login.google")}</span>
         </button>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="mt-4 text-center text-sm text-slate-600">
            {t("auth.login.noAccount")}{" "}
           <Link to="/signup" className="text-blue-600 hover:underline">{t("auth.login.registerLink")}</Link>
         </p>

@@ -97,7 +97,7 @@ const renderSignUpPage = ({
     googleStart,
     nameInput: () => screen.getByPlaceholderText("Dr Person"),
     passwordInput: () => view.container.querySelector('input[type="password"]'),
-    roleInput: (role) => view.container.querySelector(`input[name="role"][value="${role}"]`),
+    roleInput: (name) => screen.getByRole("radio", { name }),
     signup,
   };
 };
@@ -139,10 +139,12 @@ describe("SignUpPage", () => {
     expect(view.passwordInput()).toHaveValue("");
     expect(screen.getByText("Use a strong password.")).toBeInTheDocument();
     expect(screen.getByText("Password strength")).toBeInTheDocument();
-    expect(view.roleInput("doctor")).toBeInTheDocument();
-    expect(view.roleInput("patient")).toBeInTheDocument();
+    expect(view.roleInput("Doctor")).toHaveAttribute("value", "doctor");
+    expect(view.roleInput("Patient")).toHaveAttribute("value", "patient");
     expect(screen.getByRole("button", { name: "Sign up" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+    const googleButton = screen.getByRole("button", { name: "Continue with Google" });
+    expect(googleButton).toBeInTheDocument();
+    expect(googleButton.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("link", { name: "Log in" })).toHaveAttribute("href", "/login");
   });
 
@@ -159,13 +161,13 @@ describe("SignUpPage", () => {
   test("doctor role is selected by default and patient selection changes the checked role", () => {
     const view = renderSignUpPage();
 
-    expect(view.roleInput("doctor")).toBeChecked();
-    expect(view.roleInput("patient")).not.toBeChecked();
+    expect(view.roleInput("Doctor")).toBeChecked();
+    expect(view.roleInput("Patient")).not.toBeChecked();
 
-    fireEvent.click(view.roleInput("patient"));
+    fireEvent.click(view.roleInput("Patient"));
 
-    expect(view.roleInput("doctor")).not.toBeChecked();
-    expect(view.roleInput("patient")).toBeChecked();
+    expect(view.roleInput("Doctor")).not.toBeChecked();
+    expect(view.roleInput("Patient")).toBeChecked();
   });
 
   test("weak password keeps the signup button disabled", () => {
@@ -209,7 +211,7 @@ describe("SignUpPage", () => {
     const view = renderSignUpPage({ signup });
 
     fillSignUpForm(view);
-    fireEvent.click(view.roleInput("patient"));
+    fireEvent.click(view.roleInput("Patient"));
     fireEvent.submit(view.form());
 
     await waitFor(() => {

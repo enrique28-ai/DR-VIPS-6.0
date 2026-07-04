@@ -95,7 +95,9 @@ describe("LoginPage", () => {
     expect(view.emailInput()).toHaveValue("");
     expect(view.passwordInput()).toHaveValue("");
     expect(screen.getByRole("button", { name: "Log in" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+    const googleButton = screen.getByRole("button", { name: "Continue with Google" });
+    expect(googleButton).toBeInTheDocument();
+    expect(googleButton.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute(
       "href",
       "/forgot-password",

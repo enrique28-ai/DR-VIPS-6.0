@@ -94,24 +94,39 @@ export default function SignUpPage() {
         <Input label={t("auth.signup.passwordLabel")} icon={Lock} type="password" placeholder="••••••••"
                value={password} onChange={(e) => setPassword(e.target.value)} required />
 
-        <p className="text-xs text-gray-500 -mt-3 mb-2">{t("auth.signup.passwordHint")}</p>
+        <p className="text-xs text-slate-500 -mt-3 mb-2">{t("auth.signup.passwordHint")}</p>
         <PasswordStrengthMeter password={password} />
 
 
-        {/* Rol */}
- <div className="mb-3">
-   <div className="text-sm text-gray-700 mb-1"> {t("auth.signup.roleQuestion")}</div>
-   <div className="flex gap-3">
-     <label className={`px-3 py-1.5 rounded-full border cursor-pointer ${role==="doctor"?"bg-blue-600 text-white border-blue-600":"bg-white"}`}>
-       <input type="radio" name="role" value="doctor" className="hidden" checked={role==="doctor"} onChange={()=>setRole("doctor")} />
-        {t("auth.signup.roleDoctor")}
-     </label>
-     <label className={`px-3 py-1.5 rounded-full border cursor-pointer ${role==="patient"?"bg-blue-600 text-white border-blue-600":"bg-white"}`}>
-       <input type="radio" name="role" value="patient" className="hidden" checked={role==="patient"} onChange={()=>setRole("patient")} />
-       {t("auth.signup.rolePatient")}
-     </label>
-   </div>
- </div>
+        <fieldset className="mb-4">
+          <legend className="mb-2 text-sm font-semibold text-slate-700">
+            {t("auth.signup.roleQuestion")}
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors duration-150 ${role==="doctor"?"border-blue-600 bg-blue-50 text-blue-700":"border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"}`}>
+              <input
+                type="radio"
+                name="role"
+                value="doctor"
+                className="h-4 w-4 border-slate-300 text-blue-600 accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                checked={role==="doctor"}
+                onChange={()=>setRole("doctor")}
+              />
+              <span>{t("auth.signup.roleDoctor")}</span>
+            </label>
+            <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors duration-150 ${role==="patient"?"border-blue-600 bg-blue-50 text-blue-700":"border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"}`}>
+              <input
+                type="radio"
+                name="role"
+                value="patient"
+                className="h-4 w-4 border-slate-300 text-blue-600 accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                checked={role==="patient"}
+                onChange={()=>setRole("patient")}
+              />
+              <span>{t("auth.signup.rolePatient")}</span>
+            </label>
+          </div>
+        </fieldset>
 
         {CAPTCHA_ENABLED && (
           <div className="mt-3 flex justify-center">
@@ -129,14 +144,14 @@ export default function SignUpPage() {
 
         <Button className="mt-4 cursor-pointer" type="submit" loading={isLoading} disabled={!strong || isLoading || (CAPTCHA_ENABLED && !captcha)}>{t("auth.signup.button")}</Button>
 
-      {/* —— OR —— */}
-        <div className="my-4 flex items-center gap-3">
-          <span className="h-px w-full bg-gray-200" />
-          <span className="text-xs uppercase tracking-widest text-gray-500"> {t("auth.signup.divider")}</span>
-          <span className="h-px w-full bg-gray-200" />
+        <div className="my-5 flex items-center gap-3" aria-hidden="true">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+            {t("auth.signup.divider")}
+          </span>
+          <span className="h-px flex-1 bg-slate-200" />
         </div>
 
-        {/* Google button estilo ejemplo */}
         <button
           type="button"
           onClick={async () => {
@@ -144,13 +159,13 @@ export default function SignUpPage() {
             await googleStart(CAPTCHA_ENABLED ? captcha : undefined);
           }}
           aria-label={t("auth.signup.google")}
-          className="cursor-pointer w-full inline-flex items-center justify-center gap-3 rounded-md border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2"
+          className="cursor-pointer w-full inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors duration-150 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:bg-slate-100"
         >
           <GoogleIcon className="h-5 w-5" />
           <span>{t("auth.signup.google")}</span>
         </button>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="mt-4 text-center text-sm text-slate-600">
           {t("auth.signup.haveAccount")}{" "}
           <Link to="/login" className="text-blue-600 hover:underline"> {t("auth.signup.loginLink")}</Link>
         </p>
