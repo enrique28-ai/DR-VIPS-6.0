@@ -372,6 +372,22 @@ describe("PatientDetailPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  test("guardian modal traps Tab and Shift+Tab inside the dialog", () => {
+    renderDetailPage(minorPatient());
+    fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));
+    const dialog = screen.getByRole("dialog");
+    const closeButton = within(dialog).getByRole("button", { name: "Close" });
+    const cancelButton = within(dialog).getByRole("button", { name: "Cancel" });
+
+    cancelButton.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(closeButton);
+
+    closeButton.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(cancelButton);
+  });
+
   test("backdrop click closes guardian modal", () => {
     renderDetailPage(minorPatient());
     fireEvent.click(screen.getByRole("button", { name: "Reassign guardian" }));

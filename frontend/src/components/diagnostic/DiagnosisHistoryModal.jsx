@@ -10,6 +10,42 @@ const trOr = (t, key, fallback) => {
   return v && v !== key ? v : fallback;
 };
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const trapPanelFocus = (e, panel) => {
+  if (e.key !== "Tab") return;
+
+  const focusable = Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR));
+
+  if (!focusable.length) {
+    e.preventDefault();
+    panel.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+
+  if (!focusable.includes(active)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+    return;
+  }
+
+  if (e.shiftKey && active === first) {
+    e.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+};
+
 function ChipList({ items, noneText }) {
   const arr = Array.isArray(items) ? items.filter(Boolean) : [];
   if (!arr.length) return <span>{noneText}</span>;
@@ -145,6 +181,7 @@ export default function DiagnosisHistoryModal({ diagnosisId, onClose,  variant =
         tabIndex={-1}
         onKeyDown={(e) => {
           if (e.key === "Escape") onClose();
+          trapPanelFocus(e, e.currentTarget);
         }}
         className="flex h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl outline-none"
       >

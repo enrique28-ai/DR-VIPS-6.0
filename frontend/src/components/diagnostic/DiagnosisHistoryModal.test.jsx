@@ -112,6 +112,22 @@ describe("DiagnosisHistoryModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  test("Tab on last focusable cycles to first and Shift+Tab on first cycles to last", () => {
+    renderModal();
+    const dialog = screen.getByRole("dialog");
+    const buttons = screen.getAllByRole("button");
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    first.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
   test("backdrop click calls onClose but inside click does not", () => {
     renderModal();
     const overlay = screen.getByRole("dialog").parentElement;

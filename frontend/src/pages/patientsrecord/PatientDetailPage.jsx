@@ -39,6 +39,42 @@ const bmiBackendToKey = (cat) => {
   return null;
 };
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const trapPanelFocus = (e, panel) => {
+  if (e.key !== "Tab") return;
+
+  const focusable = Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR));
+
+  if (!focusable.length) {
+    e.preventDefault();
+    panel.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+
+  if (!focusable.includes(active)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+    return;
+  }
+
+  if (e.shiftKey && active === first) {
+    e.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+};
+
 
 const Chip = ({ icon: Icon, label, value, tone = "default" }) => {
   const toneClass = tone === "danger"
@@ -462,6 +498,7 @@ const bmiKey = bmiBackendToKey(patientView?.bmiCategory);
             tabIndex={-1}
             onKeyDown={(e) => {
               if (e.key === "Escape") closeGuardianForm();
+              trapPanelFocus(e, e.currentTarget);
             }}
             className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl outline-none"
           >

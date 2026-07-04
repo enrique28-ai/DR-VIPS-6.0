@@ -197,6 +197,22 @@ describe("PatientHistoryModal accessibility", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  test("Tab on last focusable cycles to first and Shift+Tab on first cycles to last", () => {
+    renderA11yModal();
+    const dialog = screen.getByRole("dialog");
+    const buttons = within(dialog).getAllByRole("button");
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    first.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
   test("backdrop click calls onClose", () => {
     const onClose = vi.fn();
     renderA11yModal({ onClose });
