@@ -615,11 +615,12 @@ if (isMinor) {
 
   <div>
     <div>
-  <label className="block text-sm font-medium text-slate-700 mb-1">
+  <label htmlFor="patient-create-birth-date" className="block text-sm font-medium text-slate-700 mb-1">
     {t("patients.create.birthDate")} <span className="text-red-500">*</span>
   </label>
 
   <LocalizedDatePicker
+    id="patient-create-birth-date"
     value={form.birthDate}
     onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))}
     placeholder={t("patients.create.birthDatePlaceholder")}

@@ -556,6 +556,11 @@ describe("PatientCreatePage accessibility", () => {
     expect(label).toBeInTheDocument();
   });
 
+  test("birth date input is associated with its visible label", () => {
+    renderCreatePage();
+    expect(screen.getByLabelText(/Birth date/i)).toBeInTheDocument();
+  });
+
   test("blood type select has an accessible label", () => {
     renderCreatePage();
     expect(screen.getByRole("combobox", { name: /Blood type/i })).toBeInTheDocument();
