@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import PatientEditPage from "./PatientEditPage.jsx";
 import { usePatient, useUpdatePatient } from "../../features/patients/phooks.js";
@@ -41,6 +41,8 @@ vi.mock("react-i18next", () => ({
         "patients.edit.status": "Status",
         "patients.edit.alive": "Alive",
         "patients.edit.deceased": "Deceased",
+        "patients.edit.dateOfDeath": "Date of death",
+        "patients.edit.causeOfDeath": "Cause of death",
         "patients.edit.emailImmutable": "Email cannot be changed",
         "patients.edit.invalidEmail": "Invalid email",
         "patients.edit.countryRequired": "Country required",
@@ -51,6 +53,7 @@ vi.mock("react-i18next", () => ({
         "patients.edit.childrenNamesDuplicate": "Child names must be unique",
         "patients.edit.causeRequired": "Cause of death required",
         "patients.edit.birthplaceImmutable": "Place of birth cannot be modified once registered.",
+        "patients.detail.loading": "Loading patient",
         "patients.create.fullname": "Full name",
         "patients.create.email": "Email",
         "patients.create.phoneCountry": "Phone Country",
@@ -144,6 +147,16 @@ const renderEditPage = (patient) => {
   usePatient.mockReturnValue({
     data: patient,
     isLoading: false,
+    isError: false,
+  });
+
+  render(<PatientEditPage />);
+};
+
+const renderLoadingEditPage = () => {
+  usePatient.mockReturnValue({
+    data: undefined,
+    isLoading: true,
     isError: false,
   });
 
@@ -251,6 +264,29 @@ describe("PatientEditPage phone country behavior", () => {
     expect(citySelect()).toHaveValue("Guadalajara");
   });
 
+  test("renders a loading state while the patient is loading", () => {
+    renderLoadingEditPage();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading patient");
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+  });
+
+  test("key labels are associated with their controls", async () => {
+    renderEditPage(baseAdultPatient());
+
+    await waitForPatientForm();
+
+    expect(screen.getByLabelText(/Full name/i)).toHaveValue("Adult Patient");
+    expect(screen.getByLabelText(/^Email/i)).toHaveValue("adult@example.com");
+    expect(phoneCountrySelect()).toHaveValue("US");
+    expect(document.querySelector('label[for="patient-edit-phone"]')).toHaveTextContent("Phone");
+    expect(document.getElementById("patient-edit-phone")).toHaveValue("2025550123");
+    expect(screen.getByLabelText(/Blood type/i)).toHaveValue("O+");
+    expect(residenceCountrySelect()).toHaveValue("MX");
+    expect(stateSelect()).toHaveValue("JAL");
+    expect(citySelect()).toHaveValue("Guadalajara");
+  });
+
   test("changing residence country does not change the phone country dial code", async () => {
     renderEditPage(
       baseAdultPatient({
@@ -332,13 +368,13 @@ describe("PatientEditPage phone country behavior", () => {
     expect(birthStateInput).toBeDisabled();
     expect(birthCityInput).toBeDisabled();
     expect(document.querySelector('label[for="patient-edit-birth-country"]')).toHaveTextContent(
-      "Birth Country*",
+      "Birth Country",
     );
     expect(document.querySelector('label[for="patient-edit-birth-state"]')).toHaveTextContent(
-      "Birth State*",
+      "Birth State",
     );
     expect(document.querySelector('label[for="patient-edit-birth-city"]')).toHaveTextContent(
-      "Birth City*",
+      "Birth City",
     );
     expect(
       screen.getByText("Place of birth cannot be modified once registered."),
@@ -410,6 +446,16 @@ describe("PatientEditPage phone country behavior", () => {
     );
   });
 
+  test("locked parent email remains disabled for a minor", async () => {
+    renderEditPage(baseMinorPatient());
+
+    await waitForMinorForm();
+
+    const parentEmailInput = screen.getByLabelText(/Parent email/i);
+    expect(parentEmailInput).toHaveValue("parent@example.com");
+    expect(parentEmailInput).toBeDisabled();
+  });
+
   test("blocks edit when birthplace is partial", async () => {
     renderEditPage(baseAdultPatient());
 
@@ -464,6 +510,66 @@ describe("PatientEditPage phone country behavior", () => {
     expect(payload).toEqual(expect.objectContaining({ phone: "" }));
     expect(payload).not.toHaveProperty("phoneCountry");
     expect(payload).not.toHaveProperty("phoneCountryIso");
+  });
+
+  test("toggle buttons expose aria-pressed state", async () => {
+    renderEditPage(baseAdultPatient());
+
+    await waitForPatientForm();
+
+    expect(screen.getByRole("button", { name: "Male" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "No" })[0]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Imperial" }));
+    expect(screen.getByRole("button", { name: "Imperial" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("existing children keep hasChildren No disabled and preserve payload children", async () => {
+    renderEditPage(
+      baseAdultPatient({
+        childrenCount: 1,
+        children: [{ name: "Existing Child" }],
+      }),
+    );
+
+    await waitForPatientForm();
+
+    const hasChildrenGroup = screen.getByRole("group", { name: "Has children" });
+    const noRadio = within(hasChildrenGroup).getByRole("radio", { name: "No" });
+    const yesRadio = within(hasChildrenGroup).getByRole("radio", { name: "Yes" });
+    expect(noRadio).toBeDisabled();
+    expect(yesRadio).toBeChecked();
+
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        childrenCount: 1,
+        children: [{ name: "Existing Child" }],
+      }),
+    );
+  });
+
+  test("death-status-only edit sends only the death status payload", async () => {
+    renderEditPage(baseAdultPatient());
+
+    await waitForPatientForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deceased" }));
+    fireEvent.change(screen.getByLabelText(/Date of death/i), {
+      target: { value: "2024-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText(/Cause of death/i), {
+      target: { value: "Natural causes" },
+    });
+    submitForm();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0][0]).toEqual({
+      isDeceased: true,
+      dateOfDeath: "2024-01-01",
+      causeOfDeath: "Natural causes",
+    });
   });
 });
 
