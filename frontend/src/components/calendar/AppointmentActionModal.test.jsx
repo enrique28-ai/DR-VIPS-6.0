@@ -18,6 +18,7 @@ const t = (key, optsOrFallback) => {
     "calendar.modal.doctor": "Doctor",
     "calendar.reason": "Reason",
     "calendar.modal.cancelBtn": "Cancel Appointment",
+    "common.loading": "Loading...",
     "common.close": "Close",
     "common.reject": "Reject",
     "common.accept": "Accept",
@@ -87,7 +88,9 @@ describe("AppointmentActionModal", () => {
   test("renders pending patient modal with doctor details and accept/reject actions", () => {
     renderModal({ mode: "pending", isDoctor: false });
 
-    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+    const dialog = screen.getByRole("dialog", { name: "Appointment Request" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAccessibleDescription(/Accept or reject appointment with Dr\. Smith\?/);
     expect(screen.getByText("Appointment Request")).toBeInTheDocument();
     expect(screen.getByText("Accept or reject appointment with Dr. Smith?")).toBeInTheDocument();
     expect(screen.getByText("Doctor:")).toBeInTheDocument();
@@ -95,6 +98,10 @@ describe("AppointmentActionModal", () => {
     expect(screen.getByText("Time:")).toBeInTheDocument();
     expect(screen.getByText("Reason:")).toBeInTheDocument();
     expect(screen.getByText("Follow up")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close Appointment Request" })).toHaveAttribute(
+      "type",
+      "button",
+    );
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
@@ -181,25 +188,27 @@ describe("AppointmentActionModal", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  test("busy pending mode disables close and action buttons and shows ellipsis", () => {
+  test("busy pending mode disables close and action buttons and shows loading labels", () => {
     renderModal({ mode: "pending", isDoctor: false, busy: true });
 
+    expect(screen.getByRole("button", { name: "Close Appointment Request" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
 
-    const ellipsisButtons = screen.getAllByRole("button", { name: "..." });
-    expect(ellipsisButtons.length).toBeGreaterThanOrEqual(1);
-    ellipsisButtons.forEach((button) => expect(button).toBeDisabled());
+    const loadingButtons = screen.getAllByRole("button", { name: "Loading..." });
+    expect(loadingButtons.length).toBeGreaterThanOrEqual(1);
+    loadingButtons.forEach((button) => expect(button).toBeDisabled());
   });
 
-  test("busy cancel mode disables cancel action and shows ellipsis", () => {
+  test("busy cancel mode disables cancel action and shows loading label", () => {
     renderModal({ mode: "cancel", event: acceptedEvent, busy: true });
 
+    expect(screen.getByRole("button", { name: "Close Cancel Appointment" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
 
-    const ellipsisButtons = screen.getAllByRole("button", { name: "..." });
-    expect(ellipsisButtons.length).toBeGreaterThanOrEqual(1);
-    ellipsisButtons.forEach((button) => expect(button).toBeDisabled());
+    const loadingButtons = screen.getAllByRole("button", { name: "Loading..." });
+    expect(loadingButtons.length).toBeGreaterThanOrEqual(1);
+    loadingButtons.forEach((button) => expect(button).toBeDisabled());
   });
 
   test("body overflow is hidden while open and restored after unmount", () => {

@@ -215,7 +215,13 @@ export default function CalendarPage() {
   const doctorPrefix = t("calendar.doctorPrefix", "Dr:");
 
 
-  if (isLoading) return <div className="p-10 text-center">{t("common.loading", "Loading...")}</div>;
+  if (isLoading) {
+    return (
+      <div className="p-10 text-center" role="status" aria-live="polite">
+        {t("common.loading", "Loading...")}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4">
@@ -232,13 +238,17 @@ export default function CalendarPage() {
           <div className="flex flex-wrap gap-4 items-end">
             {/* 1. PACIENTE */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label htmlFor="calendar-patient" className="block text-xs font-medium text-gray-500 mb-1">
                 {t("calendar.selectPatient", "Patient")}
               </label>
               <select
+                id="calendar-patient"
+                name="patientId"
                 className="border p-2 rounded w-64 bg-gray-50 h-11 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 value={selectedPatient}
                 onChange={(e) => setSelectedPatient(e.target.value)}
+                required
+                aria-required="true"
               >
                 <option value="">{t("calendar.choosePatient", "Choose a patient...")}</option>
                 {patientData?.items?.map((p) => (
@@ -249,10 +259,12 @@ export default function CalendarPage() {
 
             {/* 2. INICIO (START) */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label htmlFor="calendar-start" className="block text-xs font-medium text-gray-500 mb-1">
                 {t("calendar.start", "Start")}
               </label>
               <LocalizedDatePicker
+                id="calendar-start"
+                name="start"
                 value={startDate}
                 onChange={handleStartChange}
                 showTimeSelect
@@ -264,15 +276,19 @@ export default function CalendarPage() {
                 selectsStart
                 startDate={startDate}
                 endDate={endDate}
+                required
+                aria-required="true"
               />
             </div>
 
             {/* 3. FIN (END) */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label htmlFor="calendar-end" className="block text-xs font-medium text-gray-500 mb-1">
                 {t("calendar.end", "End")}
               </label>
               <LocalizedDatePicker
+                id="calendar-end"
+                name="end"
                 value={endDate}
                 onChange={handleEndChange}
                 showTimeSelect
@@ -291,10 +307,12 @@ export default function CalendarPage() {
 
             {/* 4. DURACIÓN */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label htmlFor="calendar-duration" className="block text-xs font-medium text-gray-500 mb-1">
                 {t("calendar.duration", "Duration")}
               </label>
               <select
+                id="calendar-duration"
+                name="duration"
                 className="border p-2 rounded w-32 bg-gray-50 h-11 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 value={duration}
                 onChange={handleDurationChange}
@@ -311,10 +329,12 @@ export default function CalendarPage() {
 
             {/* 5. MOTIVO */}
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label htmlFor="calendar-reason" className="block text-xs font-medium text-gray-500 mb-1">
                 {t("calendar.reason", "Reason")}
               </label>
               <Input
+                id="calendar-reason"
+                name="reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={t("calendar.reasonPlaceholder", "e.g. Follow up...")}
@@ -357,12 +377,16 @@ export default function CalendarPage() {
         />
       </div>
 
-      <div className="mt-4 text-sm text-gray-500">
-        <span className="inline-block w-3 h-3 rounded-full bg-[#F59E0B] mr-1"></span>
-        {t("calendar.legendPending", "Pending")}
-        <span className="inline-block w-3 h-3 rounded-full bg-[#10B981] ml-4 mr-1"></span>
-        {t("calendar.legendAccepted", "Accepted")}
-      </div>
+      <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-500" aria-label={t("calendar.legend", "Appointment status legend")}>
+        <li className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-[#F59E0B]" aria-hidden="true"></span>
+          <span>{t("calendar.legendPending", "Pending")}</span>
+        </li>
+        <li className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-[#10B981]" aria-hidden="true"></span>
+          <span>{t("calendar.legendAccepted", "Accepted")}</span>
+        </li>
+      </ul>
 
       <AppointmentActionModal
         open={apptModal.open}

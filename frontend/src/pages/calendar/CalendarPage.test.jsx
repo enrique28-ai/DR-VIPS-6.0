@@ -44,6 +44,7 @@ vi.mock("react-i18next", () => ({
         "calendar.scheduling": "Scheduling...",
         "calendar.legendPending": "Pending",
         "calendar.legendAccepted": "Accepted",
+        "calendar.legend": "Appointment status legend",
         "calendar.patientPrefix": "P:",
         "calendar.doctorPrefix": "Dr:",
         "calendar.unknown": "Unknown",
@@ -123,8 +124,9 @@ const dateMap = vi.hoisted(() => ({
 }));
 
 vi.mock("../../components/forms/LocalizedDatePicker.jsx", () => ({
-  default: ({ value, onChange, placeholder }) => (
+  default: ({ value, onChange, placeholder, ...rest }) => (
     <input
+      {...rest}
       type="text"
       data-testid="localized-date-picker"
       value={value ? value.toISOString() : ""}
@@ -219,7 +221,7 @@ describe("CalendarPage", () => {
 
     renderCalendarPage();
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading...");
     expect(screen.queryByTestId("calendar")).not.toBeInTheDocument();
   });
 
@@ -248,9 +250,12 @@ describe("CalendarPage", () => {
     expect(screen.getByRole("heading", { name: "Calendar" })).toBeInTheDocument();
     expect(screen.getByText("New Appointment")).toBeInTheDocument();
 
-    const comboboxes = screen.getAllByRole("combobox");
-    const patientSelect = comboboxes[0];
+    const patientSelect = screen.getByLabelText("Patient");
     expect(patientSelect).toBeInTheDocument();
+    expect(patientSelect).toHaveAttribute("id", "calendar-patient");
+    expect(patientSelect).toHaveAttribute("name", "patientId");
+    expect(patientSelect).toBeRequired();
+    expect(patientSelect).toHaveAttribute("aria-required", "true");
     const options = screen.getAllByRole("option");
     const optionTexts = options.map((o) => o.textContent);
     expect(optionTexts).toContain("Choose a patient...");
@@ -261,12 +266,20 @@ describe("CalendarPage", () => {
     expect(datePickers.length).toBeGreaterThanOrEqual(2);
     expect(datePickers[0]).toHaveAttribute("placeholder", "Start");
     expect(datePickers[1]).toHaveAttribute("placeholder", "End");
+    expect(screen.getByLabelText("Start")).toHaveAttribute("name", "start");
+    expect(screen.getByLabelText("Start")).toBeRequired();
+    expect(screen.getByLabelText("Start")).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText("End")).toHaveAttribute("name", "end");
+    expect(screen.getByLabelText("End")).not.toBeRequired();
+    expect(screen.getByLabelText("Duration")).toHaveAttribute("name", "duration");
 
-    expect(screen.getByPlaceholderText("e.g. Follow up...")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reason")).toHaveAttribute("name", "reason");
+    expect(screen.getByLabelText("Reason")).not.toBeRequired();
     expect(screen.getByRole("button", { name: "Schedule" })).toBeInTheDocument();
     expect(screen.getByTestId("calendar")).toBeInTheDocument();
-    expect(screen.getByText((text) => text.includes("Pending"))).toBeInTheDocument();
-    expect(screen.getByText((text) => text.includes("Accepted"))).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Appointment status legend" })).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
   });
 
   test("calls usePatients with enabled false for patient and true for doctor", () => {
