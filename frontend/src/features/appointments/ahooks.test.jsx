@@ -68,9 +68,10 @@ describe("appointment hooks", () => {
 
   test("useCreateAppointment posts payload, shows success toast, and invalidates appointments", async () => {
     const payload = {
-      patient: "patient-1",
+      patientId: "patient-1",
       start: "2026-06-21T17:00:00.000Z",
       end: "2026-06-21T17:30:00.000Z",
+      reason: "Follow up visit",
     };
     api.post.mockResolvedValueOnce({ data: { _id: "appointment-1" } });
 

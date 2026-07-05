@@ -127,6 +127,19 @@ describe("AppointmentActionModal", () => {
     expect(onReject).toHaveBeenCalledWith("appt-accepted");
   });
 
+  test("renders cancel modal for pending request and cancel calls onReject", () => {
+    const { onReject } = renderModal({ mode: "cancel", event });
+
+    expect(screen.getByRole("heading", { name: "Cancel Request" })).toBeInTheDocument();
+    expect(screen.getByText("Do you want to cancel this pending request?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Appointment" }));
+    expect(onReject).toHaveBeenCalledTimes(1);
+    expect(onReject).toHaveBeenCalledWith("appt-1");
+  });
+
   test("doctor cancel modal displays patient name instead of doctor name", () => {
     renderModal({ mode: "cancel", event: acceptedEvent, isDoctor: true });
 

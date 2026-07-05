@@ -413,10 +413,12 @@ describe("CalendarPage", () => {
 
       expect(createMutate).toHaveBeenCalledTimes(1);
       const [payload, options] = createMutate.mock.calls[0];
-      expect(payload.patientId).toBe("p1");
-      expect(payload.start).toEqual(dateMap.laterStart);
-      expect(payload.end).toEqual(dateMap.laterEnd);
-      expect(payload.reason).toBe("Follow up visit");
+      expect(payload).toEqual({
+        patientId: "p1",
+        start: dateMap.laterStart,
+        end: dateMap.laterEnd,
+        reason: "Follow up visit",
+      });
       expect(typeof options.onSuccess).toBe("function");
     });
 
@@ -437,7 +439,34 @@ describe("CalendarPage", () => {
       fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
 
       expect(createMutate).toHaveBeenCalledTimes(1);
-      expect(createMutate.mock.calls[0][0].reason).toBe("General consultation");
+      expect(createMutate.mock.calls[0][0]).toEqual({
+        patientId: "p1",
+        start: dateMap.start,
+        end: dateMap.end,
+        reason: "General consultation",
+      });
+    });
+
+    test("recalculates end from selected start and duration", () => {
+      authState.user = doctorUser;
+      const createMutate = vi.fn();
+      useCreateAppointment.mockReturnValue({ mutate: createMutate, isPending: false });
+      useAppointments.mockReturnValue({ data: [], isLoading: false });
+      usePatients.mockReturnValue({ data: patientsData });
+
+      renderCalendarPage();
+      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "p1" } });
+      fireEvent.change(screen.getByPlaceholderText("Start"), { target: { value: "start" } });
+      fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "120" } });
+      fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+
+      expect(createMutate).toHaveBeenCalledTimes(1);
+      expect(createMutate.mock.calls[0][0]).toEqual({
+        patientId: "p1",
+        start: dateMap.start,
+        end: new Date(dateMap.start.getTime() + 120 * 60 * 1000),
+        reason: "General consultation",
+      });
     });
 
     test("resets form fields on successful create", () => {
