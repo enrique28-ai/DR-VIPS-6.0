@@ -24,15 +24,16 @@ vi.mock("framer-motion", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key) =>
+    t: (key, options = {}) =>
       ({
         "auth.chooseRole.continueDoctor": "Continue as doctor",
         "auth.chooseRole.continuePatient": "Continue as patient",
         "auth.chooseRole.doctorNotAllowed": "Doctor sign-up is not allowed for this account.",
         "auth.chooseRole.genericError": "Could not choose role",
+        "auth.chooseRole.loading": options.defaultValue,
         "auth.chooseRole.newAccount": "New account",
         "auth.chooseRole.title": "Choose your role",
-      }[key] ?? key),
+      }[key] ?? options.defaultValue ?? key),
   }),
 }));
 
@@ -76,12 +77,12 @@ describe("ChooseRole", () => {
     navigateMock.mockReset();
   });
 
-  test("renders null while pending Google account data is unresolved", () => {
+  test("shows accessible loading state while pending Google account data is unresolved", () => {
     const getGooglePending = vi.fn(() => new Promise(() => {}));
 
-    const { container } = renderChooseRole({ getGooglePending });
+    renderChooseRole({ getGooglePending });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your Google account...");
     expect(getGooglePending).toHaveBeenCalledTimes(1);
   });
 
@@ -152,8 +153,11 @@ describe("ChooseRole", () => {
 
     const doctorButton = await screen.findByRole("button", { name: "Continue as doctor" });
     expect(doctorButton).toBeDisabled();
-    expect(doctorButton).toHaveClass("opacity-60");
-    expect(screen.getByText("Doctor sign-up is not allowed for this account.")).toBeInTheDocument();
+    expect(doctorButton).toHaveAttribute("aria-describedby", "choose-role-doctor-disabled-help");
+    expect(screen.getByText("Doctor sign-up is not allowed for this account.")).toHaveAttribute(
+      "id",
+      "choose-role-doctor-disabled-help",
+    );
 
     fireEvent.click(doctorButton);
 
@@ -169,7 +173,7 @@ describe("ChooseRole", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Continue as patient" }));
 
-    expect(await screen.findByText("Pending Google session expired")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Pending Google session expired");
   });
 
   test("shows generic translated error when doctor role finalization fails without backend error", async () => {
@@ -179,6 +183,6 @@ describe("ChooseRole", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Continue as doctor" }));
 
-    expect(await screen.findByText("Could not choose role")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not choose role");
   });
 });

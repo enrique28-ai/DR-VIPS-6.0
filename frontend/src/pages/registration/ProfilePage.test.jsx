@@ -35,7 +35,7 @@ vi.mock("react-hot-toast", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     i18n: { language: "en" },
-    t: (key) =>
+    t: (key, options = {}) =>
       ({
         "auth.profile.title": "Profile",
         "auth.profile.emailLabel": "Email",
@@ -58,7 +58,7 @@ vi.mock("react-i18next", () => ({
         "auth.profile.errors.confirmDelete":
           "Type DELETE to confirm account deletion.",
         "auth.profile.errors.maxSize": "Image must be 2 MB or less.",
-      }[key] ?? key),
+      }[key] ?? options.defaultValue ?? key),
   }),
 }));
 
@@ -141,10 +141,12 @@ describe("ProfilePage", () => {
 
     expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
 
-    const emailInput = screen.getByDisplayValue("doctor@example.com");
+    const emailInput = screen.getByLabelText("Email");
     expect(emailInput).toBeDisabled();
+    expect(emailInput).toHaveValue("doctor@example.com");
 
-    expect(screen.getByDisplayValue("Dr. Smith")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Dr. Smith");
+    expect(screen.getByRole("group", { name: "Profile photo" })).toBeInTheDocument();
 
     const avatar = screen.getByAltText("avatar preview");
     expect(avatar).toHaveAttribute("src", expect.stringContaining("default-avatar.png"));
@@ -194,7 +196,7 @@ describe("ProfilePage", () => {
     authState.user = doctorUser;
     renderProfilePage();
 
-    fireEvent.change(screen.getByDisplayValue("Dr. Smith"), { target: { value: "New Name" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New Name" } });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
 
     await waitFor(() => {
@@ -207,7 +209,7 @@ describe("ProfilePage", () => {
     authState.user = patientUser;
     renderProfilePage();
 
-    fireEvent.change(screen.getByDisplayValue("Patient Smith"), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "New Patient Name" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
@@ -243,18 +245,22 @@ describe("ProfilePage account actions and avatar", () => {
     resetAuth();
   });
 
-  test("wrong delete confirmation shows toast error and does not call deleteMe", () => {
+  test("delete button is disabled until confirmation matches", () => {
     authState.user = doctorUser;
     renderProfilePage();
+
+    expect(screen.getByLabelText("Type DELETE to confirm")).toBeInTheDocument();
+
+    const deleteButton = screen.getByRole("button", { name: "Delete account" });
+    expect(deleteButton).toBeDisabled();
 
     fireEvent.change(screen.getByPlaceholderText("Type DELETE to confirm"), {
       target: { value: "WRONG" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
 
-    expect(toast.error).toHaveBeenCalledWith("Type DELETE to confirm account deletion.");
+    expect(deleteButton).toBeDisabled();
     expect(authState.deleteMe).not.toHaveBeenCalled();
-    expect(navigateMock).not.toHaveBeenCalledWith("/login", { replace: true });
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   test("correct delete confirmation calls deleteMe and navigates to login", async () => {
@@ -264,7 +270,9 @@ describe("ProfilePage account actions and avatar", () => {
     fireEvent.change(screen.getByPlaceholderText("Type DELETE to confirm"), {
       target: { value: "DELETE" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+    const deleteButton = screen.getByRole("button", { name: "Delete account" });
+    expect(deleteButton).toBeEnabled();
+    fireEvent.click(deleteButton);
 
     await waitFor(() => {
       expect(authState.deleteMe).toHaveBeenCalledTimes(1);
@@ -279,6 +287,7 @@ describe("ProfilePage account actions and avatar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use link" }));
 
     expect(screen.getByPlaceholderText("https://...")).toBeInTheDocument();
+    expect(screen.getByLabelText("Avatar URL")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use file" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Use file" }));

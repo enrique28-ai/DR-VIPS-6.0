@@ -22,6 +22,15 @@ export default function ProfilePage() {
   const [preview, setPreview] = useState(null);
   const navigate = useNavigate();
   const fileRef = useRef(null);
+  const deleteConfirmValue = t("auth.profile.deleteConfirmValue");
+  const canDelete = confirmText === deleteConfirmValue;
+  const avatarStatus = pendingFile
+    ? `${t("auth.profile.pendingFileStatus", { defaultValue: "Selected pending photo" })}: ${pendingFile.name}`
+    : pendingRemove
+      ? t("auth.profile.pendingRemoveStatus", { defaultValue: "Avatar removal is pending until you save." })
+      : useUrl
+        ? t("auth.profile.urlModeStatus", { defaultValue: "Avatar URL mode is active." })
+        : "";
 
 
    // preview local para archivo pendiente
@@ -67,12 +76,12 @@ export default function ProfilePage() {
   };
 
   const onDelete = async () => {
-    const requiredWord = t("auth.profile.deleteConfirmValue");
+    const requiredWord = deleteConfirmValue;
 
-  if (confirmText !== requiredWord) {
-    toast.error(t("auth.profile.errors.confirmDelete"));
-    return;
-  }
+    if (confirmText !== requiredWord) {
+      toast.error(t("auth.profile.errors.confirmDelete"));
+      return;
+    }
     setIsDeleting(true);
     try {
       await deleteMe();
@@ -84,23 +93,30 @@ export default function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="mb-6 text-2xl font-semibold text-gray-900">{t("auth.profile.title")}</h1>
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="mb-6 text-2xl font-semibold text-slate-950">{t("auth.profile.title")}</h1>
 
         <form onSubmit={onSave} className="space-y-4" aria-busy={isLoading}>
-          <Input label={t("auth.profile.emailLabel")} value={user.email} disabled />
-          <Input label={t("auth.profile.nameLabel")} value={name} onChange={(e) => setName(e.target.value)} required />
-         <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{t("auth.profile.photoLabel")}</label>
-            <div className="flex items-center gap-4">
+          <Input id="profile-email" name="email" label={t("auth.profile.emailLabel")} value={user.email} disabled />
+          <Input id="profile-name" name="name" label={t("auth.profile.nameLabel")} value={name} onChange={(e) => setName(e.target.value)} required />
+         <div
+            role="group"
+            aria-labelledby="profile-photo-label"
+            aria-describedby={avatarStatus ? "profile-avatar-status" : undefined}
+            className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4"
+          >
+            <label id="profile-photo-label" className="mb-3 block text-sm font-semibold text-slate-700">{t("auth.profile.photoLabel")}</label>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <img
                 src={resolveAvatar(avatar)}
                 alt="avatar preview"
-                className="h-16 w-16 rounded-full object-cover ring-1 ring-gray-200"
+                className="h-16 w-16 rounded-full object-cover ring-1 ring-slate-200"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   ref={fileRef}
+                  id="profile-avatar-file"
+                  name="avatarFile"
                   type="file"
                   accept="image/*"
                   className="hidden"
@@ -147,6 +163,8 @@ export default function ProfilePage() {
             {useUrl && (
               <div className="mt-3">
                 <Input
+                  id="profile-avatar-url"
+                  name="avatarUrl"
                   label={t("auth.profile.avatarUrlLabel")}
                   placeholder="https://..."
                   value={avatar}
@@ -155,6 +173,11 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {avatarStatus && (
+              <p id="profile-avatar-status" role="status" className="sr-only">
+                {avatarStatus}
+              </p>
+            )}
           </div>
           <div className="flex justify-end">
             <Button type="submit" loading={isLoading}>
@@ -164,15 +187,19 @@ export default function ProfilePage() {
         </form>
       </section>
 
-      <section className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-6">
-        <h2 className="text-lg font-semibold text-red-600">{t("auth.profile.dangerTitle")}</h2>
-        <p className="mt-1 text-sm text-gray-700">
+      <section className="mt-8 rounded-2xl border border-red-200 bg-red-50/80 p-6" aria-labelledby="profile-danger-title">
+        <h2 id="profile-danger-title" className="text-lg font-semibold text-red-700">{t("auth.profile.dangerTitle")}</h2>
+        <p id="profile-delete-description" className="mt-1 text-sm text-red-900/80">
           {user?.role === "patient"
             ? t("auth.profile.dangerPatient")
             : t("auth.profile.dangerDoctor")}
         </p>
         <div className="mt-3">
           <Input
+            id="profile-delete-confirm"
+            name="deleteConfirm"
+            label={t("auth.profile.confirmPlaceholder")}
+            aria-describedby="profile-delete-description"
             placeholder={t("auth.profile.confirmPlaceholder")}
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
@@ -182,8 +209,9 @@ export default function ProfilePage() {
           className="mt-2"
           onClick={onDelete}
           loading={isDeleting}
-          disabled={isDeleting}
+          disabled={isDeleting || !canDelete}
           variant="danger"
+          aria-describedby="profile-delete-description"
         >
           {t("auth.profile.deleteButton")}
         </Button>
