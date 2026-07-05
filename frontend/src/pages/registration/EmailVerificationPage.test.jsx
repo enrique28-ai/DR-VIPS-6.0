@@ -24,13 +24,15 @@ vi.mock("framer-motion", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key) =>
+    t: (key, options = {}) =>
       ({
         "auth.verify.button": "Verify",
+        "auth.verify.codeDigit": options.defaultValue,
+        "auth.verify.codeLegend": options.defaultValue,
         "auth.verify.intro": "Enter the verification code sent to your email.",
         "auth.verify.resend": "Resend code",
         "auth.verify.title": "Verify your email",
-      }[key] ?? key),
+      }[key] ?? options.defaultValue ?? key),
   }),
 }));
 
@@ -59,7 +61,10 @@ const renderEmailVerification = ({
 
   return {
     ...view,
-    inputs: () => Array.from(view.container.querySelectorAll("input")),
+    inputs: () =>
+      Array.from({ length: 6 }, (_, index) =>
+        screen.getByRole("textbox", { name: `Verification code digit ${index + 1}` }),
+      ),
     verifyEmail,
     resendCode,
   };
@@ -82,7 +87,13 @@ describe("EmailVerificationPage", () => {
 
     expect(screen.getByRole("heading", { name: "Verify your email" })).toBeInTheDocument();
     expect(screen.getByText("Enter the verification code sent to your email.")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Verification code" })).toBeInTheDocument();
     expect(inputs()).toHaveLength(6);
+    expect(screen.getByLabelText("Verification code digit 1")).toHaveAttribute(
+      "autocomplete",
+      "one-time-code",
+    );
+    expect(screen.getByLabelText("Verification code digit 2")).not.toHaveAttribute("autocomplete");
     expect(screen.getByRole("button", { name: "Verify" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resend code" })).toBeInTheDocument();
   });

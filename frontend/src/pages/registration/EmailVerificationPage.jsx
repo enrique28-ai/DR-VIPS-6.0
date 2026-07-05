@@ -12,6 +12,7 @@ export default function EmailVerificationPage() {
   const inputRefs = useRef([]);
   const navigate = useNavigate();
   const { isLoading, verifyEmail, resendCode, user } = useAuthStore();
+  const codeDigitLabel = t("auth.verify.codeDigit", { defaultValue: "Verification code digit" });
 
   const handleChange = (i, value) => {
     const next = [...code];
@@ -48,28 +49,32 @@ export default function EmailVerificationPage() {
 
   return (
     <AuthShell title={t("auth.verify.title")}>
-      <p className="text-center text-gray-600 mb-6">
+      <p className="text-center text-slate-600 mb-6">
         {t("auth.verify.intro")}
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex justify-between">
+      <form onSubmit={handleSubmit} className="space-y-6" aria-busy={isLoading}>
+        <fieldset className="flex justify-between gap-2">
+          <legend className="sr-only">
+            {t("auth.verify.codeLegend", { defaultValue: "Verification code" })}
+          </legend>
           {code.map((digit, i) => (
             <input
               key={i}
               ref={(el) => (inputRefs.current[i] = el)}
               type="text"
               inputMode="numeric"
+              autoComplete={i === 0 ? "one-time-code" : undefined}
+              aria-label={`${codeDigitLabel} ${i + 1}`}
               maxLength={6}
               value={digit}
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
-              className="w-12 h-12 text-center text-2xl font-bold bg-white text-gray-900
-                         border border-gray-300 rounded-lg
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="h-12 w-12 rounded-lg border border-slate-300 bg-slate-50 text-center text-2xl font-bold text-slate-900 shadow-sm transition-colors
+                         hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           ))}
-        </div>
+        </fieldset>
 
 
         <div className="flex gap-3">

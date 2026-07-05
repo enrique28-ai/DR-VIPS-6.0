@@ -100,6 +100,7 @@ describe("ResetPasswordPage", () => {
     const view = renderResetPassword();
 
     expect(screen.getByRole("heading", { name: "Reset password" })).toBeInTheDocument();
+    expect(view.form()).toHaveAttribute("aria-busy", "false");
     expect(view.passwordInputs()).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Reset password" })).toBeInTheDocument();
     expect(screen.getByText("Password strength")).toBeInTheDocument();
@@ -107,6 +108,8 @@ describe("ResetPasswordPage", () => {
     expect(screen.getByText("Uppercase and lowercase letters")).toBeInTheDocument();
     expect(screen.getByText("A number")).toBeInTheDocument();
     expect(screen.getByText("A special character")).toBeInTheDocument();
+    expect(view.passwordInputs()[0]).toHaveAttribute("aria-describedby", "reset-password-help");
+    expect(document.getElementById("reset-password-help")).toHaveTextContent("Password strength");
   });
 
   test("typing new and confirm passwords updates both inputs", () => {
@@ -191,5 +194,6 @@ describe("ResetPasswordPage", () => {
     const submitButton = screen.getByRole("button", { name: "Reset password" });
     expect(submitButton).toBeDisabled();
     expect(submitButton).toHaveAttribute("aria-busy", "true");
+    expect(submitButton.closest("form")).toHaveAttribute("aria-busy", "true");
   });
 });

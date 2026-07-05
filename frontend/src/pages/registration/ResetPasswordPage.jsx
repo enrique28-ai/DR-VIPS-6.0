@@ -35,7 +35,7 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthShell title={t("auth.reset.title")}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} aria-busy={isLoading}>
         <Input
           label={t("auth.reset.newPasswordLabel")}
           icon={Lock}
@@ -43,6 +43,7 @@ export default function ResetPasswordPage() {
           placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          aria-describedby="reset-password-help"
           required
         />
         <Input
@@ -54,7 +55,7 @@ export default function ResetPasswordPage() {
           onChange={(e) => setConfirm(e.target.value)}
           required
         />
-      <div className="mt-2 mb-5">
+      <div id="reset-password-help" className="mt-2 mb-5">
         <PasswordStrengthMeter password={password} />
       </div>
 

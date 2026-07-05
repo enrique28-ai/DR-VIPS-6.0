@@ -28,7 +28,9 @@ vi.mock("react-i18next", () => ({
       ({
         "auth.forgot.backToLogin": "Back to login",
         "auth.forgot.button": "Send reset code",
+        "auth.forgot.codeDigit": options.defaultValue,
         "auth.forgot.codeIntro": options.defaultValue,
+        "auth.forgot.codeLegend": options.defaultValue,
         "auth.forgot.emailLabel": "Email",
         "auth.forgot.emailPlaceholder": "you@example.com",
         "auth.forgot.intro": "Enter your email and we will send a reset code.",
@@ -68,7 +70,10 @@ const renderForgotPassword = ({
     forgotPassword,
     verifyResetCode,
     emailInput: () => screen.getByPlaceholderText("you@example.com"),
-    codeInputs: () => Array.from(view.container.querySelectorAll("input")).slice(0, 6),
+    codeInputs: () =>
+      Array.from({ length: 6 }, (_, index) =>
+        screen.getByRole("textbox", { name: `Reset code digit ${index + 1}` }),
+      ),
   };
 };
 
@@ -128,7 +133,13 @@ describe("ForgotPasswordPage", () => {
 
     expect(screen.getByText("Person@Example.com")).toBeInTheDocument();
     expect(screen.getByText("Enter the 6-digit code we sent to your email.")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Reset code" })).toBeInTheDocument();
     expect(view.codeInputs()).toHaveLength(6);
+    expect(screen.getByLabelText("Reset code digit 1")).toHaveAttribute(
+      "autocomplete",
+      "one-time-code",
+    );
+    expect(screen.getByLabelText("Reset code digit 2")).not.toHaveAttribute("autocomplete");
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resend code" })).toBeInTheDocument();
   });
