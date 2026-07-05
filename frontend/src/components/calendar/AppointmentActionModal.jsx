@@ -1,8 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 // Importaciones consistentes para evitar problemas de bundler
 import format from "date-fns/format";
 import enUS from "date-fns/locale/en-US";
 import es from "date-fns/locale/es";
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+const isFocusableElement = (element) => {
+  if (!(element instanceof HTMLElement)) return false;
+  if (!element.matches(FOCUSABLE_SELECTOR)) return false;
+  if (element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true") {
+    return false;
+  }
+
+  const style = window.getComputedStyle(element);
+  return !element.closest("[hidden]") && style.display !== "none" && style.visibility !== "hidden";
+};
+
+const getFocusableElements = (container) => {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(isFocusableElement);
+};
 
 export default function AppointmentActionModal({
   open,
@@ -18,23 +43,78 @@ export default function AppointmentActionModal({
   lockCloseWhenBusy = true,
 }) {
   const canClose = !busy || !lockCloseWhenBusy;
+  const dialogRef = useRef(null);
+  const panelRef = useRef(null);
+  const previousActiveElementRef = useRef(null);
+  const canCloseRef = useRef(canClose);
+  const onCloseRef = useRef(onClose);
 
-  // Bloquear scroll y cerrar con ESC
+  canCloseRef.current = canClose;
+  onCloseRef.current = onClose;
+
+  // Bloquear scroll, gestionar foco y cerrar con ESC
   useEffect(() => {
     if (!open) return;
     const prevOverflow = document.body.style.overflow;
+    previousActiveElementRef.current = document.activeElement;
     document.body.style.overflow = "hidden";
 
     const onKeyDown = (e) => {
-      if (e.key === "Escape" && canClose) onClose();
+      if (e.key === "Escape" && canCloseRef.current) {
+        onCloseRef.current();
+        return;
+      }
+
+      if (e.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusableElements = getFocusableElements(panel);
+      if (focusableElements.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (activeElement === panel || activeElement === dialogRef.current || !panel.contains(activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? lastFocusable : firstFocusable).focus();
+        return;
+      }
+
+      if (!e.shiftKey && activeElement === lastFocusable) {
+        e.preventDefault();
+        firstFocusable.focus();
+        return;
+      }
+
+      if (e.shiftKey && activeElement === firstFocusable) {
+        e.preventDefault();
+        lastFocusable.focus();
+      }
     };
 
     document.addEventListener("keydown", onKeyDown);
+
+    const focusableElements = getFocusableElements(panelRef.current);
+    const initialFocusTarget = focusableElements[0] || panelRef.current;
+    initialFocusTarget?.focus();
+
     return () => {
       document.body.style.overflow = prevOverflow;
       document.removeEventListener("keydown", onKeyDown);
+      const previousActiveElement = previousActiveElementRef.current;
+      if (previousActiveElement?.isConnected && isFocusableElement(previousActiveElement)) {
+        previousActiveElement.focus();
+      }
+      previousActiveElementRef.current = null;
     };
-  }, [open, canClose, onClose]);
+  }, [open]);
 
   if (!open || !event) return null;
 
@@ -80,6 +160,7 @@ export default function AppointmentActionModal({
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[10000] flex items-center justify-center"
       role="dialog"
       aria-modal="true"
@@ -93,7 +174,11 @@ export default function AppointmentActionModal({
       />
 
       {/* Card */}
-      <div className="relative z-10 w-[95%] max-w-md transform rounded-xl bg-white p-6 shadow-2xl transition-all border border-gray-100">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative z-10 w-[95%] max-w-md transform rounded-xl bg-white p-6 shadow-2xl transition-all border border-gray-100"
+      >
         
         {/* Header */}
         <div className="flex items-start justify-between">

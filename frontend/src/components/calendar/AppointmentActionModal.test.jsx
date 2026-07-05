@@ -162,6 +162,80 @@ describe("AppointmentActionModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  test("focus moves inside the dialog when opened", () => {
+    renderModal();
+
+    expect(screen.getByRole("button", { name: "Close Appointment Request" })).toHaveFocus();
+  });
+
+  test("Tab wraps from the last focusable control to the first", () => {
+    renderModal();
+
+    screen.getByRole("button", { name: "Accept" }).focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(screen.getByRole("button", { name: "Close Appointment Request" })).toHaveFocus();
+  });
+
+  test("Shift+Tab wraps from the first focusable control to the last", () => {
+    renderModal();
+
+    screen.getByRole("button", { name: "Close Appointment Request" }).focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(screen.getByRole("button", { name: "Accept" })).toHaveFocus();
+  });
+
+  test("Tab from the panel moves focus to the first focusable control", () => {
+    renderModal();
+
+    const dialog = screen.getByRole("dialog");
+    const panel = dialog.lastElementChild;
+    panel.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(screen.getByRole("button", { name: "Close Appointment Request" })).toHaveFocus();
+  });
+
+  test("Shift+Tab from the panel moves focus to the last focusable control", () => {
+    renderModal();
+
+    const dialog = screen.getByRole("dialog");
+    const panel = dialog.lastElementChild;
+    panel.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(screen.getByRole("button", { name: "Accept" })).toHaveFocus();
+  });
+
+  test("focus falls back to the panel when all controls are disabled", () => {
+    renderModal({ busy: true });
+
+    const dialog = screen.getByRole("dialog");
+    const panel = dialog.lastElementChild;
+
+    expect(panel).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(panel).toHaveFocus();
+  });
+
+  test("focus returns to the previous focused element after unmount", () => {
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.textContent = "Open modal";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const { unmount } = renderModal();
+    expect(screen.getByRole("button", { name: "Close Appointment Request" })).toHaveFocus();
+
+    unmount();
+    expect(trigger).toHaveFocus();
+
+    trigger.remove();
+  });
+
   test("Escape key does not close when busy and lockCloseWhenBusy is true", () => {
     const { onClose } = renderModal({ busy: true });
 
