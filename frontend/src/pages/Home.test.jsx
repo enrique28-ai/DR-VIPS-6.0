@@ -59,9 +59,9 @@ describe("Home", () => {
     resetAuth();
   });
 
-  test("renders title, tagline, general description, workspace text, and DR-VIPS logo", () => {
+  test("renders title, tagline, general description, workspace text, and decorative logo", () => {
     authState.isCheckingAuth = true;
-    renderHome();
+    const { container } = renderHome();
 
     expect(
       screen.getByRole("heading", { level: 1, name: "DR-VIPS" }),
@@ -70,9 +70,10 @@ describe("Home", () => {
     expect(screen.getByText("General home description")).toBeInTheDocument();
     expect(screen.getByText("Workspace")).toBeInTheDocument();
     expect(screen.getByText("Manage health records")).toBeInTheDocument();
-    expect(
-      screen.getByAltText("DR-VIPS Logo"),
-    ).toBeInTheDocument();
+    expect(container.querySelector('img[src="/dr-vips-logo.png"]')).toHaveAttribute(
+      "alt",
+      "",
+    );
   });
 
   test("guest state shows sign-in CTA and create-account link", () => {
@@ -123,16 +124,25 @@ describe("Home", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("checking-auth state shows disabled CTA with aria-disabled true", () => {
+  test("checking-auth state shows disabled non-navigation CTA without href placeholder", () => {
     authState.isCheckingAuth = true;
     authState.isAuthenticated = false;
     authState.user = null;
     renderHome();
 
-    const cta = screen.getByRole("link", { name: /Checking session/ });
-    expect(cta).toHaveAttribute("aria-disabled", "true");
+    const cta = screen.getByRole("button", { name: /Checking session/ });
+    expect(cta).toBeDisabled();
+    expect(cta).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.queryByRole("link", { name: /Checking session/ }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Create account" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen
+        .queryAllByRole("link")
+        .some((link) => link.getAttribute("href") === "#"),
+    ).toBe(false);
   });
 });
