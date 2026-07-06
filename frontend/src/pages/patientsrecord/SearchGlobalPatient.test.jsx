@@ -6,7 +6,7 @@ import { useSearchGlobalPatients } from "../../features/patients/phooks.js";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key) =>
+    t: (key, options) =>
       ({
         "patients.detail.back": "Back to Patients",
         "patients.searchGlobal.createNew": "Create new patient",
@@ -16,10 +16,13 @@ vi.mock("react-i18next", () => ({
         "patients.searchGlobal.notFound": "Not found?",
         "patients.searchGlobal.placeholder": "Search global patients",
         "patients.searchGlobal.resultsTitle": "Results",
+        "patients.searchGlobal.searchBtn": "Search Global",
         "patients.searchGlobal.searching": "Searching...",
         "patients.searchGlobal.subtitle": "Search globally to import an existing patient.",
+        "patients.searchGlobal.suggestCreate":
+          "If the patient is not in the system, please create a new record.",
         "patients.searchGlobal.title": "Add Patient",
-      }[key] ?? key),
+      }[key] ?? options?.defaultValue ?? key),
   }),
 }));
 
@@ -56,7 +59,7 @@ const renderSearchGlobalPatient = () =>
     </MemoryRouter>,
   );
 
-const searchInput = () => screen.getByPlaceholderText("Search global patients");
+const searchInput = () => screen.getByLabelText("Search Global");
 
 const advanceDebounce = () => {
   act(() => {
@@ -87,7 +90,8 @@ describe("SearchGlobalPatient", () => {
   test("renders header, links, search input, and initial min-character message", () => {
     renderSearchGlobalPatient();
 
-    expect(screen.getByRole("heading", { name: "Add Patient" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Add Patient/i })).toBeInTheDocument();
+    expect(screen.getAllByText("Results").length).toBeGreaterThan(0);
     expect(screen.getByText("Search globally to import an existing patient.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to Patients" })).toHaveAttribute(
       "href",
@@ -97,8 +101,9 @@ describe("SearchGlobalPatient", () => {
       "href",
       "/patients/new",
     );
-    expect(searchInput()).toBeInTheDocument();
-    expect(screen.getByText("Type at least 3 characters to search.")).toBeInTheDocument();
+    expect(searchInput()).toHaveAttribute("name", "globalPatientSearch");
+    expect(searchInput()).toHaveAccessibleDescription("Type at least 3 characters to search.");
+    expect(screen.getAllByText("Type at least 3 characters to search.").length).toBeGreaterThan(0);
     expect(lastHookCall()).toEqual(["", { enabled: false }]);
   });
 
@@ -109,7 +114,7 @@ describe("SearchGlobalPatient", () => {
     advanceDebounce();
 
     expect(lastHookCall()).toEqual(["ab", { enabled: false }]);
-    expect(screen.getByText("Type at least 3 characters to search.")).toBeInTheDocument();
+    expect(screen.getAllByText("Type at least 3 characters to search.").length).toBeGreaterThan(0);
   });
 
   test("debounces and trims a three-character term before enabling search", () => {
@@ -135,7 +140,7 @@ describe("SearchGlobalPatient", () => {
     fireEvent.change(searchInput(), { target: { value: "ana" } });
     advanceDebounce();
 
-    expect(screen.getByText("Searching...")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Searching...");
   });
 
   test("shows error state when enabled search fails", () => {
@@ -149,7 +154,7 @@ describe("SearchGlobalPatient", () => {
     fireEvent.change(searchInput(), { target: { value: "ana" } });
     advanceDebounce();
 
-    expect(screen.getByText("Error searching patients.")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Error searching patients.");
   });
 
   test("shows no-results state when enabled search returns an empty array", () => {
@@ -159,6 +164,9 @@ describe("SearchGlobalPatient", () => {
     advanceDebounce();
 
     expect(screen.getByRole("heading", { name: "No results" })).toBeInTheDocument();
+    expect(
+      screen.getByText("If the patient is not in the system, please create a new record."),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("patient-card")).not.toBeInTheDocument();
   });
 
@@ -173,7 +181,10 @@ describe("SearchGlobalPatient", () => {
     fireEvent.change(searchInput(), { target: { value: "ana" } });
     advanceDebounce();
 
-    expect(screen.getByRole("heading", { name: "Results" })).toBeInTheDocument();
+    const resultsRegion = screen.getByRole("region", { name: "Results (2)" });
+    expect(within(resultsRegion).getByRole("heading", { name: "Results (2)" })).toBeInTheDocument();
+    expect(within(resultsRegion).getByRole("list")).toBeInTheDocument();
+    expect(within(resultsRegion).getAllByRole("listitem")).toHaveLength(2);
     const cards = screen.getAllByTestId("patient-card");
     expect(cards).toHaveLength(2);
     expect(within(cards[0]).getByText("Ana Martinez")).toBeInTheDocument();
