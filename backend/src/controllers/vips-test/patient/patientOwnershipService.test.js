@@ -17,6 +17,22 @@ const originalPatientMethods = {
   findOne: Patient.findOne,
   findOneAndUpdate: Patient.findOneAndUpdate,
 };
+const GLOBAL_PATIENT_PREVIEW_FIELDS =
+  "_id fullname email phone age gender country state city approvedAt updatedAt createdBy owners";
+const GLOBAL_PATIENT_PREVIEW_KEYS = [
+  "_id",
+  "fullname",
+  "email",
+  "phone",
+  "age",
+  "gender",
+  "country",
+  "state",
+  "city",
+  "approvedAt",
+  "updatedAt",
+  "amIOwner",
+];
 
 after(() => {
   restorePatientMethods();
@@ -333,7 +349,26 @@ test("importPatientService adds doctor to owners without cloning", async () => {
 test("getGlobalPatientPreviewService does not import automatically", async () => {
   restorePatientMethods();
 
-  const findByIdCalls = mockPatientFindById(makePatient());
+  const approvedAt = new Date("2026-01-01T00:00:00.000Z");
+  const updatedAt = new Date("2026-01-02T00:00:00.000Z");
+  const findByIdCalls = mockPatientFindById(
+    makePatient({
+      approvedAt,
+      updatedAt,
+      diagnosis: "private diagnosis",
+      diagnoses: ["private diagnosis"],
+      medicalHistory: ["private history"],
+      healthInfo: { private: true },
+      history: ["private version"],
+      birthCountry: "Mexico",
+      birthState: "Baja California",
+      birthCity: "Tijuana",
+      parentEmail: "parent@example.com",
+      approvedSnapshot: { allergies: ["snapshot private"] },
+      lastEditedBy: "doctor-b",
+      privateNotes: "private fixture sentinel",
+    })
+  );
 
   Patient.create = async () => {
     throw new Error("Patient.create should not be called for global preview");
@@ -350,10 +385,112 @@ test("getGlobalPatientPreviewService does not import automatically", async () =>
 
     assert.equal(result._id, "patient-id");
     assert.equal(result.amIOwner, false);
+    assert.deepEqual(
+      Object.keys(result).sort(),
+      [...GLOBAL_PATIENT_PREVIEW_KEYS].sort()
+    );
+    assert.deepEqual(result, {
+      _id: "patient-id",
+      fullname: "Owned Patient",
+      email: "patient@example.com",
+      phone: "+16195550101",
+      age: 36,
+      gender: "female",
+      country: "United States",
+      state: "California",
+      city: "San Diego",
+      approvedAt,
+      updatedAt,
+      amIOwner: false,
+    });
+    for (const excludedField of [
+      "owners",
+      "createdBy",
+      "diagnoses",
+      "diagnosis",
+      "medicalHistory",
+      "healthInfo",
+      "allergies",
+      "medications",
+      "history",
+      "birthCountry",
+      "birthState",
+      "birthCity",
+      "parentEmail",
+      "approvedSnapshot",
+      "phoneDigits",
+      "lastEditedBy",
+      "privateNotes",
+    ]) {
+      assert.equal(
+        Object.hasOwn(result, excludedField),
+        false,
+        `${excludedField} should not be exposed in global preview`
+      );
+    }
     assert.deepEqual(findByIdCalls, [
       {
         id: "patient-id",
-        select: undefined,
+        select: GLOBAL_PATIENT_PREVIEW_FIELDS,
+        leanOptions: { virtuals: true },
+      },
+    ]);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("getGlobalPatientPreviewService keeps owner status without exposing ownership fields", async () => {
+  restorePatientMethods();
+
+  const findByIdCalls = mockPatientFindById(
+    makePatient({ createdBy: "doctor-b", owners: ["doctor-b", "doctor-a"] })
+  );
+
+  try {
+    const result = await getGlobalPatientPreviewService({
+      user: makeDoctorA(),
+      patientId: "patient-id",
+    });
+
+    assert.equal(result.amIOwner, true);
+    assert.equal(Object.hasOwn(result, "owners"), false);
+    assert.equal(Object.hasOwn(result, "createdBy"), false);
+    assert.deepEqual(findByIdCalls, [
+      {
+        id: "patient-id",
+        select: GLOBAL_PATIENT_PREVIEW_FIELDS,
+        leanOptions: { virtuals: true },
+      },
+    ]);
+  } finally {
+    restorePatientMethods();
+  }
+});
+
+test("getGlobalPatientPreviewService keeps missing patient as 404", async () => {
+  restorePatientMethods();
+
+  const findByIdCalls = mockPatientFindById(null);
+
+  try {
+    await assert.rejects(
+      () =>
+        getGlobalPatientPreviewService({
+          user: makeDoctorA(),
+          patientId: "missing-patient-id",
+        }),
+      (err) => {
+        assert.equal(err.status, 404);
+        assert.equal(err.message, "Patient not found");
+        return true;
+      }
+    );
+
+    assert.deepEqual(findByIdCalls, [
+      {
+        id: "missing-patient-id",
+        select: GLOBAL_PATIENT_PREVIEW_FIELDS,
         leanOptions: { virtuals: true },
       },
     ]);

@@ -2,6 +2,8 @@ import Patient from "../../models/Patient.js";
 import { applyDynamicAgeToPatient } from "../../controllers/helpers/patienthelpers.js";
 import { translatePatientDoc } from "../../utils/deeplTranslate.js";
 const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const GLOBAL_PATIENT_PREVIEW_FIELDS =
+  "_id fullname email phone age gender country state city approvedAt updatedAt createdBy owners";
 export const getPatientByIdService = async ({ user, patientId, lang }) => {
   const doc = await Patient.findOne({
     _id: patientId,
@@ -24,7 +26,9 @@ export const getPatientByIdService = async ({ user, patientId, lang }) => {
 };
 
 export const getGlobalPatientPreviewService = async ({ user, patientId }) => {
-  const doc = await Patient.findById(patientId).lean({ virtuals: true });
+  const doc = await Patient.findById(patientId)
+    .select(GLOBAL_PATIENT_PREVIEW_FIELDS)
+    .lean({ virtuals: true });
 
   if (!doc) {
     const err = new Error("Patient not found");
@@ -38,7 +42,20 @@ export const getGlobalPatientPreviewService = async ({ user, patientId }) => {
     (Array.isArray(doc.owners) && doc.owners.map(String).includes(String(user._id))) ||
     String(doc.createdBy) === String(user._id);
 
-  return { ...doc, amIOwner };
+  return {
+    _id: doc._id,
+    fullname: doc.fullname,
+    email: doc.email,
+    phone: doc.phone,
+    age: doc.age,
+    gender: doc.gender,
+    country: doc.country,
+    state: doc.state,
+    city: doc.city,
+    approvedAt: doc.approvedAt,
+    updatedAt: doc.updatedAt,
+    amIOwner,
+  };
 };
 
 export const searchGlobalPatientsService = async ({ user, term }) => {
