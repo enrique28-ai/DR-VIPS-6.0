@@ -1,6 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   User2,
   Pill,
   Activity,
