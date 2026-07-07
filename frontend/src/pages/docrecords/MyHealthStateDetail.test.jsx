@@ -17,6 +17,7 @@ vi.mock("react-i18next", () => ({
     i18n: { language: "en" },
     t: (key) =>
       ({
+        "common.loading": "Loading",
         "diagnoses.detail.created": "Created",
         "diagnoses.detail.description": "Description",
         "diagnoses.detail.history": "History",
@@ -96,14 +97,15 @@ describe("MyHealthStateDetail", () => {
     vi.clearAllMocks();
   });
 
-  test("renders null while the diagnosis is loading without cached data", () => {
-    const { container } = renderDetail(undefined, {
+  test("renders a loading state while the diagnosis is loading without cached data", () => {
+    renderDetail(undefined, {
       data: undefined,
       isLoading: true,
       isError: false,
     });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByText("Loading")).toBeInTheDocument();
     expect(useMyDiagnosis).toHaveBeenCalledWith("diagnosis-1");
   });
 
