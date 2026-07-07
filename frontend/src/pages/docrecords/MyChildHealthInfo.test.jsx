@@ -138,13 +138,14 @@ beforeEach(() => {
 });
 
 describe("MyChildHealthInfo", () => {
-  test("renders loading state while child health info is loading", () => {
-    const { container } = renderChildHealthInfo(undefined, {
+  test("renders loading state with role=status while child health info is loading", () => {
+    renderChildHealthInfo(undefined, {
       data: undefined,
       isLoading: true,
     });
 
-    expect(container.querySelector(".animate-spin")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByText("Loading")).toBeInTheDocument();
   });
 
   test("renders child-not-found state when the children list is empty", () => {

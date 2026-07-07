@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  ArrowLeft,
   User2,
   Pill,
   Activity,
@@ -55,6 +56,51 @@ function findChildRecord(records, childId) {
   );
 }
 
+function PageShell({ children }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function LoadingState({ t }) {
+  return (
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50" aria-busy="true">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="mb-3 h-4 w-36 animate-pulse rounded-full bg-slate-200" />
+              <div className="h-8 w-64 max-w-full animate-pulse rounded-xl bg-slate-200" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <div className="h-11 animate-pulse rounded-xl bg-slate-200 sm:w-28" />
+              <div className="h-11 animate-pulse rounded-xl bg-slate-200 sm:w-28" />
+            </div>
+          </div>
+          <p
+            role="status"
+            className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-slate-600"
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+            {t("common.loading")}
+          </p>
+        </section>
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 h-5 w-40 animate-pulse rounded-full bg-slate-200" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2, 3, 4, 5].map((item) => (
+              <div key={item} className="h-24 animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
 
 export default function MyChildHealthInfo() {
   const { childId } = useParams();
@@ -76,21 +122,26 @@ export default function MyChildHealthInfo() {
     translatedData && translatedLang === i18n.language ? translatedData : childInfo;
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center p-10 text-center">
-        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-      </div>
-    );
+    return <LoadingState t={t} />;
   }
 
   if (!displayData || !displayData.hasRecords) {
     return (
-      <div className="mx-auto max-w-4xl p-6 text-center">
-        <h2 className="text-xl font-bold text-slate-800">{t("myChildren.childNotFound")}</h2>
-        <Button className="mt-4" onClick={() => navigate("/docrecords/mychildren")}>
-          {t("myChildren.back")}
-        </Button>
-      </div>
+      <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+        <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+          <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <Info className="h-7 w-7" aria-hidden="true" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              {t("myChildren.childNotFound")}
+            </h1>
+            <Button className="mt-6 sm:w-auto" onClick={() => navigate("/docrecords/mychildren")}>
+              {t("myChildren.back")}
+            </Button>
+          </section>
+        </div>
+      </main>
     );
   }
 
@@ -287,19 +338,19 @@ export default function MyChildHealthInfo() {
   const handleReject = () => reject.mutate(profileId);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <PageShell>
       {/* --- CABECERA --- */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{fullName}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{fullName}</h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-            <User2 className="h-4 w-4" /> {t("myChildren.healthInfo")}
+            <User2 className="h-4 w-4" aria-hidden="true" /> {t("myChildren.healthInfo")}
           </p>
         </div>
 
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <Button variant="secondary" onClick={() => setOpenHistory(true)} className="w-full sm:w-auto">
-            <History className="mr-2 h-4 w-4" />
+            <History className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("myHealthInfo.history.button")}
           </Button>
           <Button
@@ -308,12 +359,12 @@ export default function MyChildHealthInfo() {
             disabled={isTranslating}
             className="w-full sm:w-auto"
           >
-            <Languages className="mr-2 h-4 w-4" />
+            <Languages className="mr-2 h-4 w-4" aria-hidden="true" />
             {isTranslating ? t("common.loading") : t("common.translate")}
           </Button>
           {translatedData && translatedLang === i18n.language && (
             <Button variant="secondary" onClick={clearTranslatedData} className="w-full sm:w-auto">
-              <X className="mr-2 h-4 w-4" />
+              <X className="mr-2 h-4 w-4" aria-hidden="true" />
               {t("myHealthInfo.actions.clearTranslation")}
             </Button>
           )}
@@ -322,39 +373,47 @@ export default function MyChildHealthInfo() {
 
       {/* --- BANNER DE ESTADO --- */}
       {pendingDecision ? (
-        <div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4 shadow-sm">
-          <div className="flex items-start">
-            <Info className="mt-0.5 h-5 w-5 text-amber-500" />
-            <div className="ml-3 flex-1">
-              <h3 className="text-sm font-bold text-amber-800">{t("myChildren.pending")}</h3>
-              <p className="mt-1 text-sm text-amber-700">
+        <section className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+              <Info className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-amber-950">{t("myChildren.pending")}</h2>
+              <p className="mt-1 break-words text-sm leading-6 text-amber-800">
                 {doctorName} · {lastUpdated}
               </p>
             </div>
           </div>
-        </div>
+        </section>
       ) : (
-        <div className="flex items-center rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 p-4 shadow-sm">
-          <Info className="h-5 w-5 text-emerald-500" />
-          <p className="ml-3 text-sm font-medium text-emerald-800">{t("myChildren.upToDate")}</p>
-        </div>
+        <section className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+              <Info className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="min-w-0 break-words text-sm font-medium leading-6 text-emerald-900">
+              {t("myChildren.upToDate")}
+            </p>
+          </div>
+        </section>
       )}
 
       {/* --- SECCIÓN: DATOS BÁSICOS --- */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-          <div className="rounded-lg bg-white p-2 text-indigo-500 shadow-sm">
-            <User2 className="h-4 w-4" />
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+            <User2 className="h-4 w-4" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.basic.title")}</h3>
+          <h3 className="font-semibold text-slate-950">{t("myHealthInfo.sections.basic.title")}</h3>
         </div>
         
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.age")}
             </span>
-            <span className="font-medium text-slate-800">
+            <span className="font-medium text-slate-900">
               {ageVal != null
                 ? t("myHealthInfo.sections.basic.ageWithYears", { age: ageVal })
                 : t("myHealthInfo.common.notSpecified")}
@@ -362,11 +421,11 @@ export default function MyChildHealthInfo() {
             <ScalarHistory label={t("myHealthInfo.sections.basic.age")} wrapper={snapshot?.age} t={t} />
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.gender")}
             </span>
-            <span className="font-medium text-slate-800">{genderVal || t("myHealthInfo.common.notSpecified")}</span>
+            <span className="font-medium text-slate-900">{genderVal || t("myHealthInfo.common.notSpecified")}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.gender")}
               wrapper={snapshot?.gender}
@@ -375,11 +434,11 @@ export default function MyChildHealthInfo() {
             />
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.bloodType")}
             </span>
-            <span className="font-medium text-slate-800">{bloodtypeVal || t("myHealthInfo.common.notSpecified")}</span>
+            <span className="font-medium text-slate-900">{bloodtypeVal || t("myHealthInfo.common.notSpecified")}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.bloodType")}
               wrapper={snapshot?.bloodtype}
@@ -387,11 +446,11 @@ export default function MyChildHealthInfo() {
             />
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 lg:col-span-2">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.location")}
             </span>
-            <span className="font-medium text-slate-800">{locationVal || t("myHealthInfo.common.notSpecified")}</span>
+            <span className="font-medium text-slate-900">{locationVal || t("myHealthInfo.common.notSpecified")}</span>
              {prevLocations.length > 0 && (
               <div className="mt-1 text-xs text-slate-600">
                 <p>{t("myHealthInfo.common.previouslyRecordedLocations")}</p>
@@ -414,11 +473,11 @@ export default function MyChildHealthInfo() {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 lg:col-span-2">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("patients.create.placeOfBirth")}
             </span>
-            <span className="font-medium text-slate-800">{birthplaceVal || t("myHealthInfo.common.notSpecified")}</span>
+            <span className="font-medium text-slate-900">{birthplaceVal || t("myHealthInfo.common.notSpecified")}</span>
             {prevBirthplaces.length > 0 && (
               <div className="mt-1 text-xs text-slate-600">
                 <p>{t("myHealthInfo.common.previouslyRecordedBirthplaces")}</p>
@@ -441,12 +500,12 @@ export default function MyChildHealthInfo() {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.phone")}
             </span>
-            <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-              <Mail className="h-4 w-4 text-slate-500" />
+            <span className="inline-flex items-center gap-2 font-medium text-slate-900">
+              <Mail className="h-4 w-4 text-slate-500" aria-hidden="true" />
               {phoneVal || t("myHealthInfo.common.notSpecified")}
             </span>
             {showPhoneCountryMeta && (
@@ -457,18 +516,18 @@ export default function MyChildHealthInfo() {
             <ScalarHistory label={t("myHealthInfo.sections.basic.phone")} wrapper={snapshot?.phone} t={t} />
           </div>
 
-           <div className="rounded-lg border border-slate-100 bg-white p-3">
+           <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("patients.create.birthDate")}
             </span>
-            <span className="font-medium text-slate-800">{birthDateVal}</span>
+            <span className="font-medium text-slate-900">{birthDateVal}</span>
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.organDonor")}
             </span>
-            <span className="font-medium text-slate-800">{organDonorLabel}</span>
+            <span className="font-medium text-slate-900">{organDonorLabel}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.organDonor")}
               wrapper={snapshot?.organDonor}
@@ -477,11 +536,11 @@ export default function MyChildHealthInfo() {
             />
           </div>
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.basic.bloodDonor")}
             </span>
-            <span className="font-medium text-slate-800">{bloodDonorLabel}</span>
+            <span className="font-medium text-slate-900">{bloodDonorLabel}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.basic.bloodDonor")}
               wrapper={snapshot?.bloodDonor}
@@ -492,28 +551,28 @@ export default function MyChildHealthInfo() {
 
           {isDeceased && (
             <>
-              <div className="rounded-lg border border-slate-100 bg-white p-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
                 <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   {t("patients.edit.dateOfDeath")}
                 </span>
-                <span className="font-medium text-slate-800">{deathDateVal}</span>
+                <span className="font-medium text-slate-900">{deathDateVal}</span>
               </div>
 
-              <div className="rounded-lg border border-slate-100 bg-white p-3 lg:col-span-2">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 lg:col-span-2">
                 <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   {t("myHealthInfo.sections.basic.causeOfDeath")}
                 </span>
-                <span className="font-medium text-slate-800">{causeOfDeathVal}</span>
+                <span className="font-medium text-slate-900">{causeOfDeathVal}</span>
               </div>
             </>
           )}
 
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myChildren.tutorEmail")}
             </span>
-            <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-              <Mail className="h-4 w-4 text-slate-500" />
+            <span className="inline-flex items-center gap-2 font-medium text-slate-900">
+              <Mail className="h-4 w-4 text-slate-500" aria-hidden="true" />
               {parentEmail || t("myHealthInfo.common.notSpecified")}
             </span>
           </div>
@@ -521,20 +580,20 @@ export default function MyChildHealthInfo() {
       </section>
 
       {/* --- SECCIÓN: ANTROPOMETRÍA --- */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-          <div className="rounded-lg bg-white p-2 text-rose-500 shadow-sm">
-            <Activity className="h-4 w-4" />
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-700">
+            <Activity className="h-4 w-4" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.anthropometrics.title")}</h3>
+          <h3 className="font-semibold text-slate-950">{t("myHealthInfo.sections.anthropometrics.title")}</h3>
         </div>
         
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.anthropometrics.height")}
             </span>
-            <span className="font-medium text-slate-800">{heightDisplay}</span>
+            <span className="font-medium text-slate-900">{heightDisplay}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.anthropometrics.height")}
               wrapper={snapshot?.heightWrapper}
@@ -554,11 +613,11 @@ export default function MyChildHealthInfo() {
             />
           </div>
           
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.anthropometrics.weight")}
             </span>
-            <span className="font-medium text-slate-800">{weightDisplay}</span>
+            <span className="font-medium text-slate-900">{weightDisplay}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.anthropometrics.weight")}
               wrapper={snapshot?.weightWrapper}
@@ -572,11 +631,11 @@ export default function MyChildHealthInfo() {
             />
           </div>
           
-          <div className="rounded-lg border border-slate-100 bg-white p-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("myHealthInfo.sections.anthropometrics.bmi")}
             </span>
-            <span className="font-medium text-slate-800">{bmiDisplay}</span>
+            <span className="font-medium text-slate-900">{bmiDisplay}</span>
             <ScalarHistory
               label={t("myHealthInfo.sections.anthropometrics.bmi")}
               wrapper={snapshot?.bmiWrapper}
@@ -591,19 +650,19 @@ export default function MyChildHealthInfo() {
       </section>
 
       {/* --- SECCIÓN: CONDICIONES CLÍNICAS --- */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-          <div className="rounded-lg bg-white p-2 text-emerald-500 shadow-sm">
-            <Stethoscope className="h-4 w-4" />
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <Stethoscope className="h-4 w-4" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-slate-800">{t("myHealthInfo.sections.conditions.title")}</h3>
+          <h3 className="font-semibold text-slate-950">{t("myHealthInfo.sections.conditions.title")}</h3>
         </div>
         
         <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
           
           <div className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Activity className="h-4 w-4 text-rose-400" /> {t("myHealthInfo.sections.conditions.diseases")}
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Activity className="h-4 w-4 text-rose-400" aria-hidden="true" /> {t("myHealthInfo.sections.conditions.diseases")}
             </h4>
             <ChipList items={latestDiseases} t={t} />
             {diseasesChanged && (
@@ -627,8 +686,8 @@ export default function MyChildHealthInfo() {
           </div>
 
           <div className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Droplets className="h-4 w-4 text-amber-400" /> {t("myHealthInfo.sections.conditions.allergies")}
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Droplets className="h-4 w-4 text-amber-400" aria-hidden="true" /> {t("myHealthInfo.sections.conditions.allergies")}
             </h4>
             <ChipList items={latestAllergies} t={t} />
             {allergiesChanged && (
@@ -652,8 +711,8 @@ export default function MyChildHealthInfo() {
           </div>
 
           <div className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Pill className="h-4 w-4 text-blue-400" /> {t("myHealthInfo.sections.conditions.medications")}
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Pill className="h-4 w-4 text-blue-400" aria-hidden="true" /> {t("myHealthInfo.sections.conditions.medications")}
             </h4>
             <ChipList items={latestMedications} t={t} />
             {medicationsChanged && (
@@ -681,7 +740,7 @@ export default function MyChildHealthInfo() {
 
       {/* --- ACCIONES --- */}
       {latestSource && pendingDecision && (
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
           <p className="text-sm text-slate-700">{t("myHealthInfo.actions.approveIntro")}</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Button onClick={handleApprove} disabled={approve.isPending || reject.isPending}>
@@ -702,6 +761,6 @@ export default function MyChildHealthInfo() {
           variant="child"
         />
       )}
-    </div>
+    </PageShell>
   );
 }
