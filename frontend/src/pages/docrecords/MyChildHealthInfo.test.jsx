@@ -25,6 +25,8 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.common.unknownDate": "Unknown date",
         "myHealthInfo.common.yes": "Yes",
         "myHealthInfo.history.systemUnknown": "Unknown",
+        "myHealthInfo.header.allUpToDate": "All your information is up to date. There is nothing pending to approve.",
+        "myHealthInfo.header.pendingReview": "Pending review",
         "myHealthInfo.sections.basic.title": "Basic information",
         "myHealthInfo.sections.basic.age": "Age",
         "myHealthInfo.sections.basic.ageWithYears": `${options.age} years`,
@@ -226,13 +228,13 @@ describe("MyChildHealthInfo", () => {
   test("renders the up-to-date banner when no decision is pending", () => {
     renderChildHealthInfo(undefined, { data: [baseChild({ pendingDecision: false })] });
 
-    expect(screen.getByText("Up to date.")).toBeInTheDocument();
+    expect(screen.getByText("All your information is up to date. There is nothing pending to approve.")).toBeInTheDocument();
   });
 
   test("renders the pending banner with doctor name", () => {
     renderChildHealthInfo(undefined, { data: [baseChild({ pendingDecision: true })] });
 
-    expect(screen.getByText("Pending changes require your approval.")).toBeInTheDocument();
+    expect(screen.getAllByText("Pending review").length).toBeGreaterThan(0);
     expect(screen.getByText(/Dr\. Smith/)).toBeInTheDocument();
   });
 });

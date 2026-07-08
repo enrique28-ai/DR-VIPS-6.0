@@ -11,6 +11,7 @@ import {
   Languages,
   X,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 
@@ -339,36 +340,41 @@ export default function MyChildHealthInfo() {
   return (
     <PageShell>
       {/* --- CABECERA --- */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{fullName}</h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-            <User2 className="h-4 w-4" aria-hidden="true" /> {t("myChildren.healthInfo")}
-          </p>
-        </div>
+      <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium leading-6 text-slate-600">
+              <User2 className="h-4 w-4 text-blue-600" aria-hidden="true" />
+              {t("myChildren.healthInfo")}
+            </p>
+            <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              {fullName}
+            </h1>
+          </div>
 
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <Button variant="secondary" onClick={() => setOpenHistory(true)} className="w-full sm:w-auto">
-            <History className="mr-2 h-4 w-4" aria-hidden="true" />
-            {t("myHealthInfo.history.button")}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={handleTranslate}
-            disabled={isTranslating}
-            className="w-full sm:w-auto"
-          >
-            <Languages className="mr-2 h-4 w-4" aria-hidden="true" />
-            {isTranslating ? t("common.loading") : t("common.translate")}
-          </Button>
-          {translatedData && translatedLang === i18n.language && (
-            <Button variant="secondary" onClick={clearTranslatedData} className="w-full sm:w-auto">
-              <X className="mr-2 h-4 w-4" aria-hidden="true" />
-              {t("myHealthInfo.actions.clearTranslation")}
+          <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-none lg:flex lg:items-center">
+            <Button variant="secondary" onClick={() => setOpenHistory(true)} className="sm:w-auto">
+              <History className="h-4 w-4" aria-hidden="true" />
+              {t("myHealthInfo.history.button")}
             </Button>
-          )}
+            <Button
+              variant="secondary"
+              onClick={handleTranslate}
+              disabled={isTranslating}
+              className="sm:w-auto"
+            >
+              <Languages className="h-4 w-4" aria-hidden="true" />
+              {isTranslating ? t("common.loading") : t("common.translate")}
+            </Button>
+            {translatedData && translatedLang === i18n.language && (
+              <Button variant="secondary" onClick={clearTranslatedData} className="sm:col-span-2 lg:w-auto">
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("myHealthInfo.actions.clearTranslation")}
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* --- BANNER DE ESTADO --- */}
       {pendingDecision ? (
@@ -378,7 +384,7 @@ export default function MyChildHealthInfo() {
               <Info className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-amber-950">{t("myChildren.pending")}</h2>
+              <h2 className="text-sm font-semibold text-amber-950">{t("myHealthInfo.header.pendingReview")}</h2>
               <p className="mt-1 break-words text-sm leading-6 text-amber-800">
                 {doctorName} · {lastUpdated}
               </p>
@@ -389,10 +395,10 @@ export default function MyChildHealthInfo() {
         <section className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm sm:p-5">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
-              <Info className="h-5 w-5" aria-hidden="true" />
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
             </div>
             <p className="min-w-0 break-words text-sm font-medium leading-6 text-emerald-900">
-              {t("myChildren.upToDate")}
+              {t("myHealthInfo.header.allUpToDate")}
             </p>
           </div>
         </section>
@@ -739,15 +745,33 @@ export default function MyChildHealthInfo() {
 
       {/* --- ACCIONES --- */}
       {latestSource && pendingDecision && (
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-          <p className="text-sm text-slate-700">{t("myHealthInfo.actions.approveIntro")}</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={handleApprove} disabled={approve.isPending || reject.isPending}>
-              {approve.isPending ? t("myHealthInfo.actions.approving") : t("myHealthInfo.actions.approve")}
-            </Button>
-            <Button variant="secondary" onClick={handleReject} disabled={approve.isPending || reject.isPending}>
-              {reject.isPending ? t("myHealthInfo.actions.rejecting") : t("myHealthInfo.actions.reject")}
-            </Button>
+        <section className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-amber-950">
+                {t("myHealthInfo.header.pendingReview")}
+              </h2>
+              <p className="mt-1 break-words text-sm leading-6 text-amber-800">
+                {t("myHealthInfo.actions.approveIntro")}
+              </p>
+            </div>
+            <div className="grid gap-2 sm:flex sm:shrink-0 sm:items-center">
+              <Button
+                onClick={handleApprove}
+                disabled={approve.isPending || reject.isPending}
+                className="sm:w-auto"
+              >
+                {approve.isPending ? t("myHealthInfo.actions.approving") : t("myHealthInfo.actions.approve")}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleReject}
+                disabled={approve.isPending || reject.isPending}
+                className="sm:w-auto"
+              >
+                {reject.isPending ? t("myHealthInfo.actions.rejecting") : t("myHealthInfo.actions.reject")}
+              </Button>
+            </div>
           </div>
         </section>
       )}
