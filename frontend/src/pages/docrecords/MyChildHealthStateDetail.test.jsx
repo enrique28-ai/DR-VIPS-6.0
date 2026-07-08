@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import MyChildHealthStateDetail from "./MyChildHealthStateDetail.jsx";
 import {
   useMyChildDiagnosis,
-  useTranslateChildDiagnosisHistorySnapshot,
+  useTranslateMyChildDiagnosis,
 } from "../../features/diagnostics/dhooks.js";
 
 const navigateMock = vi.hoisted(() => vi.fn());
@@ -46,7 +46,7 @@ vi.mock("../../features/diagnostics/dhooks.js", async () => {
   return {
     ...actual,
     useMyChildDiagnosis: vi.fn(),
-    useTranslateChildDiagnosisHistorySnapshot: vi.fn(),
+    useTranslateMyChildDiagnosis: vi.fn(),
   };
 });
 
@@ -106,7 +106,7 @@ describe("MyChildHealthStateDetail", () => {
     vi.clearAllMocks();
     navigateMock.mockReset();
     translateMutateAsync = vi.fn().mockResolvedValue({});
-    useTranslateChildDiagnosisHistorySnapshot.mockReturnValue({
+    useTranslateMyChildDiagnosis.mockReturnValue({
       isPending: false,
       mutateAsync: translateMutateAsync,
     });
@@ -169,7 +169,7 @@ describe("MyChildHealthStateDetail", () => {
     expect(screen.queryByRole("button", { name: "Translate" })).not.toBeInTheDocument();
   });
 
-  test("translate button calls the child diagnosis translation mutation with route params", async () => {
+  test("translate button translates the current child diagnosis, not a history snapshot", async () => {
     renderDetail();
 
     fireEvent.click(screen.getByRole("button", { name: "Translate" }));
@@ -181,6 +181,26 @@ describe("MyChildHealthStateDetail", () => {
         lang: "en",
       });
     });
+  });
+
+  test("successful translation renders translated title and description", async () => {
+    translateMutateAsync.mockResolvedValue({
+      _id: "diagnosis-1",
+      title: "Translated flu diagnosis",
+      description: "Translated fever and cough",
+      symptoms: ["fever"],
+    });
+    renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Translated flu diagnosis" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Translated fever and cough")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Flu diagnosis" })).not.toBeInTheDocument();
   });
 
   test("opens and closes the child diagnosis history modal with route params", () => {

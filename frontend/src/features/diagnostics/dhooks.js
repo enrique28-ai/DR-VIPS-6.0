@@ -259,6 +259,18 @@ export function useMyChildDiagnosis(childId, diagnosisId, options = {}) {
   });
 }
 
+export function useTranslateMyChildDiagnosis() {
+  return useMutation({
+    mutationFn: async ({ childId, diagnosisId, lang }) =>
+      (
+        await api.get(`/diagnoses/children/${childId}/mine/${diagnosisId}`, {
+          params: { lang },
+        })
+      ).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
 // === CHILD (MINORS): HISTORY ===
 export function useMyChildDiagnosisHistory(childId, diagnosisId, options = {}) {
   const enabled = options.enabled ?? (!!childId && !!diagnosisId);

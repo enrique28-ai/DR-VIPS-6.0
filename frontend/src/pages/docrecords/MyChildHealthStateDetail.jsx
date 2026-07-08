@@ -7,7 +7,7 @@ import Button from "../../components/forms/Button.jsx";
 import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
 import {
   useMyChildDiagnosis,
-  useTranslateChildDiagnosisHistorySnapshot,
+  useTranslateMyChildDiagnosis,
 } from "../../features/diagnostics/dhooks.js";
 
 const FALLBACK_TEXT = "-";
@@ -77,14 +77,20 @@ export default function MyChildHealthStateDetail() {
   const lang = i18n.language || "en";
 
   const { data: diagnosis, isLoading } = useMyChildDiagnosis(childId, id);
-  const translate = useTranslateChildDiagnosisHistorySnapshot();
+  const translate = useTranslateMyChildDiagnosis();
 
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [translatedDiagnosis, setTranslatedDiagnosis] = useState(null);
+  const translatedActive =
+    translatedDiagnosis?.childId === childId &&
+    translatedDiagnosis?.diagnosisId === id &&
+    translatedDiagnosis?.lang === lang;
+  const currentDiagnosis = translatedActive ? translatedDiagnosis.data : diagnosis;
 
   const hasText = useMemo(() => {
-    const v = diagnosis;
+    const v = currentDiagnosis;
     return !!(v?.title || v?.description || (Array.isArray(v?.symptoms) && v.symptoms.length));
-  }, [diagnosis]);
+  }, [currentDiagnosis]);
 
   if (isLoading) {
     return <LoadingState t={t} />;
@@ -101,8 +107,8 @@ export default function MyChildHealthStateDetail() {
     );
   }
 
-  const title = diagnosis.title;
-  const description = diagnosis.description || FALLBACK_TEXT;
+  const title = currentDiagnosis.title;
+  const description = currentDiagnosis.description || FALLBACK_TEXT;
 
   return (
     <PageShell>
@@ -140,7 +146,12 @@ export default function MyChildHealthStateDetail() {
                 full={false}
                 loading={translate.isPending}
                 onClick={async () => {
-                  await translate.mutateAsync({ childId, diagnosisId: id, lang });
+                  try {
+                    const data = await translate.mutateAsync({ childId, diagnosisId: id, lang });
+                    setTranslatedDiagnosis({ childId, diagnosisId: id, lang, data });
+                  } catch {
+                    // The hook owns the user-facing error toast.
+                  }
                 }}
                 className="w-full"
               >
