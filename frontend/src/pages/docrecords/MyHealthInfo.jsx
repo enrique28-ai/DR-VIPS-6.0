@@ -280,8 +280,8 @@ export default function MyHealthInfo() {
   const rejectMutation = useRejectPatientProfile();
   const { mutate: translateHealthInfo, isPending: isTranslating } = useTranslateMyHealthInfo();
 
-  const displayData =
-    translatedData && translatedLang === i18n.language ? translatedData : serverData;
+  const isTranslatedActive = Boolean(translatedData && translatedLang === i18n.language);
+  const displayData = isTranslatedActive ? translatedData : serverData;
 
   if (isLoading) {
     return <LoadingState t={t} />;
@@ -537,7 +537,7 @@ export default function MyHealthInfo() {
               <Languages className="h-4 w-4" aria-hidden="true" />
               {isTranslating ? t("common.loading") : t("common.translate")}
             </Button>
-            {translatedData && translatedLang === i18n.language && (
+            {isTranslatedActive && (
               <Button
                 variant="secondary"
                 onClick={clearTranslatedData}
@@ -557,6 +557,19 @@ export default function MyHealthInfo() {
         lastUpdated={lastUpdated}
         t={t}
       />
+
+      {isTranslatedActive && (
+        <section className="rounded-3xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+              <Info className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="min-w-0 break-words text-sm font-medium leading-6 text-blue-900">
+              {t("common.translate")}
+            </p>
+          </div>
+        </section>
+      )}
 
       <SectionCard title={t("myHealthInfo.sections.basic.title")} icon={User2} tone="blue">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

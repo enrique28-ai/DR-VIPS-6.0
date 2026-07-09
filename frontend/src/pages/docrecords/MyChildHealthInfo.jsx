@@ -118,8 +118,8 @@ export default function MyChildHealthInfo() {
 
   // Encontrar la información del niño seleccionado
   const childInfo = useMemo(() => findChildRecord(childrenData, childId), [childrenData, childId]);
-  const displayData =
-    translatedData && translatedLang === i18n.language ? translatedData : childInfo;
+  const isTranslatedActive = Boolean(translatedData && translatedLang === i18n.language);
+  const displayData = isTranslatedActive ? translatedData : childInfo;
 
   if (isLoading) {
     return <LoadingState t={t} />;
@@ -366,7 +366,7 @@ export default function MyChildHealthInfo() {
               <Languages className="h-4 w-4" aria-hidden="true" />
               {isTranslating ? t("common.loading") : t("common.translate")}
             </Button>
-            {translatedData && translatedLang === i18n.language && (
+            {isTranslatedActive && (
               <Button variant="secondary" onClick={clearTranslatedData} className="sm:col-span-2 lg:w-auto">
                 <X className="h-4 w-4" aria-hidden="true" />
                 {t("myHealthInfo.actions.clearTranslation")}
@@ -399,6 +399,19 @@ export default function MyChildHealthInfo() {
             </div>
             <p className="min-w-0 break-words text-sm font-medium leading-6 text-emerald-900">
               {t("myHealthInfo.header.allUpToDate")}
+            </p>
+          </div>
+        </section>
+      )}
+
+      {isTranslatedActive && (
+        <section className="rounded-3xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+              <Info className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="min-w-0 break-words text-sm font-medium leading-6 text-blue-900">
+              {t("common.translate")}
             </p>
           </div>
         </section>
