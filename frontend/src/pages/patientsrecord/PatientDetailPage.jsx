@@ -215,21 +215,6 @@ function RecordField({ label, value, icon: Icon, children, className = "" }) {
   );
 }
 
-function Chip({ icon: Icon, label, value, tone = "default" }) {
-  const toneClass =
-    tone === "danger"
-      ? "border-red-200 bg-red-50 text-red-700"
-      : "border-slate-200 bg-slate-50 text-slate-700";
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${toneClass}`}>
-      {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
-      <span className="font-medium">{label}:</span>
-      <span>{value}</span>
-    </span>
-  );
-}
-
 function ChipList({ items, emptyText }) {
   if (!Array.isArray(items) || items.length === 0) {
     return <p className="text-sm font-medium leading-6 text-slate-500">{emptyText}</p>;
@@ -270,7 +255,7 @@ export default function PatientDetailPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [showGuardianForm, setShowGuardianForm] = useState(false);
   const [newParentEmail, setNewParentEmail] = useState("");
-  const [translated, setTranslated] = useState({ lang: null, data: null });
+  const [translated, setTranslated] = useState({ lang: null, data: null, active: false });
 
   const { id } = useParams();
   const navigate = useNavigate();
@@ -281,10 +266,14 @@ export default function PatientDetailPage() {
   const guardianPanelRef = useRef(null);
 
   useEffect(() => {
-    setTranslated({ lang: null, data: null });
+    setTranslated({ lang: null, data: null, active: false });
     setShowGuardianForm(false);
     setNewParentEmail("");
   }, [id]);
+
+  useEffect(() => {
+    setTranslated((prev) => ({ ...prev, active: false }));
+  }, [i18n.language]);
 
   useEffect(() => {
     if (!showGuardianForm) return;
@@ -297,8 +286,8 @@ export default function PatientDetailPage() {
     };
   }, [showGuardianForm]);
 
-  const isTranslatedActive = !!translated.data && translated.lang === i18n.language;
-  const patientView = isTranslatedActive ? translated.data : patient;
+  const isTranslatedActive = Boolean(translated.active && translated.data);
+  const patientView = translated.active ? translated.data : patient;
 
   const categoryLabel = useMemo(() => {
     if (!patientView) return null;
@@ -392,7 +381,7 @@ export default function PatientDetailPage() {
         onSuccess: () => {
           setShowGuardianForm(false);
           setNewParentEmail("");
-          setTranslated({ lang: null, data: null });
+          setTranslated({ lang: null, data: null, active: false });
         },
       },
     );
@@ -418,37 +407,6 @@ export default function PatientDetailPage() {
                   {t("patients.detail.pendingApproval")}
                 </span>
               )}
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {kidsCount > 0 && (
-                <Chip icon={Users} label={t("patients.create.childrenCount")} value={kidsCount} />
-              )}
-              {patientView.country && (
-                <Chip
-                  icon={Globe}
-                  label={t("patients.card.country")}
-                  value={locationText || localizeCountryName(patientView.country, i18n.language)}
-                />
-              )}
-              <Chip
-                icon={Heart}
-                label={t("patients.list.filters.organDonor")}
-                value={
-                  patientView.organDonor
-                    ? t("patients.list.filters.options.yes")
-                    : t("patients.list.filters.options.no")
-                }
-              />
-              <Chip
-                icon={Droplet}
-                label={t("patients.list.filters.bloodDonor")}
-                value={
-                  patientView.bloodDonor
-                    ? t("patients.list.filters.options.yes")
-                    : t("patients.list.filters.options.no")
-                }
-              />
             </div>
           </div>
 
@@ -503,7 +461,7 @@ export default function PatientDetailPage() {
               onClick={() => {
                 translatePatient(
                   { id, lang: i18n.language },
-                  { onSuccess: (data) => setTranslated({ lang: i18n.language, data }) },
+                  { onSuccess: (data) => setTranslated({ lang: i18n.language, data, active: true }) },
                 );
               }}
               className="sm:w-auto"
