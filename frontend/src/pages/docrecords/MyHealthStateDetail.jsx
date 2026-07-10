@@ -1,14 +1,16 @@
 // src/pages/DocRecords/MyHealthStateDetail.jsx
 import { Link, useParams } from "react-router-dom";
 import Button from "../../components/forms/Button.jsx";
-import { useMyDiagnosis } from "../../features/diagnostics/dhooks.js";
-import { useState } from "react";
+import { useMyDiagnosis, useTranslateMyDiagnosis } from "../../features/diagnostics/dhooks.js";
+import { useState, useEffect } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
   CalendarClock,
   FileText,
   History,
+  Info,
+  Languages,
   Loader2,
   Pill,
   Scissors,
@@ -176,6 +178,12 @@ export default function MyHealthStateDetail() {
   const { t, i18n } = useTranslation();
   const { data: diag, isLoading, isError } = useMyDiagnosis(id);
   const [showHistory, setShowHistory] = useState(false);
+  const { mutate: translateDiagnosis, isPending: isTranslating } = useTranslateMyDiagnosis();
+  const [translatedDiag, setTranslatedDiag] = useState(null);
+
+  useEffect(() => {
+    setTranslatedDiag(null);
+  }, [id, i18n.language]);
 
   if (isLoading && !diag) return <LoadingState t={t} />;
 
@@ -183,15 +191,19 @@ export default function MyHealthStateDetail() {
     return <NotFoundState t={t} />;
   }
 
+  const translatedActive =
+    translatedDiag?.id === id && translatedDiag?.lang === i18n.language;
+  const currentDiag = translatedActive ? translatedDiag.data : diag;
+
   const title =
-    diag.title ?? diag.Diagnostic ?? diag.diagnosis ?? t("diagnoses.detail.untitled");
+    currentDiag.title ?? currentDiag.Diagnostic ?? currentDiag.diagnosis ?? t("diagnoses.detail.untitled");
 
-  const meds = Array.isArray(diag.medicine) ? diag.medicine : [];
-  const tx = Array.isArray(diag.treatment) ? diag.treatment : [];
-  const ops = Array.isArray(diag.operation) ? diag.operation : [];
+  const meds = Array.isArray(currentDiag.medicine) ? currentDiag.medicine : [];
+  const tx = Array.isArray(currentDiag.treatment) ? currentDiag.treatment : [];
+  const ops = Array.isArray(currentDiag.operation) ? currentDiag.operation : [];
 
-  const doctorEmail = diag?.createdBy?.email || "";
-  const doctorName = diag?.createdBy?.name || "";
+  const doctorEmail = currentDiag?.createdBy?.email || "";
+  const doctorName = currentDiag?.createdBy?.name || "";
 
   let creatorLabel = t("myHealthState.detail.unknownDoctor");
   if (doctorName && doctorEmail) {
@@ -202,14 +214,21 @@ export default function MyHealthStateDetail() {
     creatorLabel = doctorEmail;
   }
 
-  const createdAt = diag.createdAt
-    ? formatDateTime(diag.createdAt, i18n.language)
+  const createdAt = currentDiag.createdAt
+    ? formatDateTime(currentDiag.createdAt, i18n.language)
     : "—";
-  const updatedAt = diag.updatedAt
-    ? formatDateTime(diag.updatedAt, i18n.language)
+  const updatedAt = currentDiag.updatedAt
+    ? formatDateTime(currentDiag.updatedAt, i18n.language)
     : "—";
 
   const hasClinical = meds.length > 0 || tx.length > 0 || ops.length > 0;
+
+  const handleTranslate = () => {
+    translateDiagnosis(
+      { id, lang: i18n.language },
+      { onSuccess: (data) => setTranslatedDiag({ id, lang: i18n.language, data }) }
+    );
+  };
 
   return (
     <PageShell>
@@ -225,7 +244,7 @@ export default function MyHealthStateDetail() {
             </h1>
           </div>
 
-          <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-none lg:flex lg:items-center">
+          <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:grid-cols-none lg:flex lg:items-center">
             <Link
               to="/docrecords/myhealthstate"
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
@@ -242,9 +261,36 @@ export default function MyHealthStateDetail() {
               <History className="h-4 w-4" aria-hidden="true" />
               {t("diagnoses.detail.history")}
             </Button>
+            <Button
+              full={false}
+              variant="secondary"
+              onClick={handleTranslate}
+              disabled={isTranslating}
+              className="sm:w-auto"
+            >
+              {isTranslating ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Languages className="h-4 w-4" aria-hidden="true" />
+              )}
+              {t("common.translate")}
+            </Button>
           </div>
         </div>
       </header>
+
+      {translatedActive && (
+        <section className="rounded-3xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+              <Info className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="min-w-0 break-words text-sm font-medium leading-6 text-blue-900">
+              {t("common.translate")}
+            </p>
+          </div>
+        </section>
+      )}
 
       <SectionCard
         title={t("diagnoses.detail.description")}
@@ -252,7 +298,7 @@ export default function MyHealthStateDetail() {
         tone="blue"
       >
         <p className="whitespace-pre-line break-words text-sm font-medium leading-6 text-slate-900">
-          {diag.description?.trim() || "—"}
+          {currentDiag.description?.trim() || "—"}
         </p>
       </SectionCard>
 

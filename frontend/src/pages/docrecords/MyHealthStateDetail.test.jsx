@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import MyHealthStateDetail from "./MyHealthStateDetail.jsx";
-import { useMyDiagnosis } from "../../features/diagnostics/dhooks.js";
+import { useMyDiagnosis, useTranslateMyDiagnosis } from "../../features/diagnostics/dhooks.js";
 
 vi.mock("framer-motion", () => ({
   motion: {
@@ -18,6 +18,7 @@ vi.mock("react-i18next", () => ({
     t: (key) =>
       ({
         "common.loading": "Loading",
+        "common.translate": "Translate",
         "diagnoses.detail.created": "Created",
         "diagnoses.detail.description": "Description",
         "diagnoses.detail.history": "History",
@@ -39,6 +40,7 @@ vi.mock("../../features/diagnostics/dhooks.js", async () => {
   return {
     ...actual,
     useMyDiagnosis: vi.fn(),
+    useTranslateMyDiagnosis: vi.fn(),
   };
 });
 
@@ -95,6 +97,7 @@ const renderDetail = (diagnosis = baseDiagnosis(), queryState = {}) => {
 describe("MyHealthStateDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useTranslateMyDiagnosis.mockReturnValue({ mutate: vi.fn(), isPending: false });
   });
 
   test("renders a loading state while the diagnosis is loading without cached data", () => {
