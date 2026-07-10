@@ -387,6 +387,10 @@ export default function PatientDetailPage() {
     );
   };
 
+  const clearTranslatedData = () => {
+    setTranslated({ lang: null, data: null, active: false });
+  };
+
   return (
     <PageShell>
       <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -473,6 +477,17 @@ export default function PatientDetailPage() {
               )}
               {t("common.translate")}
             </Button>
+            {isTranslatedActive && (
+              <Button
+                full={false}
+                variant="secondary"
+                onClick={clearTranslatedData}
+                className="sm:col-span-2 lg:w-auto"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("myHealthInfo.actions.clearTranslation")}
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -507,6 +522,19 @@ export default function PatientDetailPage() {
           </p>
         </div>
       </section>
+
+      {isTranslatedActive && (
+        <section className="rounded-3xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+              <Info className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="min-w-0 break-words text-sm font-medium leading-6 text-blue-900">
+              {t("common.translate")}
+            </p>
+          </div>
+        </section>
+      )}
 
       <SectionCard title={t("myHealthInfo.sections.basic.title")} icon={User2} tone="blue">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -641,19 +669,6 @@ export default function PatientDetailPage() {
           </span>
         </div>
       </section>
-
-      {isTranslatedActive && (
-        <section className="rounded-3xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
-              <Info className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <p className="min-w-0 break-words text-sm font-medium leading-6 text-blue-900">
-              {t("common.translate")}
-            </p>
-          </div>
-        </section>
-      )}
 
       {showHistory && (
         <PatientHistoryModal

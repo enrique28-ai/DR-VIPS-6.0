@@ -36,6 +36,7 @@ vi.mock("react-i18next", () => ({
       const labels = {
         "common.close": "Close",
         "common.translate": "Translate",
+        "myHealthInfo.actions.clearTranslation": "Clear translation",
         "patients.card.age": "Age",
         "patients.card.blood": "Blood",
         "patients.card.country": "Country",
@@ -291,6 +292,11 @@ describe("PatientDetailPage", () => {
     expect(screen.getAllByText("United States, California, Los Angeles").length).toBeGreaterThan(0);
     expect(screen.getByText("Translated disease")).toBeInTheDocument();
     expect(screen.queryByText("Ana Martinez")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear translation" }));
+
+    expect(screen.getByRole("heading", { name: "Ana Martinez" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
   });
 
   test("opens and closes the patient history modal", () => {
