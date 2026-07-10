@@ -16,6 +16,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("../../features/diagnostics/dhooks.js", () => ({
+  useTranslateMyDiagnosis: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
 const renderCard = (diagnosis) =>
   render(
     <MemoryRouter>

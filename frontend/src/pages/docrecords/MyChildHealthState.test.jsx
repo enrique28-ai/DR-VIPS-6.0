@@ -24,6 +24,7 @@ vi.mock("../../features/diagnostics/dhooks.js", async () => {
   return {
     ...actual,
     useMyChildDiagnoses: vi.fn(),
+    useTranslateMyChildDiagnosis: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   };
 });
 

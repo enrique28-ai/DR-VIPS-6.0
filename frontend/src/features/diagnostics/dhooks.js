@@ -205,6 +205,16 @@ export function useMyDiagnosis(id) {
     },
   });
 }
+
+// Translates the patient's diagnosis title on demand.
+export function useTranslateMyDiagnosis() {
+  return useMutation({
+    mutationFn: async ({ id, lang }) =>
+      (await api.get(`/diagnoses/mine/${id}`, { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
 export function useDiagnosisHistory(id, options = {}) {
   const enabled = options.enabled ?? !!id;
 
