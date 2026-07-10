@@ -243,8 +243,8 @@ export default function MyChildHealthStateDetail() {
             </h1>
           </div>
 
-          <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:flex lg:items-center">
-            <Button variant="secondary" full={false} onClick={() => nav(-1)} className="w-full">
+          <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:grid-cols-none lg:flex lg:items-center">
+            <Button variant="secondary" full={false} onClick={() => nav(-1)} className="sm:w-auto">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {t("common.back")}
             </Button>
@@ -253,10 +253,10 @@ export default function MyChildHealthStateDetail() {
               variant="secondary"
               full={false}
               onClick={() => setHistoryOpen(true)}
-              className="w-full"
+              className="sm:w-auto"
             >
               <History className="h-4 w-4" aria-hidden="true" />
-              {t("diagnoses.history.title")}
+              {t("diagnoses.detail.history")}
             </Button>
 
             {hasText && (
@@ -272,7 +272,7 @@ export default function MyChildHealthStateDetail() {
                     // The hook owns the user-facing error toast.
                   }
                 }}
-                className="w-full"
+                className="sm:w-auto"
               >
                 <Languages className="h-4 w-4" aria-hidden="true" />
                 {t("common.translate")}
@@ -306,7 +306,7 @@ export default function MyChildHealthStateDetail() {
       </SectionCard>
 
       {hasClinical && (
-        <SectionCard title="Clinical details" icon={Stethoscope} tone="emerald">
+        <SectionCard title={t("common.clinicalDetails")} icon={Stethoscope} tone="emerald">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {meds.length > 0 && (
               <ConditionColumn

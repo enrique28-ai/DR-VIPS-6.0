@@ -248,7 +248,7 @@ export default function DiagnosisDetailPage() {
       </SectionCard>
 
       {hasClinical && (
-        <SectionCard title="Clinical details" icon={Stethoscope} tone="emerald">
+        <SectionCard title={t("common.clinicalDetails")} icon={Stethoscope} tone="emerald">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {meds.length > 0 && (
               <ConditionColumn

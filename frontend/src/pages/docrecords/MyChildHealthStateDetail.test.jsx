@@ -33,6 +33,7 @@ vi.mock("react-i18next", () => ({
         "common.back": "Back",
         "common.loading": "Loading",
         "common.translate": "Translate",
+        "diagnoses.detail.history": "History",
         "diagnoses.detail.notFound": "Diagnosis not found",
         "diagnoses.history.title": "History",
         "myChildren.back": "Back to children",
