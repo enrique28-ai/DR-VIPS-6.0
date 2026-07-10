@@ -12,6 +12,7 @@ import {
   Loader2,
   Pill,
   Scissors,
+  Stethoscope,
   Syringe,
   User2,
 } from "lucide-react";
@@ -256,36 +257,34 @@ export default function MyHealthStateDetail() {
       </SectionCard>
 
       {hasClinical && (
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="p-4 sm:p-5">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              {meds.length > 0 && (
-                <ConditionColumn
-                  label={t("diagnoses.detail.medicines")}
-                  icon={Pill}
-                  iconClassName="text-blue-500"
-                  items={meds}
-                />
-              )}
-              {tx.length > 0 && (
-                <ConditionColumn
-                  label={t("diagnoses.detail.treatments")}
-                  icon={Syringe}
-                  iconClassName="text-rose-500"
-                  items={tx}
-                />
-              )}
-              {ops.length > 0 && (
-                <ConditionColumn
-                  label={t("diagnoses.detail.operations")}
-                  icon={Scissors}
-                  iconClassName="text-amber-500"
-                  items={ops}
-                />
-              )}
-            </div>
+        <SectionCard title="Clinical details" icon={Stethoscope} tone="emerald">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {meds.length > 0 && (
+              <ConditionColumn
+                label={t("diagnoses.detail.medicines")}
+                icon={Pill}
+                iconClassName="text-blue-500"
+                items={meds}
+              />
+            )}
+            {tx.length > 0 && (
+              <ConditionColumn
+                label={t("diagnoses.detail.treatments")}
+                icon={Syringe}
+                iconClassName="text-rose-500"
+                items={tx}
+              />
+            )}
+            {ops.length > 0 && (
+              <ConditionColumn
+                label={t("diagnoses.detail.operations")}
+                icon={Scissors}
+                iconClassName="text-amber-500"
+                items={ops}
+              />
+            )}
           </div>
-        </section>
+        </SectionCard>
       )}
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
