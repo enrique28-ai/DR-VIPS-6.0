@@ -10,6 +10,10 @@ import {
   Info,
   Languages,
   Loader2,
+  Pill,
+  Scissors,
+  Syringe,
+  User2,
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 
@@ -120,6 +124,35 @@ function RecordField({ label, value, icon: Icon, children, className = "" }) {
   );
 }
 
+function ChipList({ items }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item, index) => (
+        <span
+          key={`${item}-${index}`}
+          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ConditionColumn({ icon: Icon, iconClassName, label, items }) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+        <Icon className={`h-4 w-4 ${iconClassName}`} aria-hidden="true" />
+        {label}
+      </h3>
+      <div className="mt-3">
+        <ChipList items={items} />
+      </div>
+    </div>
+  );
+}
+
 function formatDateTime(iso, locale) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -171,7 +204,29 @@ export default function MyChildHealthStateDetail() {
   const title = currentDiagnosis.title;
   const description = currentDiagnosis.description || FALLBACK_TEXT;
 
-  const hasMetadata = Boolean(currentDiagnosis?.createdAt || currentDiagnosis?.updatedAt);
+  const meds = Array.isArray(currentDiagnosis?.medicine) ? currentDiagnosis.medicine : [];
+  const tx = Array.isArray(currentDiagnosis?.treatment) ? currentDiagnosis.treatment : [];
+  const ops = Array.isArray(currentDiagnosis?.operation) ? currentDiagnosis.operation : [];
+  const hasClinical = meds.length > 0 || tx.length > 0 || ops.length > 0;
+
+  const doctorEmail = currentDiagnosis?.createdBy?.email || "";
+  const doctorName = currentDiagnosis?.createdBy?.name || "";
+  let creatorLabel = t("myHealthState.detail.unknownDoctor");
+  if (doctorName && doctorEmail) {
+    creatorLabel = `${doctorName} (${doctorEmail})`;
+  } else if (doctorName) {
+    creatorLabel = doctorName;
+  } else if (doctorEmail) {
+    creatorLabel = doctorEmail;
+  }
+  const hasCreator = Boolean(currentDiagnosis?.createdBy);
+
+  const createdAt = currentDiagnosis?.createdAt
+    ? formatDateTime(currentDiagnosis.createdAt, lang)
+    : "—";
+  const updatedAt = currentDiagnosis?.updatedAt
+    ? formatDateTime(currentDiagnosis.updatedAt, lang)
+    : "—";
 
   return (
     <PageShell>
@@ -240,7 +295,7 @@ export default function MyChildHealthStateDetail() {
       )}
 
       <SectionCard
-        title={t("myChildren.healthState")}
+        title={t("diagnoses.detail.description")}
         icon={FileText}
         tone="blue"
       >
@@ -249,30 +304,62 @@ export default function MyChildHealthStateDetail() {
         </p>
       </SectionCard>
 
-      {hasMetadata && (
-        <SectionCard
-          title={t("myChildren.healthState")}
-          icon={CalendarClock}
-          tone="blue"
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {currentDiagnosis?.createdAt && (
-              <RecordField
-                label={t("diagnoses.detail.created")}
-                value={formatDateTime(currentDiagnosis.createdAt, lang)}
-                icon={CalendarClock}
-              />
-            )}
-            {currentDiagnosis?.updatedAt && (
-              <RecordField
-                label={t("diagnoses.detail.updated")}
-                value={formatDateTime(currentDiagnosis.updatedAt, lang)}
-                icon={CalendarClock}
-              />
-            )}
+      {hasClinical && (
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              {meds.length > 0 && (
+                <ConditionColumn
+                  label={t("diagnoses.detail.medicines")}
+                  icon={Pill}
+                  iconClassName="text-blue-500"
+                  items={meds}
+                />
+              )}
+              {tx.length > 0 && (
+                <ConditionColumn
+                  label={t("diagnoses.detail.treatments")}
+                  icon={Syringe}
+                  iconClassName="text-rose-500"
+                  items={tx}
+                />
+              )}
+              {ops.length > 0 && (
+                <ConditionColumn
+                  label={t("diagnoses.detail.operations")}
+                  icon={Scissors}
+                  iconClassName="text-amber-500"
+                  items={ops}
+                />
+              )}
+            </div>
           </div>
-        </SectionCard>
+        </section>
       )}
+
+      {hasCreator && (
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <RecordField
+                label={t("myHealthState.detail.createdBy")}
+                value={creatorLabel}
+                icon={User2}
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm sm:p-5">
+        <div className="inline-flex items-center gap-2">
+          <CalendarClock className="h-4 w-4" aria-hidden="true" />
+          <span>
+            {t("diagnoses.detail.created")}: {createdAt} ·{" "}
+            {t("diagnoses.detail.updated")}: {updatedAt}
+          </span>
+        </div>
+      </section>
 
       {historyOpen && (
         <DiagnosisHistoryModal
