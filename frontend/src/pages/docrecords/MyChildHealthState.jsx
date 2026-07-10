@@ -158,7 +158,6 @@ function ChildHealthStateCard({ diagnosis, childId, language, t }) {
     (diagnosis?.Diagnostic && String(diagnosis.Diagnostic).trim()) ||
     (diagnosis?.diagnosis && String(diagnosis.diagnosis).trim()) ||
     t("diagnoses.detail.untitled");
-  const preview = diagnosis?.description || diagnosis?.symptoms || FALLBACK_TEXT;
   const stamp = diagnosis?.updatedAt || diagnosis?.createdAt;
   const date = stamp ? new Date(stamp) : null;
   const stampText =
@@ -194,10 +193,6 @@ function ChildHealthStateCard({ diagnosis, childId, language, t }) {
           </Link>
         </h3>
       </div>
-
-      <p className="mt-3 line-clamp-3 min-h-[3.75rem] break-words pl-1 text-sm leading-6 text-slate-600">
-        {preview}
-      </p>
 
       <div className="mt-4 grid gap-2 pl-1 text-sm">
         <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">

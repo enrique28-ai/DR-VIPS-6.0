@@ -146,7 +146,6 @@ describe("MyChildHealthState", () => {
     renderChildHealthState();
 
     expect(screen.getByText("Flu diagnosis")).toBeInTheDocument();
-    expect(screen.getByText("Fever and cough")).toBeInTheDocument();
     expect(screen.getByText(new Date("2026-06-21T12:00:00.000Z").toLocaleString("en"))).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Flu diagnosis/i })).toHaveAttribute(
       "href",

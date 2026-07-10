@@ -57,14 +57,14 @@ describe("HealthStateCard", () => {
     ).toBeInTheDocument();
   });
 
-  test("renders description preview and symptom fallback", () => {
+  test("does not render the diagnosis description preview", () => {
     renderCard({
       _id: "diagnosis-1",
       title: "Respiratory note",
       symptoms: "Persistent cough",
     });
 
-    expect(screen.getByText("Persistent cough")).toBeInTheDocument();
+    expect(screen.queryByText("Persistent cough")).not.toBeInTheDocument();
   });
 
   test("renders fallback preview and date when missing", () => {
@@ -73,7 +73,7 @@ describe("HealthStateCard", () => {
       title: "Minimal record",
     });
 
-    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("-")).toHaveLength(1);
   });
 
   test("renders doctor name and email fallback together", () => {
