@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CalendarClock,
+  ClipboardList,
   FileText,
   History,
   Info,
@@ -241,7 +242,7 @@ export default function MyHealthStateDetail() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-medium leading-6 text-slate-600">
-              <Stethoscope className="h-4 w-4 text-blue-600" aria-hidden="true" />
+              <ClipboardList className="h-4 w-4 text-blue-600" aria-hidden="true" />
               {t("diagnoses.detail.pageTitle")}
             </p>
             <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
