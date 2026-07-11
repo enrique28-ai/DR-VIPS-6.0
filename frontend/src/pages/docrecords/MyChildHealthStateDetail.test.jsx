@@ -30,13 +30,13 @@ vi.mock("react-i18next", () => ({
     i18n: { language: "en" },
     t: (key) =>
       ({
-        "common.back": "Back",
         "common.loading": "Loading",
         "common.translate": "Translate",
         "diagnoses.detail.history": "History",
         "diagnoses.detail.notFound": "Diagnosis not found",
         "diagnoses.history.title": "History",
         "myChildren.back": "Back to children",
+        "myChildren.backToHealthState": "Back to Child Health State",
         "myChildren.healthState": "Child health state",
         "myHealthInfo.actions.clearTranslation": "Clear translation",
       }[key] ?? key),
@@ -148,7 +148,7 @@ describe("MyChildHealthStateDetail", () => {
   test("back button navigates to the previous page", () => {
     renderDetail();
 
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to Child Health State" }));
 
     expect(navigateMock).toHaveBeenCalledWith(-1);
   });

@@ -30,6 +30,7 @@
   "approve": "Aprobar",
   "reject": "Rechazar",
   "back": "Volver",
+  "backToHealthState": "Volver al estado de salud del hijo",
   "childNotFound": "Hijo no encontrado o ya no accesible.",
   "noDiagnoses": "Aún no hay diagnósticos.",
   "toasts": {

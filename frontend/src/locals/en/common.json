@@ -30,6 +30,7 @@
   "tutorEmail": "Tutor email",
   "reject": "Reject",
   "back": "Back",
+  "backToHealthState": "Back to Child Health State",
   "childNotFound": "Child not found or no longer accessible.",
   "noDiagnoses": "No diagnoses yet.",
   "toasts": {
