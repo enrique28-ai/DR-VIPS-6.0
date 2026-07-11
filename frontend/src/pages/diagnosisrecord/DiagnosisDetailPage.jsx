@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Button from "../../components/forms/Button.jsx";
 import { useDiagnosis, useTranslateDiagnosis } from "../../features/diagnostics/dhooks.js";
 import {
@@ -15,6 +15,7 @@ import {
   Scissors,
   Stethoscope,
   Syringe,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
@@ -147,25 +148,39 @@ export default function DiagnosisDetailPage() {
 
   const { data: original, isLoading, isError } = useDiagnosis(diagnosisId);
   const { mutate: translate, isPending } = useTranslateDiagnosis();
-  const diag = translatedDiag || original;
+  const translatedActive =
+    translatedDiag?.diagnosisId === diagnosisId &&
+    translatedDiag?.lang === i18n.language;
+  const currentDiag = translatedActive ? translatedDiag.data : original;
+
+  useEffect(() => {
+    setTranslatedDiag(null);
+  }, [diagnosisId, i18n.language]);
 
   const handleTranslate = () => {
     translate(
       { id: diagnosisId, lang: i18n.language },
-      { onSuccess: (data) => setTranslatedDiag(data) }
+      {
+        onSuccess: (data) =>
+          setTranslatedDiag({ diagnosisId, lang: i18n.language, data }),
+      }
     );
   };
 
-  if (isLoading && !diag) return <LoadingState t={t} />;
+  const clearTranslatedData = () => {
+    setTranslatedDiag(null);
+  };
 
-  if (isError || !diag) {
+  if (isLoading && !currentDiag) return <LoadingState t={t} />;
+
+  if (isError || !currentDiag) {
     return <NotFoundState t={t} onBack={() => navigate(`/diagnosis/patient/${patientId}`)} />;
   }
 
-  const title = diag.title ?? diag.Diagnostic ?? t("diagnoses.detail.untitled");
-  const meds = Array.isArray(diag.medicine) ? diag.medicine : [];
-  const tx = Array.isArray(diag.treatment) ? diag.treatment : [];
-  const ops = Array.isArray(diag.operation) ? diag.operation : [];
+  const title = currentDiag.title ?? currentDiag.Diagnostic ?? t("diagnoses.detail.untitled");
+  const meds = Array.isArray(currentDiag.medicine) ? currentDiag.medicine : [];
+  const tx = Array.isArray(currentDiag.treatment) ? currentDiag.treatment : [];
+  const ops = Array.isArray(currentDiag.operation) ? currentDiag.operation : [];
 
   const hasClinical = meds.length > 0 || tx.length > 0 || ops.length > 0;
 
@@ -220,11 +235,22 @@ export default function DiagnosisDetailPage() {
               )}
               {t("common.translate")}
             </Button>
+            {translatedActive && (
+              <Button
+                full={false}
+                variant="secondary"
+                onClick={clearTranslatedData}
+                className="sm:col-span-2 lg:w-auto"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("myHealthInfo.actions.clearTranslation")}
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
-      {translatedDiag && (
+      {translatedActive && (
         <section className="rounded-3xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm sm:p-5">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
@@ -243,7 +269,7 @@ export default function DiagnosisDetailPage() {
         tone="blue"
       >
         <p className="whitespace-pre-line break-words text-sm font-medium leading-6 text-slate-900">
-          {diag.description?.trim() || "—"}
+          {currentDiag.description?.trim() || "—"}
         </p>
       </SectionCard>
 
@@ -283,12 +309,12 @@ export default function DiagnosisDetailPage() {
           <CalendarClock className="h-4 w-4" aria-hidden="true" />
           <span>
             {t("diagnoses.detail.created")}:{" "}
-            {diag.createdAt
-              ? new Date(diag.createdAt).toLocaleString(i18n.language)
+            {currentDiag.createdAt
+              ? new Date(currentDiag.createdAt).toLocaleString(i18n.language)
               : "—"}{" "}
             · {t("diagnoses.detail.updated")}:{" "}
-            {diag.updatedAt
-              ? new Date(diag.updatedAt).toLocaleString(i18n.language)
+            {currentDiag.updatedAt
+              ? new Date(currentDiag.updatedAt).toLocaleString(i18n.language)
               : "—"}
           </span>
         </div>

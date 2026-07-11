@@ -17,6 +17,7 @@ import {
   Stethoscope,
   Syringe,
   User2,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DiagnosisHistoryModal from "../../components/diagnostic/DiagnosisHistoryModal.jsx";
@@ -230,6 +231,10 @@ export default function MyHealthStateDetail() {
     );
   };
 
+  const clearTranslatedData = () => {
+    setTranslatedDiag(null);
+  };
+
   return (
     <PageShell>
       <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -275,6 +280,17 @@ export default function MyHealthStateDetail() {
               )}
               {t("common.translate")}
             </Button>
+            {translatedActive && (
+              <Button
+                full={false}
+                variant="secondary"
+                onClick={clearTranslatedData}
+                className="sm:col-span-2 lg:w-auto"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("myHealthInfo.actions.clearTranslation")}
+              </Button>
+            )}
           </div>
         </div>
       </header>

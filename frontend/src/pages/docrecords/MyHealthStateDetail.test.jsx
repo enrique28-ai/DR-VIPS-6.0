@@ -31,6 +31,7 @@ vi.mock("react-i18next", () => ({
         "myHealthState.detail.backToState": "Back to health state",
         "myHealthState.detail.createdBy": "Created by",
         "myHealthState.detail.unknownDoctor": "Unknown doctor",
+        "myHealthInfo.actions.clearTranslation": "Clear translation",
       }[key] ?? key),
   }),
 }));
@@ -199,6 +200,42 @@ describe("MyHealthStateDetail", () => {
     expect(screen.queryByText("Medicines")).not.toBeInTheDocument();
     expect(screen.queryByText("Treatments")).not.toBeInTheDocument();
     expect(screen.queryByText("Operations")).not.toBeInTheDocument();
+  });
+
+  test("translates the diagnosis and clears translated content without another request", () => {
+    const translate = vi.fn((_payload, options) => {
+      options.onSuccess({
+        ...baseDiagnosis(),
+        title: "Translated diagnosis",
+        description: "Translated description",
+        medicine: ["Translated medicine"],
+      });
+    });
+    useTranslateMyDiagnosis.mockReturnValue({ mutate: translate, isPending: false });
+    renderDetail();
+
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+
+    expect(translate).toHaveBeenCalledWith(
+      { id: "diagnosis-1", lang: "en" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    expect(screen.getByRole("heading", { name: "Translated diagnosis" })).toBeInTheDocument();
+    expect(screen.getByText("Translated description")).toBeInTheDocument();
+    expect(screen.getByText("Translated medicine")).toBeInTheDocument();
+    expect(screen.getAllByText("Translate")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear translation" }));
+
+    expect(screen.getByRole("heading", { name: "Flu diagnosis" })).toBeInTheDocument();
+    expect(screen.getByText("Fever and cough")).toBeInTheDocument();
+    expect(screen.getByText("Ibuprofen")).toBeInTheDocument();
+    expect(screen.queryByText("Translated description")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Translate")).toHaveLength(1);
+    expect(translate).toHaveBeenCalledTimes(1);
   });
 
   test("opens and closes the diagnosis history modal with the route diagnosis id", () => {

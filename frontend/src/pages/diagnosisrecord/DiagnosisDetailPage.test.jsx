@@ -5,6 +5,7 @@ import DiagnosisDetailPage from "./DiagnosisDetailPage.jsx";
 import { useDiagnosis, useTranslateDiagnosis } from "../../features/diagnostics/dhooks.js";
 
 const navigate = vi.fn();
+const mockContext = vi.hoisted(() => ({ diagnosisId: "diagnosis-1", language: "en" }));
 
 vi.mock("framer-motion", () => ({
   motion: {
@@ -19,13 +20,13 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useNavigate: () => navigate,
-    useParams: () => ({ patientId: "patient-1", diagnosisId: "diagnosis-1" }),
+    useParams: () => ({ patientId: "patient-1", diagnosisId: mockContext.diagnosisId }),
   };
 });
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    i18n: { language: "en" },
+    i18n: { language: mockContext.language },
     t: (key) =>
       ({
         "common.loading": "Loading",
@@ -42,6 +43,7 @@ vi.mock("react-i18next", () => ({
         "diagnoses.detail.treatments": "Treatments",
         "diagnoses.detail.untitled": "Untitled diagnosis",
         "diagnoses.detail.updated": "Updated",
+        "myHealthInfo.actions.clearTranslation": "Clear translation",
       }[key] ?? key),
   }),
 }));
@@ -93,6 +95,8 @@ describe("DiagnosisDetailPage", () => {
   let translate;
 
   beforeEach(() => {
+    mockContext.diagnosisId = "diagnosis-1";
+    mockContext.language = "en";
     translate = vi.fn();
     vi.clearAllMocks();
     useTranslateDiagnosis.mockReturnValue({ mutate: translate, isPending: false });
@@ -196,6 +200,8 @@ describe("DiagnosisDetailPage", () => {
     useTranslateDiagnosis.mockReturnValue({ mutate: translate, isPending: false });
     renderDetailPage();
 
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Translate" }));
 
     expect(translate).toHaveBeenCalledWith(
@@ -208,6 +214,60 @@ describe("DiagnosisDetailPage", () => {
     expect(screen.getByText("Tratamiento traducido")).toBeInTheDocument();
     expect(screen.getByText("Operacion traducida")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Flu diagnosis" })).not.toBeInTheDocument();
+
+    const clearButton = screen.getByRole("button", { name: "Clear translation" });
+    expect(screen.getAllByText("Translate")).toHaveLength(2);
+
+    fireEvent.click(clearButton);
+
+    expect(screen.getByRole("heading", { name: "Flu diagnosis" })).toBeInTheDocument();
+    expect(screen.getByText("Fever and cough")).toBeInTheDocument();
+    expect(screen.queryByText("Descripcion traducida")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Translate")).toHaveLength(1);
+  });
+
+  test("does not keep translated content active after the diagnosis id or language changes", () => {
+    translate = vi.fn((_payload, options) => {
+      options.onSuccess({
+        title: "Stale translated diagnosis",
+        description: "Stale translated description",
+      });
+    });
+    useTranslateDiagnosis.mockReturnValue({ mutate: translate, isPending: false });
+    const view = renderDetailPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+    expect(screen.getByRole("heading", { name: "Stale translated diagnosis" })).toBeInTheDocument();
+
+    mockContext.diagnosisId = "diagnosis-2";
+    useDiagnosis.mockReturnValue({
+      data: baseDiagnosis({ _id: "diagnosis-2", title: "Second diagnosis", description: "Second description" }),
+      isLoading: false,
+      isError: false,
+    });
+    view.rerender(
+      <MemoryRouter>
+        <DiagnosisDetailPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Second diagnosis" })).toBeInTheDocument();
+    expect(screen.queryByText("Stale translated description")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
+    expect(screen.getByRole("heading", { name: "Stale translated diagnosis" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear translation" })).toBeInTheDocument();
+
+    mockContext.language = "es";
+    view.rerender(
+      <MemoryRouter>
+        <DiagnosisDetailPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Second diagnosis" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
   });
 
   test("opens and closes the diagnosis history modal", () => {

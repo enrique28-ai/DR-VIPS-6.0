@@ -38,6 +38,7 @@ vi.mock("react-i18next", () => ({
         "diagnoses.history.title": "History",
         "myChildren.back": "Back to children",
         "myChildren.healthState": "Child health state",
+        "myHealthInfo.actions.clearTranslation": "Clear translation",
       }[key] ?? key),
   }),
 }));
@@ -193,6 +194,8 @@ describe("MyChildHealthStateDetail", () => {
     });
     renderDetail();
 
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Translate" }));
 
     await waitFor(() => {
@@ -202,6 +205,21 @@ describe("MyChildHealthStateDetail", () => {
     });
     expect(screen.getByText("Translated fever and cough")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Flu diagnosis" })).not.toBeInTheDocument();
+    expect(translateMutateAsync).toHaveBeenCalledWith({
+      childId: "child-profile-id",
+      diagnosisId: "diagnosis-1",
+      lang: "en",
+    });
+    expect(screen.getAllByText("Translate")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear translation" }));
+
+    expect(screen.getByRole("heading", { name: "Flu diagnosis" })).toBeInTheDocument();
+    expect(screen.getByText("Fever and cough")).toBeInTheDocument();
+    expect(screen.queryByText("Translated fever and cough")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear translation" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Translate")).toHaveLength(1);
+    expect(translateMutateAsync).toHaveBeenCalledTimes(1);
   });
 
   test("opens and closes the child diagnosis history modal with route params", () => {

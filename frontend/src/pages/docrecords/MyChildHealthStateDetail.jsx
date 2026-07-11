@@ -15,6 +15,7 @@ import {
   Stethoscope,
   Syringe,
   User2,
+  X,
 } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 
@@ -229,6 +230,10 @@ export default function MyChildHealthStateDetail() {
     ? formatDateTime(currentDiagnosis.updatedAt, lang)
     : "—";
 
+  const clearTranslatedData = () => {
+    setTranslatedDiagnosis(null);
+  };
+
   return (
     <PageShell>
       <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -276,6 +281,17 @@ export default function MyChildHealthStateDetail() {
               >
                 <Languages className="h-4 w-4" aria-hidden="true" />
                 {t("common.translate")}
+              </Button>
+            )}
+            {translatedActive && (
+              <Button
+                full={false}
+                variant="secondary"
+                onClick={clearTranslatedData}
+                className="sm:col-span-2 lg:w-auto"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("myHealthInfo.actions.clearTranslation")}
               </Button>
             )}
           </div>
