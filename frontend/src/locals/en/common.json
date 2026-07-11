@@ -591,6 +591,7 @@
     "confirmDelete": "Delete this diagnosis? This cannot be undone."
   },
   "detail": {
+    "pageTitle": "Diagnosis details",
     "notFoundTitle": "Diagnosis not found",
     "notFound": "Diagnosis not found",
     "backToList": "Back to diagnoses",

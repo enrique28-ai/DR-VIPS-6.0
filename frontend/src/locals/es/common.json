@@ -579,6 +579,7 @@
     "confirmDelete": "¿Borrar este diagnóstico? Esto no se puede deshacer."
   },
   "detail": {
+    "pageTitle": "Detalles del diagnóstico",
     "notFoundTitle": "Diagnóstico no encontrado",
     "notFound": "Diagnóstico no encontrado",
     "backToList": "Volver a diagnósticos",
