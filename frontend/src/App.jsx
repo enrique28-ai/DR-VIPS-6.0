@@ -10,6 +10,7 @@ import RequireVerified from "./components/auth/RequireVerified.jsx";
 
 // UI
 import Navbar from "./components/Navbar.jsx";
+import Sidebar from "./components/layout/Sidebar.jsx";
 
 // Public pages
 import Home from "./pages/Home.jsx";
@@ -51,12 +52,31 @@ import CalendarPage from "./pages/calendar/CalendarPage.jsx";
 
 
 
-const WithNav = () => (
-  <>
-    <Navbar />
-    <Outlet />
-  </>
-);
+const WithNav = () => {
+  const { user, isAuthenticated, isCheckingAuth } = useAuthStore();
+
+  const showDesktopSidebar =
+    !isCheckingAuth &&
+    isAuthenticated &&
+    user?.isVerified &&
+    (user?.role === "doctor" || user?.role === "patient");
+
+  return (
+    <>
+      <Navbar />
+      {showDesktopSidebar ? (
+        <div className="min-h-[calc(100vh-4rem)] lg:flex">
+          <Sidebar role={user.role} />
+          <main className="min-w-0 flex-1">
+            <Outlet />
+          </main>
+        </div>
+      ) : (
+        <Outlet />
+      )}
+    </>
+  );
+};
 const NoNav = () => <Outlet />;
 
 export default function App() {

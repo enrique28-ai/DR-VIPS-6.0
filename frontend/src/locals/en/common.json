@@ -211,7 +211,9 @@
   "profile": "Profile",
   "patients": "Patients",
   "logout": "Logout",
-  "myChildren": "My children"
+  "myChildren": "My children",
+  "home": "Home",
+  "mainNavigation": "Main navigation"
 },
 
 "password": {

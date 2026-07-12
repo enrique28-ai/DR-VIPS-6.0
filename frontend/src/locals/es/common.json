@@ -208,7 +208,9 @@
     "profile": "Perfil",
     "patients": "Pacientes",
     "logout": "Cierre de sesión",
-    "myChildren": "Mis hijos"
+    "myChildren": "Mis hijos",
+    "home": "Inicio",
+    "mainNavigation": "Navegación principal"
   },
   "password": {
     "strengthLabel": "Seguridad de la contraseña",
