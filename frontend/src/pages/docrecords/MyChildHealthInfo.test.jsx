@@ -38,6 +38,7 @@ vi.mock("react-i18next", () => ({
         "myHealthInfo.sections.basic.phone": "Phone",
         "myChildren.childNotFound": "Child not found or no longer accessible.",
         "myChildren.healthInfo": "Health Info",
+        "myChildren.backToHealthState": "Back to Child Health State",
         "myChildren.upToDate": "Up to date.",
         "myChildren.pending": "Pending changes require your approval.",
         "myChildren.tutorEmail": "Tutor email",
@@ -179,6 +180,16 @@ describe("MyChildHealthInfo", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
     expect(navigateMock).toHaveBeenCalledWith("/docrecords/mychildren");
+  });
+
+  test("loaded page back button navigates to the selected child's health state", () => {
+    renderChildHealthInfo();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to Child Health State" }));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      "/docrecords/mychildren/child-profile-id/health-state",
+    );
   });
 
   test("renders the selected child health info details", () => {

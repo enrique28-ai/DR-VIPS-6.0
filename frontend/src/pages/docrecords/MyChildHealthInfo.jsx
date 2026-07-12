@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  ArrowLeft,
   User2,
   Pill,
   Activity,
@@ -353,6 +354,16 @@ export default function MyChildHealthInfo() {
           </div>
 
           <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-none lg:flex lg:items-center">
+            <button
+              type="button"
+              onClick={() =>
+                navigate(`/docrecords/mychildren/${childId}/health-state`)
+              }
+              className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:col-span-2 lg:w-auto"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {t("myChildren.backToHealthState")}
+            </button>
             <Button variant="secondary" onClick={() => setOpenHistory(true)} className="sm:w-auto">
               <History className="h-4 w-4" aria-hidden="true" />
               {t("myHealthInfo.history.button")}

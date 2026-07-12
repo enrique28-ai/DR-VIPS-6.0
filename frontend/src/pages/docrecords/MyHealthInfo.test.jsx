@@ -67,6 +67,7 @@ vi.mock("react-i18next", () => ({
           "myHealthInfo.sections.conditions.diseases": "Diseases",
           "myHealthInfo.sections.conditions.medications": "Medications",
           "myHealthInfo.sections.conditions.title": "Conditions",
+          "myHealthState.detail.backToState": "Back to My Health State",
           "navbar.myHealthInfo": "My Health Info",
           "patients.card.genderFemale": "Female",
           "patients.card.genderMale": "Male",
@@ -165,6 +166,14 @@ describe("MyHealthInfo layout states and actions", () => {
     renderHealthInfo(baseSnapshot(), { data: null, isError: true });
 
     fireEvent.click(screen.getByRole("button", { name: "Back to health state" }));
+
+    expect(navigateMock).toHaveBeenCalledWith("/docrecords/myhealthstate");
+  });
+
+  test("loaded page back button navigates to health state", () => {
+    renderHealthInfo(baseSnapshot());
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to My Health State" }));
 
     expect(navigateMock).toHaveBeenCalledWith("/docrecords/myhealthstate");
   });
