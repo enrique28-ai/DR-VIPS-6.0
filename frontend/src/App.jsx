@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuthStore } from "./stores/authStore.js";
 
@@ -55,8 +55,16 @@ import CalendarPage from "./pages/calendar/CalendarPage.jsx";
 const WithNav = () => {
   const { user, isAuthenticated, isCheckingAuth } = useAuthStore();
 
+  const [initialAuthResolved, setInitialAuthResolved] = useState(
+    () => !isCheckingAuth,
+  );
+
+  useEffect(() => {
+    if (!isCheckingAuth) setInitialAuthResolved(true);
+  }, [isCheckingAuth]);
+
   const showDesktopSidebar =
-    !isCheckingAuth &&
+    initialAuthResolved &&
     isAuthenticated &&
     user?.isVerified &&
     (user?.role === "doctor" || user?.role === "patient");
@@ -64,16 +72,16 @@ const WithNav = () => {
   return (
     <>
       <Navbar />
-      {showDesktopSidebar ? (
-        <div className="min-h-[calc(100vh-4rem)] lg:flex">
-          <Sidebar role={user.role} />
-          <main className="min-w-0 flex-1">
-            <Outlet />
-          </main>
+      <div
+        className={
+          showDesktopSidebar ? "min-h-[calc(100vh-4rem)] lg:flex" : ""
+        }
+      >
+        <Sidebar role={showDesktopSidebar ? user.role : undefined} />
+        <div className={showDesktopSidebar ? "min-w-0 flex-1" : ""}>
+          <Outlet />
         </div>
-      ) : (
-        <Outlet />
-      )}
+      </div>
     </>
   );
 };
