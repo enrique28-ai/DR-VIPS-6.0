@@ -47,6 +47,10 @@ vi.mock("react-i18next", () => ({
         "navbar.profile": "Profile",
         "navbar.myChildren": "My children",
         "navbar.patients": "Patients",
+        "navbar.myHealthInfo": "My health information",
+        "navbar.home": "Home",
+        "navbar.mainNavigation": "Main navigation",
+        "common.close": "Close",
       })[key] ?? key,
   }),
 }));
@@ -119,6 +123,9 @@ describe("Navbar", () => {
       "href",
       "/signup",
     );
+    expect(
+      screen.queryByRole("button", { name: "Main navigation" }),
+    ).not.toBeInTheDocument();
   });
 
   test("authenticated unverified user shows avatar initial, no greeting, and no NotificationBell", () => {
@@ -138,6 +145,9 @@ describe("Navbar", () => {
     expect(avatar.textContent).toBe("D");
     expect(screen.queryByText(/^Hi\s/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("notification-bell-stub")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Main navigation" }),
+    ).not.toBeInTheDocument();
   });
 
   test("opening the menu shows Verify Email and Logout with aria-expanded true", () => {
@@ -245,9 +255,86 @@ describe("Navbar", () => {
         return element?.textContent.replace(/\s+/g, " ").trim() === "Hi Dr";
       }),
     ).toBeInTheDocument();
+    const hamburger = screen.getByRole("button", { name: "Main navigation" });
+    expect(hamburger).toHaveClass("lg:hidden");
+    expect(hamburger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(hamburger).toHaveAttribute("aria-controls", "mobile-navigation-drawer");
+    expect(hamburger).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("verified patient menu shows Calendar, My Health State, Profile, My Children, and Logout", () => {
+  test("verified patient hamburger opens and closes the patient navigation drawer", () => {
+    authState.user = {
+      name: "Dr Person",
+      email: "doctor@example.com",
+      isVerified: true,
+      role: "patient",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    renderNavbar();
+
+    const hamburger = screen.getByRole("button", { name: "Main navigation" });
+    fireEvent.click(hamburger);
+
+    expect(hamburger).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("dialog", { name: "Main navigation" }),
+    ).toHaveAttribute("id", "mobile-navigation-drawer");
+    expect(
+      screen.getByRole("link", { name: "My health information" }),
+    ).toHaveAttribute("href", "/docrecords/myhealthinfo");
+    expect(
+      screen.queryByRole("link", { name: "Patients" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(hamburger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("losing verification closes an open drawer without reopening it later", () => {
+    authState.user = {
+      name: "Patient Person",
+      email: "patient@example.com",
+      isVerified: true,
+      role: "patient",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    const { rerender } = renderNavbar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+
+    authState.user = { ...authState.user, isVerified: false };
+    rerender(
+      <MemoryRouter>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Main navigation" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    authState.user = { ...authState.user, isVerified: true };
+    rerender(
+      <MemoryRouter>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Main navigation" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("verified patient UserMenu shows only Profile and Logout", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -262,18 +349,39 @@ describe("Navbar", () => {
     fireEvent.click(getAvatarButton(container));
 
     expect(
-      screen.getByRole("menuitem", { name: "Calendar" }),
-    ).toHaveAttribute("href", "/calendar");
-    expect(
-      screen.getByRole("menuitem", { name: "My health state" }),
-    ).toHaveAttribute("href", "/docrecords/myhealthstate");
-    expect(
       screen.getByRole("menuitem", { name: "Profile" }),
     ).toHaveAttribute("href", "/profile");
-    expect(
-      screen.getByRole("menuitem", { name: "My children" }),
-    ).toHaveAttribute("href", "/docrecords/mychildren");
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Calendar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "My health state" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "My health information" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "My children" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("verified user with an unsupported role does not get a hamburger", () => {
+    authState.user = {
+      name: "Admin Person",
+      email: "admin@example.com",
+      isVerified: true,
+      role: "admin",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    renderNavbar();
+
+    expect(
+      screen.queryByRole("button", { name: "Main navigation" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   test("verified doctor with no name derives greeting from user.email and renders NotificationBell", () => {
@@ -296,9 +404,20 @@ describe("Navbar", () => {
         );
       }),
     ).toBeInTheDocument();
+    const hamburger = screen.getByRole("button", { name: "Main navigation" });
+    expect(hamburger).toHaveClass("lg:hidden");
+
+    fireEvent.click(hamburger);
+    expect(screen.getByRole("link", { name: "Patients" })).toHaveAttribute(
+      "href",
+      "/patients",
+    );
+    expect(
+      screen.queryByRole("link", { name: "My health state" }),
+    ).not.toBeInTheDocument();
   });
 
-  test("verified doctor menu shows Calendar, Patients, Profile, and Logout", () => {
+  test("verified doctor UserMenu shows only Profile and Logout", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -313,15 +432,15 @@ describe("Navbar", () => {
     fireEvent.click(getAvatarButton(container));
 
     expect(
-      screen.getByRole("menuitem", { name: "Calendar" }),
-    ).toHaveAttribute("href", "/calendar");
-    expect(
-      screen.getByRole("menuitem", { name: "Patients" }),
-    ).toHaveAttribute("href", "/patients");
-    expect(
       screen.getByRole("menuitem", { name: "Profile" }),
     ).toHaveAttribute("href", "/profile");
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Calendar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Patients" }),
+    ).not.toBeInTheDocument();
   });
 
   test("renders img alt=avatar with the avatar src when user.avatar is set", () => {

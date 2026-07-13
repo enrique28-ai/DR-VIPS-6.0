@@ -200,7 +200,7 @@ describe("UserMenu", () => {
     expect(navigateMock).toHaveBeenCalledWith("/verify-email");
   });
 
-  test("verified patient menu shows Calendar, My Health State, My Health Information, My Children, Profile, and Logout", () => {
+  test("verified patient menu shows only Profile and Logout", () => {
     const { container } = renderMenu({
       name: "Dr Person",
       email: "doctor@example.com",
@@ -211,24 +211,27 @@ describe("UserMenu", () => {
     fireEvent.click(getAvatarButton(container));
 
     expect(
-      screen.getByRole("menuitem", { name: "Calendar" }),
-    ).toHaveAttribute("href", "/calendar");
-    expect(
-      screen.getByRole("menuitem", { name: "My health state" }),
-    ).toHaveAttribute("href", "/docrecords/myhealthstate");
-    expect(
-      screen.getByRole("menuitem", { name: "My health information" }),
-    ).toHaveAttribute("href", "/docrecords/myhealthinfo");
-    expect(
-      screen.getByRole("menuitem", { name: "My children" }),
-    ).toHaveAttribute("href", "/docrecords/mychildren");
-    expect(
       screen.getByRole("menuitem", { name: "Profile" }),
     ).toHaveAttribute("href", "/profile");
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Calendar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Patients" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "My health state" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "My health information" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "My children" }),
+    ).not.toBeInTheDocument();
   });
 
-  test("verified role navigation is mobile-only while Profile is shared and rendered once", () => {
+  test("verified Profile is rendered once without a mobile role-navigation wrapper", () => {
     const { container } = renderMenu({
       name: "Patient Person",
       email: "patient@example.com",
@@ -238,16 +241,9 @@ describe("UserMenu", () => {
 
     fireEvent.click(getAvatarButton(container));
 
-    const roleNavigation = screen
-      .getByRole("menuitem", { name: "Calendar" })
-      .closest("div");
     const profile = screen.getByRole("menuitem", { name: "Profile" });
 
-    expect(roleNavigation).toHaveClass("lg:hidden");
-    expect(roleNavigation).toContainElement(
-      screen.getByRole("menuitem", { name: "My health information" }),
-    );
-    expect(roleNavigation).not.toContainElement(profile);
+    expect(profile.closest(".lg\\:hidden")).toBeNull();
     expect(screen.getAllByRole("menuitem", { name: "Profile" })).toHaveLength(1);
   });
 
@@ -273,7 +269,7 @@ describe("UserMenu", () => {
     expect(avatar).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("verified doctor menu shows Calendar, Patients, Profile, and Logout", () => {
+  test("verified doctor menu shows only Profile and Logout", () => {
     const { container } = renderMenu({
       name: "Dr Person",
       email: "doctor@example.com",
@@ -284,15 +280,15 @@ describe("UserMenu", () => {
     fireEvent.click(getAvatarButton(container));
 
     expect(
-      screen.getByRole("menuitem", { name: "Calendar" }),
-    ).toHaveAttribute("href", "/calendar");
-    expect(
-      screen.getByRole("menuitem", { name: "Patients" }),
-    ).toHaveAttribute("href", "/patients");
-    expect(
       screen.getByRole("menuitem", { name: "Profile" }),
     ).toHaveAttribute("href", "/profile");
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Calendar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Patients" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: "My health state" }),
     ).not.toBeInTheDocument();

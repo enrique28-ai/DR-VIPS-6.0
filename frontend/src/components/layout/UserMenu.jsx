@@ -87,74 +87,14 @@ export default function UserMenu({ user, logout }) {
           )}
 
           {user?.isVerified && (
-            <>
-              <div className="lg:hidden">
-                {user?.role === "patient" ? (
-                  <>
-                    <Link
-                      to="/calendar"
-                      onClick={() => setOpen(false)}
-                      className={menuItemClass}
-                      role="menuitem"
-                    >
-                      {t("calendar.menu")}
-                    </Link>
-                    <Link
-                      to="/docrecords/myhealthstate"
-                      onClick={() => setOpen(false)}
-                      className={menuItemClass}
-                      role="menuitem"
-                    >
-                      {t("navbar.myHealthState")}
-                    </Link>
-                    <Link
-                      to="/docrecords/myhealthinfo"
-                      onClick={() => setOpen(false)}
-                      className={menuItemClass}
-                      role="menuitem"
-                    >
-                      {t("navbar.myHealthInfo")}
-                    </Link>
-                    <Link
-                      to="/docrecords/mychildren"
-                      onClick={() => setOpen(false)}
-                      className={menuItemClass}
-                      role="menuitem"
-                    >
-                      {t("navbar.myChildren")}
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <Link
-                      to="/calendar"
-                      onClick={() => setOpen(false)}
-                      className={menuItemClass}
-                      role="menuitem"
-                    >
-                      {t("calendar.menu")}
-                    </Link>
-                    <Link
-                      to="/patients"
-                      onClick={() => setOpen(false)}
-                      className={menuItemClass}
-                      role="menuitem"
-                    >
-                      {t("navbar.patients")}
-                    </Link>
-                  </>
-                )}
-              </div>
-
-              <Link
-                to="/profile"
-                onClick={() => setOpen(false)}
-                className={menuItemClass}
-                role="menuitem"
-              >
-                {t("navbar.profile")}
-              </Link>
-            </>
+            <Link
+              to="/profile"
+              onClick={() => setOpen(false)}
+              className={menuItemClass}
+              role="menuitem"
+            >
+              {t("navbar.profile")}
+            </Link>
           )}
 
           <button
