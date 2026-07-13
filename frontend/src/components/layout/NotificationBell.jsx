@@ -25,6 +25,28 @@ export default function NotificationBell() {
   const markAll = useMarkAllNotifsRead();
 
   const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const bellButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!containerRef.current?.contains(event.target)) setOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      bellButtonRef.current?.focus();
+    };
+
+    window.addEventListener("click", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   // toast cuando llegan nuevas (no en el primer render)
   const seenIdsRef = useRef(new Set());
@@ -47,7 +69,7 @@ export default function NotificationBell() {
       empty: t("notifications.empty", "No notifications."),
       markAll: t("notifications.markAllRead", "Mark all as read"),
     }),
-    [t]
+    [t],
   );
 
   const onClickNotif = (n) => {
@@ -55,13 +77,18 @@ export default function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
+        ref={bellButtonRef}
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors"
+        className="relative p-2 text-gray-600 transition-colors hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         aria-label={label.title}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="notification-panel"
       >
-        <Bell className="w-6 h-6" />
+        <Bell className="h-6 w-6" aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
             {unreadCount}
@@ -70,20 +97,32 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[9999]">
-          <div className="p-3 border-b bg-gray-50 flex justify-between items-center">
-            <h3 className="text-sm font-semibold text-gray-700">{label.title}</h3>
+        <div
+          id="notification-panel"
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby="notification-panel-title"
+          className="fixed left-3 right-3 top-16 z-[9999] flex max-h-[calc(100dvh-5rem)] flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b bg-gray-50 p-3">
+            <h3
+              id="notification-panel-title"
+              className="text-sm font-semibold text-gray-700"
+            >
+              {label.title}
+            </h3>
             {unreadCount > 0 && (
               <button
+                type="button"
                 onClick={() => markAll.mutate()}
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
                 {label.markAll}
               </button>
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto sm:max-h-96">
             {items.length === 0 ? (
               <div className="p-4 text-center text-sm text-gray-500">
                 {label.empty}
@@ -93,10 +132,11 @@ export default function NotificationBell() {
                 const title = n?.title?.[pick] || n?.title?.en || "";
                 const msg = n?.message?.[pick] || n?.message?.en || "";
                 return (
-                  <div
+                  <button
                     key={n._id}
+                    type="button"
                     onClick={() => onClickNotif(n)}
-                    className={`p-3 border-b cursor-pointer transition-colors ${
+                    className={`w-full cursor-pointer break-words border-b p-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
                       n.isRead ? "bg-white" : "bg-blue-50"
                     } hover:bg-gray-50`}
                   >
@@ -108,7 +148,7 @@ export default function NotificationBell() {
                         locale,
                       })}
                     </p>
-                  </div>
+                  </button>
                 );
               })
             )}
