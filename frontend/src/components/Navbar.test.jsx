@@ -5,6 +5,8 @@ import Navbar from "./Navbar.jsx";
 
 const navigateMock = vi.hoisted(() => vi.fn());
 const logoutMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const toggleNavigationMock = vi.hoisted(() => vi.fn());
+const closeNavigationMock = vi.hoisted(() => vi.fn());
 const authState = vi.hoisted(() => ({
   user: null,
   isAuthenticated: false,
@@ -67,10 +69,16 @@ vi.mock("./layout/NotificationBell.jsx", () => ({
   ),
 }));
 
-const renderNavbar = () =>
+const renderNavbar = (props = {}) =>
   render(
     <MemoryRouter>
-      <Navbar />
+      <Navbar
+        navigationOpen={false}
+        onToggleNavigation={toggleNavigationMock}
+        onCloseNavigation={closeNavigationMock}
+        navigationTriggerRef={{ current: null }}
+        {...props}
+      />
     </MemoryRouter>,
   );
 
@@ -83,6 +91,8 @@ describe("Navbar", () => {
     logoutMock.mockClear();
     logoutMock.mockResolvedValue(undefined);
     navigateMock.mockReset();
+    toggleNavigationMock.mockReset();
+    closeNavigationMock.mockReset();
     authState.user = null;
     authState.isAuthenticated = false;
     authState.isCheckingAuth = true;
@@ -255,13 +265,21 @@ describe("Navbar", () => {
     expect(getAvatarButton(container)).toBeNull();
     expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
     const hamburger = screen.getByRole("button", { name: "Main navigation" });
-    expect(hamburger).toHaveClass("lg:hidden");
-    expect(hamburger).toHaveAttribute("aria-haspopup", "dialog");
-    expect(hamburger).toHaveAttribute("aria-controls", "mobile-navigation-drawer");
+    expect(hamburger).not.toHaveClass("lg:hidden");
+    expect(hamburger).toHaveAttribute(
+      "aria-controls",
+      "desktop-navigation-sidebar mobile-navigation-drawer",
+    );
+    expect(hamburger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("notification-bell-stub").nextElementSibling).toBe(
+      hamburger,
+    );
+    fireEvent.click(hamburger);
+    expect(toggleNavigationMock).toHaveBeenCalledTimes(1);
     expect(hamburger).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("verified patient hamburger opens the drawer with navigation and the account footer", () => {
+  test("open controlled state keeps the Menu trigger visible and renders the account drawer", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -271,12 +289,11 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    renderNavbar();
+    renderNavbar({ navigationOpen: true });
 
     const hamburger = screen.getByRole("button", { name: "Main navigation" });
-    fireEvent.click(hamburger);
-
     expect(hamburger).toHaveAttribute("aria-expanded", "true");
+    expect(hamburger.querySelector("svg.lucide-menu")).not.toBeNull();
     expect(
       screen.getByRole("dialog", { name: "Main navigation" }),
     ).toHaveAttribute("id", "mobile-navigation-drawer");
@@ -290,10 +307,9 @@ describe("Navbar", () => {
     expect(screen.getByText("doctor@example.com")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    expect(hamburger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(hamburger);
+    expect(toggleNavigationMock).toHaveBeenCalledTimes(1);
+    expect(hamburger).toHaveAttribute("aria-expanded", "true");
   });
 
   test("drawer Logout closes immediately before awaiting logout and navigating", async () => {
@@ -313,11 +329,11 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    renderNavbar();
-    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
+    renderNavbar({ navigationOpen: true });
     fireEvent.click(screen.getByRole("button", { name: "Logout" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(closeNavigationMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(logoutMock).toHaveBeenCalledTimes(1);
     expect(navigateMock).not.toHaveBeenCalled();
 
@@ -337,15 +353,19 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    const { rerender } = renderNavbar();
+    const { rerender } = renderNavbar({ navigationOpen: true });
 
-    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
     expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
 
     authState.user = { ...authState.user, isVerified: false };
     rerender(
       <MemoryRouter>
-        <Navbar />
+        <Navbar
+          navigationOpen
+          onToggleNavigation={toggleNavigationMock}
+          onCloseNavigation={closeNavigationMock}
+          navigationTriggerRef={{ current: null }}
+        />
       </MemoryRouter>,
     );
 
@@ -357,7 +377,12 @@ describe("Navbar", () => {
     authState.user = { ...authState.user, isVerified: true };
     rerender(
       <MemoryRouter>
-        <Navbar />
+        <Navbar
+          navigationOpen={false}
+          onToggleNavigation={toggleNavigationMock}
+          onCloseNavigation={closeNavigationMock}
+          navigationTriggerRef={{ current: null }}
+        />
       </MemoryRouter>,
     );
 
@@ -395,7 +420,7 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    const { container } = renderNavbar();
+    const { container } = renderNavbar({ navigationOpen: true });
 
     expect(
       screen.queryByRole("button", { name: "Main navigation" }),
@@ -418,15 +443,14 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    const { container } = renderNavbar();
+    const { container } = renderNavbar({ navigationOpen: true });
 
     expect(screen.getByTestId("notification-bell-stub")).toBeInTheDocument();
     expect(screen.queryByText(/^Hi\s/)).not.toBeInTheDocument();
     expect(getAvatarButton(container)).toBeNull();
     const hamburger = screen.getByRole("button", { name: "Main navigation" });
-    expect(hamburger).toHaveClass("lg:hidden");
+    expect(hamburger).not.toHaveClass("lg:hidden");
 
-    fireEvent.click(hamburger);
     expect(screen.getByRole("link", { name: "Patients" })).toHaveAttribute(
       "href",
       "/patients",
@@ -466,10 +490,9 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    const { container } = renderNavbar();
+    const { container } = renderNavbar({ navigationOpen: true });
 
     expect(getAvatarButton(container)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
     expect(
       screen.getByRole("img", { name: "Dr Person avatar" }),
     ).toHaveAttribute("src", "https://example.com/avatar.png");
@@ -501,7 +524,7 @@ describe("Navbar", () => {
     expect(avatar).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("clicking a verified patient drawer Profile route closes the drawer", () => {
+  test("clicking a verified patient drawer Profile route keeps controlled navigation open", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -511,14 +534,14 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    renderNavbar();
+    renderNavbar({ navigationOpen: true });
 
     const hamburger = screen.getByRole("button", { name: "Main navigation" });
-    fireEvent.click(hamburger);
     fireEvent.click(screen.getByRole("link", { name: "Profile" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(hamburger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(hamburger).toHaveAttribute("aria-expanded", "true");
+    expect(closeNavigationMock).not.toHaveBeenCalled();
   });
 
   test("avatar initial comes from user.email when user.name is missing", () => {

@@ -34,7 +34,11 @@ function LocationProbe() {
 const renderSidebar = (
   role,
   initialPath = "/",
-  { user = defaultUser, logout = vi.fn().mockResolvedValue(undefined) } = {},
+  {
+    open = true,
+    user = defaultUser,
+    logout = vi.fn().mockResolvedValue(undefined),
+  } = {},
 ) =>
   render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -43,7 +47,7 @@ const renderSidebar = (
           path="*"
           element={
             <>
-              <Sidebar role={role} user={user} logout={logout} />
+              <Sidebar open={open} role={role} user={user} logout={logout} />
               <LocationProbe />
             </>
           }
@@ -70,6 +74,13 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "My health state" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My health info" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My children" })).not.toBeInTheDocument();
+  });
+
+  test("open=false renders no desktop Sidebar", () => {
+    const { container } = renderSidebar("doctor", "/", { open: false });
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 
   test("patient navigation shows Home, My Health State, My Health Info, My Children, Calendar, Profile and omits Patients", () => {
@@ -152,7 +163,9 @@ describe("Sidebar", () => {
     const nav = within(aside).getByRole("navigation");
 
     expect(aside).toHaveClass("flex-col", "lg:flex");
-    expect(nav).toHaveClass("flex-1", "overflow-y-auto");
+    expect(aside).toHaveAttribute("id", "desktop-navigation-sidebar");
+    expect(aside).toHaveClass("sticky", "top-16", "h-[calc(100vh-4rem)]");
+    expect(nav).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
     expect(
       within(aside).getByRole("img", { name: "Doctor Person avatar" }),
     ).toHaveAttribute("src", defaultUser.avatar);
@@ -163,6 +176,15 @@ describe("Sidebar", () => {
     expect(aside.lastElementChild).toContainElement(
       within(aside).getByRole("button", { name: "Logout" }),
     );
+  });
+
+  test("selecting a route keeps the controlled Sidebar rendered", () => {
+    const { container } = renderSidebar("patient");
+
+    fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/calendar");
+    expect(container.querySelector("#desktop-navigation-sidebar")).not.toBeNull();
   });
 
   test("Logout from the desktop Sidebar awaits logout and navigates to login", async () => {

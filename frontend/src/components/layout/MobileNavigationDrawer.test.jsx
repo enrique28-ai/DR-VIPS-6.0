@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useRef } from "react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import MobileNavigationDrawer from "./MobileNavigationDrawer.jsx";
@@ -62,31 +62,6 @@ function DrawerHarness({
         triggerRef={triggerRef}
       />
       <LocationProbe />
-    </>
-  );
-}
-
-function ResponsiveDrawerHarness({ role = "patient", onClose }) {
-  const [open, setOpen] = useState(true);
-  const triggerRef = useRef(null);
-  const handleClose = () => {
-    onClose();
-    setOpen(false);
-  };
-
-  return (
-    <>
-      <button ref={triggerRef} type="button">
-        Open navigation
-      </button>
-      <MobileNavigationDrawer
-        open={open}
-        role={role}
-        user={users[role]}
-        logout={vi.fn().mockResolvedValue(undefined)}
-        onClose={handleClose}
-        triggerRef={triggerRef}
-      />
     </>
   );
 }
@@ -264,24 +239,25 @@ describe("MobileNavigationDrawer", () => {
     );
   });
 
-  test("clicking a navigation link calls onClose", () => {
+  test("clicking a navigation link updates the route without closing the drawer", () => {
     const onClose = vi.fn();
     renderDrawer({ onClose });
 
     fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("location")).toHaveTextContent("/calendar");
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
   });
 
-  test("clicking the backdrop calls onClose", () => {
+  test("clicking the backdrop does not close persistent navigation", () => {
     const onClose = vi.fn();
     renderDrawer({ onClose });
-    const trigger = screen.getByRole("button", { name: "Open navigation" });
 
     fireEvent.click(screen.getByTestId("mobile-navigation-backdrop"));
 
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(trigger).toHaveFocus();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   test("clicking inside the drawer panel does not call onClose", () => {
@@ -298,66 +274,39 @@ describe("MobileNavigationDrawer", () => {
     renderDrawer({ onClose });
     const trigger = screen.getByRole("button", { name: "Open navigation" });
 
-    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(trigger).toHaveFocus();
   });
 
-  test("close button calls onClose and restores focus to the trigger", () => {
-    const onClose = vi.fn();
-    renderDrawer({ onClose });
-    const trigger = screen.getByRole("button", { name: "Open navigation" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(trigger).toHaveFocus();
-  });
-
-  test("Tab and Shift+Tab wrap focus within the modal drawer", () => {
+  test("the persistent drawer does not trap Tab focus", () => {
     renderDrawer();
-    const closeButton = screen.getByRole("button", { name: "Close" });
     const logoutButton = screen.getByRole("button", { name: "Logout" });
+    logoutButton.focus();
 
-    expect(closeButton).toHaveFocus();
-    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
     expect(logoutButton).toHaveFocus();
-
-    fireEvent.keyDown(window, { key: "Tab" });
-    expect(closeButton).toHaveFocus();
+    expect(fireEvent.keyDown(window, { key: "Tab" })).toBe(true);
+    expect(logoutButton).toHaveFocus();
   });
 
-  test("opening locks body scroll and cleanup restores the previous value", () => {
+  test("opening does not lock document body scrolling", () => {
     document.body.style.overflow = "clip";
     const { unmount } = renderDrawer();
 
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.body.style.overflow).toBe("clip");
     unmount();
 
     expect(document.body.style.overflow).toBe("clip");
   });
 
-  test("crossing to desktop closes and cleans up without focusing the hidden trigger", () => {
-    document.body.style.overflow = "auto";
+  test("desktop breakpoint setup does not automatically close navigation", () => {
     const onClose = vi.fn();
-    render(
-      <MemoryRouter>
-        <ResponsiveDrawerHarness onClose={onClose} />
-      </MemoryRouter>,
-    );
-    const trigger = screen.getByRole("button", { name: "Open navigation" });
-    const changeListener = [...mediaChangeListeners][0];
+    renderDrawer({ onClose });
 
-    expect(document.body.style.overflow).toBe("hidden");
-    act(() => changeListener({ matches: true }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(document.body.style.overflow).toBe("auto");
-    expect(trigger).not.toHaveFocus();
+    expect(onClose).not.toHaveBeenCalled();
     expect(mediaChangeListeners.size).toBe(0);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   test("unmount removes the drawer keyboard listener", () => {
@@ -375,5 +324,21 @@ describe("MobileNavigationDrawer", () => {
     expect(
       screen.getByRole("dialog", { name: "Main navigation" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "false");
+  });
+
+  test("drawer is positioned below the Navbar and has no internal close button", () => {
+    renderDrawer();
+
+    const overlay = screen.getByTestId("mobile-navigation-backdrop").parentElement;
+    expect(overlay).toHaveClass(
+      "pointer-events-none",
+      "top-16",
+      "bottom-0",
+      "z-30",
+      "lg:hidden",
+    );
+    expect(screen.getByRole("dialog")).toHaveClass("pointer-events-auto");
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
   });
 });

@@ -3,19 +3,22 @@ import { useTranslation } from "react-i18next";
 import { getNavigation, isActive } from "./navigationConfig.js";
 import NavigationAccount from "./NavigationAccount.jsx";
 
-export default function Sidebar({ role, user, logout }) {
+export default function Sidebar({ open, role, user, logout }) {
   const { t } = useTranslation();
   const location = useLocation();
 
   const items = getNavigation(role);
 
-  if (items.length === 0) return null;
+  if (!open || items.length === 0) return null;
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
+    <aside
+      id="desktop-navigation-sidebar"
+      className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 self-start flex-col border-r border-slate-200 bg-white lg:flex"
+    >
       <nav
         aria-label={t("navbar.mainNavigation")}
-        className="w-full flex-1 space-y-1 overflow-y-auto px-3 py-4"
+        className="min-h-0 w-full flex-1 space-y-1 overflow-y-auto px-3 py-4"
       >
         {items.map((item) => {
   const Icon = item.icon;

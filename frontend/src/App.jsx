@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuthStore } from "./stores/authStore.js";
 
@@ -54,6 +54,13 @@ import CalendarPage from "./pages/calendar/CalendarPage.jsx";
 
 const WithNav = () => {
   const { user, isAuthenticated, isCheckingAuth, logout } = useAuthStore();
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationTriggerRef = useRef(null);
+  const toggleNavigation = useCallback(
+    () => setNavigationOpen((open) => !open),
+    [],
+  );
+  const closeNavigation = useCallback(() => setNavigationOpen(false), []);
 
   const [initialAuthResolved, setInitialAuthResolved] = useState(
     () => !isCheckingAuth,
@@ -63,26 +70,38 @@ const WithNav = () => {
     if (!isCheckingAuth) setInitialAuthResolved(true);
   }, [isCheckingAuth]);
 
-  const showDesktopSidebar =
+  const hasRoleNavigation =
     initialAuthResolved &&
     isAuthenticated &&
     user?.isVerified &&
     (user?.role === "doctor" || user?.role === "patient");
 
+  useEffect(() => {
+    if (!hasRoleNavigation) setNavigationOpen(false);
+  }, [hasRoleNavigation]);
+
+  const showDesktopSidebar = hasRoleNavigation && navigationOpen;
+
   return (
     <>
-      <Navbar />
+      <Navbar
+        navigationOpen={hasRoleNavigation && navigationOpen}
+        onToggleNavigation={toggleNavigation}
+        onCloseNavigation={closeNavigation}
+        navigationTriggerRef={navigationTriggerRef}
+      />
       <div
         className={
-          showDesktopSidebar ? "min-h-[calc(100vh-4rem)] lg:flex" : ""
+          hasRoleNavigation ? "min-h-[calc(100vh-4rem)] lg:flex" : ""
         }
       >
         <Sidebar
-          role={showDesktopSidebar ? user.role : undefined}
-          user={showDesktopSidebar ? user : undefined}
+          open={showDesktopSidebar}
+          role={hasRoleNavigation ? user.role : undefined}
+          user={hasRoleNavigation ? user : undefined}
           logout={logout}
         />
-        <div className={showDesktopSidebar ? "min-w-0 flex-1" : ""}>
+        <div className={hasRoleNavigation ? "min-w-0 flex-1" : ""}>
           <Outlet />
         </div>
       </div>

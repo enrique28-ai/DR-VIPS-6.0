@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fireEvent,
   render,
@@ -89,6 +89,13 @@ function RouteProbe() {
 
 function IntegratedNavigationLayout() {
   const { user, isAuthenticated, isCheckingAuth, logout } = integrationState.auth;
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationTriggerRef = useRef(null);
+  const toggleNavigation = useCallback(
+    () => setNavigationOpen((open) => !open),
+    [],
+  );
+  const closeNavigation = useCallback(() => setNavigationOpen(false), []);
   const [initialAuthResolved, setInitialAuthResolved] = useState(
     () => !isCheckingAuth,
   );
@@ -97,25 +104,38 @@ function IntegratedNavigationLayout() {
     if (!isCheckingAuth) setInitialAuthResolved(true);
   }, [isCheckingAuth]);
 
-  const showSidebar =
+  const hasRoleNavigation =
     initialAuthResolved &&
     isAuthenticated &&
     user?.isVerified &&
     getNavigation(user?.role).length > 0;
 
+  useEffect(() => {
+    if (!hasRoleNavigation) setNavigationOpen(false);
+  }, [hasRoleNavigation]);
+
   return (
     <>
-      <Navbar />
+      <Navbar
+        navigationOpen={hasRoleNavigation && navigationOpen}
+        onToggleNavigation={toggleNavigation}
+        onCloseNavigation={closeNavigation}
+        navigationTriggerRef={navigationTriggerRef}
+      />
       <div
         data-testid="navigation-layout"
-        className={showSidebar ? "min-h-[calc(100vh-4rem)] lg:flex" : ""}
+        className={hasRoleNavigation ? "min-h-[calc(100vh-4rem)] lg:flex" : ""}
       >
         <Sidebar
-          role={showSidebar ? user.role : undefined}
-          user={showSidebar ? user : undefined}
+          open={hasRoleNavigation && navigationOpen}
+          role={hasRoleNavigation ? user.role : undefined}
+          user={hasRoleNavigation ? user : undefined}
           logout={logout}
         />
-        <main data-testid="route-content">
+        <main
+          data-testid="route-content"
+          className={hasRoleNavigation ? "min-w-0 flex-1" : ""}
+        >
           <Outlet />
         </main>
       </div>
@@ -189,10 +209,30 @@ describe("Authenticated navigation integration", () => {
     });
   });
 
+  test.each([
+    ["patient", patientUser],
+    ["doctor", doctorUser],
+  ])("verified %s begins with controlled navigation closed", (_role, user) => {
+    setAuthenticatedUser(user);
+    const { container } = renderNavigation();
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   test("verified patient Sidebar, drawer accounts, and notification control work together without a top UserMenu", () => {
     setAuthenticatedUser(patientUser);
     const { container } = renderNavigation();
 
+    expect(container.querySelector("aside")).toBeNull();
+    const hamburger = screen.getByRole("button", { name: "Main navigation" });
+    expect(hamburger).toHaveAttribute("aria-expanded", "false");
+    const drawer = openDrawer();
+    expect(hamburger).toHaveAttribute("aria-expanded", "true");
     const sidebarNavigation = getSidebarNavigation(container);
     expect(labelsIn(sidebarNavigation)).toEqual([
       "Home",
@@ -210,9 +250,7 @@ describe("Authenticated navigation integration", () => {
     expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument();
     expect(screen.queryByText(/^Hi\s/)).not.toBeInTheDocument();
 
-    const hamburger = screen.getByRole("button", { name: "Main navigation" });
-    expect(hamburger).toHaveClass("lg:hidden");
-    const drawer = openDrawer();
+    expect(hamburger).not.toHaveClass("lg:hidden");
     expect(labelsIn(drawer)).toEqual(expectedLabels("patient"));
     expect(within(drawer).getByText("Patient Person")).toBeInTheDocument();
     expect(within(drawer).getByText("patient@example.com")).toBeInTheDocument();
@@ -224,7 +262,7 @@ describe("Authenticated navigation integration", () => {
     ).toBeInTheDocument();
   });
 
-  test("patient drawer route selection updates the route, closes, activates Sidebar, and preserves the Outlet", () => {
+  test("patient drawer route selection updates the route, stays open, activates Sidebar, and preserves the Outlet", () => {
     setAuthenticatedUser(patientUser);
     const originalUser = integrationState.auth.user;
     const { container } = renderNavigation();
@@ -241,7 +279,11 @@ describe("Authenticated navigation integration", () => {
       }),
     );
 
-    expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(screen.getByTestId("route-path")).toHaveTextContent(healthInfo.to);
     expect(screen.getByTestId("route-content")).toBe(outlet);
     expect(container.querySelector("nav")).toBe(navbar);
@@ -268,10 +310,12 @@ describe("Authenticated navigation integration", () => {
     const initialPage = await screen.findByTestId("app-route-content");
     expect(initialPage).toHaveTextContent("My health info page");
     const navbar = container.querySelector("nav");
-    const sidebar = container.querySelector("aside");
+    expect(container.querySelector("aside")).toBeNull();
     const outletShell = initialPage.parentElement;
 
     const drawer = openDrawer();
+    const sidebar = container.querySelector("aside");
+    expect(sidebar).not.toBeNull();
     fireEvent.click(
       within(drawer).getByRole("link", { name: "My children" }),
     );
@@ -281,7 +325,7 @@ describe("Authenticated navigation integration", () => {
         "My children page",
       );
     });
-    expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
     expect(container.querySelector("nav")).toBe(navbar);
     expect(container.querySelector("aside")).toBe(sidebar);
     expect(screen.getByTestId("app-route-content").parentElement).toBe(
@@ -294,12 +338,27 @@ describe("Authenticated navigation integration", () => {
     ).toHaveAttribute("aria-current", "page");
     expect(integrationState.auth.checkAuth).toHaveBeenCalled();
     expect(integrationState.auth.logout).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(container.querySelector("aside")).toBeNull();
+    expect(container.querySelector("nav")).toBe(navbar);
+    expect(screen.getByTestId("app-route-content").parentElement).toBe(
+      outletShell,
+    );
   });
 
   test("verified doctor Sidebar and drawer contain only doctor destinations and account footers", () => {
     setAuthenticatedUser(doctorUser);
     const { container } = renderNavigation();
 
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Main navigation" }),
+    ).toHaveAttribute("aria-expanded", "false");
+
+    const drawer = openDrawer();
     const sidebarNavigation = getSidebarNavigation(container);
     expect(labelsIn(sidebarNavigation)).toEqual([
       "Home",
@@ -307,7 +366,6 @@ describe("Authenticated navigation integration", () => {
       "Calendar",
       "Profile",
     ]);
-    const drawer = openDrawer();
     expect(labelsIn(drawer)).toEqual(expectedLabels("doctor"));
     expect(within(container.querySelector("aside")).getByText("Doctor Person")).toBeInTheDocument();
     expect(within(drawer).getByText("Doctor Person")).toBeInTheDocument();
@@ -331,6 +389,7 @@ describe("Authenticated navigation integration", () => {
   test("Sidebar Logout awaits logout and navigates to login", async () => {
     setAuthenticatedUser(patientUser);
     const { container } = renderNavigation("/profile");
+    openDrawer();
 
     fireEvent.click(
       within(container.querySelector("aside")).getByRole("button", {
@@ -353,12 +412,17 @@ describe("Authenticated navigation integration", () => {
       return Promise.resolve();
     });
     setAuthenticatedUser(doctorUser);
-    renderNavigation("/calendar");
+    const { container } = renderNavigation("/calendar");
     const drawer = openDrawer();
 
     fireEvent.click(within(drawer).getByRole("button", { name: "Logout" }));
 
     expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument();
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(events).toEqual(["logout"]);
     await waitFor(() =>
       expect(screen.getByTestId("route-path")).toHaveTextContent("/login"),
@@ -371,6 +435,7 @@ describe("Authenticated navigation integration", () => {
   ])("nested doctor route %s marks Patients active in Sidebar and drawer", (path) => {
     setAuthenticatedUser(doctorUser);
     const { container } = renderNavigation(path);
+    const drawer = openDrawer();
 
     expect(
       within(getSidebarNavigation(container)).getByRole("link", {
@@ -378,7 +443,7 @@ describe("Authenticated navigation integration", () => {
       }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      within(openDrawer()).getByRole("link", { name: "Patients" }),
+      within(drawer).getByRole("link", { name: "Patients" }),
     ).toHaveAttribute("aria-current", "page");
   });
 
@@ -429,7 +494,7 @@ describe("Authenticated navigation integration", () => {
     setAuthenticatedUser(patientUser);
     const { container, rerenderNavigation } = renderNavigation();
     openDrawer();
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.body.style.overflow).toBe("");
 
     integrationState.auth.user = { ...patientUser, isVerified: false };
     rerenderNavigation();
@@ -440,11 +505,22 @@ describe("Authenticated navigation integration", () => {
       screen.queryByRole("button", { name: "Main navigation" }),
     ).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe("");
+
+    integrationState.auth.user = patientUser;
+    rerenderNavigation();
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   test("authenticated to guest transition removes private navigation", () => {
     setAuthenticatedUser(patientUser);
     const { container, rerenderNavigation } = renderNavigation();
+    openDrawer();
     expect(container.querySelector("aside")).not.toBeNull();
 
     setGuest();
@@ -458,6 +534,16 @@ describe("Authenticated navigation integration", () => {
     expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Login" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Register" })).toBeInTheDocument();
+
+    setAuthenticatedUser(patientUser);
+    rerenderNavigation();
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   test("patient to doctor transition replaces open role navigation without stale links", () => {
@@ -478,6 +564,24 @@ describe("Authenticated navigation integration", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("patient to doctor transition does not reopen closed navigation", () => {
+    setAuthenticatedUser(patientUser);
+    const { container, rerenderNavigation } = renderNavigation();
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    integrationState.auth.user = doctorUser;
+    rerenderNavigation();
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   test("notifications coexist with navigation without duplication or auth mutation", () => {
     setAuthenticatedUser(patientUser);
     const { container } = renderNavigation();
@@ -490,7 +594,7 @@ describe("Authenticated navigation integration", () => {
       screen.getAllByRole("button", { name: "Main navigation" }),
     ).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument();
-    expect(container.querySelectorAll("aside")).toHaveLength(1);
+    expect(container.querySelectorAll("aside")).toHaveLength(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
     expect(
@@ -499,6 +603,7 @@ describe("Authenticated navigation integration", () => {
     expect(
       screen.getAllByRole("dialog", { name: "Main navigation" }),
     ).toHaveLength(1);
+    expect(container.querySelectorAll("aside")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument();
     expect(integrationState.auth.logout).not.toHaveBeenCalled();
     expect(integrationState.notifications.markOne).not.toHaveBeenCalled();
@@ -508,6 +613,7 @@ describe("Authenticated navigation integration", () => {
   test("checking-auth rerender retains the stable Outlet after initial resolution", () => {
     setAuthenticatedUser(patientUser);
     const { container, rerenderNavigation } = renderNavigation();
+    openDrawer();
     const navbar = container.querySelector("nav");
     const sidebar = container.querySelector("aside");
     const outlet = screen.getByTestId("route-content");
@@ -530,15 +636,21 @@ describe("Authenticated navigation integration", () => {
     expect(
       screen.queryByRole("button", { name: "Profile" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
 
     integrationState.auth.isCheckingAuth = false;
     rerenderNavigation();
     expect(container.querySelector("nav")).toBe(navbar);
     expect(container.querySelector("aside")).toBe(sidebar);
     expect(screen.getByTestId("route-content")).toBe(outlet);
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "Main navigation" }),
     ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(
       screen.getAllByRole("button", { name: "Notifications" }),
     ).toHaveLength(1);

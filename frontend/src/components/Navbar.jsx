@@ -1,5 +1,4 @@
 // src/components/Navbar.jsx
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore.js";
 import { LanguageSwitcher } from "./language/LanguageSwitcher.jsx";
@@ -10,42 +9,24 @@ import MobileNavigationDrawer from "./layout/MobileNavigationDrawer.jsx";
 import UserMenu from "./layout/UserMenu.jsx";
 import { getNavigation } from "./layout/navigationConfig.js";
 
-export default function Navbar() {
+export default function Navbar({
+  navigationOpen = false,
+  onToggleNavigation,
+  onCloseNavigation,
+  navigationTriggerRef,
+}) {
   const { t } = useTranslation();
   const { user, isAuthenticated, isCheckingAuth, logout } = useAuthStore();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const mobileMenuTriggerRef = useRef(null);
-  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
   const hasRoleNavigation =
-    !isCheckingAuth &&
     isAuthenticated &&
     user?.isVerified &&
     getNavigation(user?.role).length > 0;
-  const mobileDrawerOpen = hasRoleNavigation && mobileMenuOpen;
-
-  useEffect(() => {
-    if (!hasRoleNavigation) setMobileMenuOpen(false);
-  }, [hasRoleNavigation]);
 
   return (
     <>
       <nav className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-3 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-            {hasRoleNavigation && (
-              <button
-                ref={mobileMenuTriggerRef}
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:hidden"
-                aria-label={t("navbar.mainNavigation")}
-                aria-haspopup="dialog"
-                aria-expanded={mobileDrawerOpen}
-                aria-controls="mobile-navigation-drawer"
-              >
-                <Menu className="h-5 w-5" aria-hidden="true" />
-              </button>
-            )}
             <Link
               to="/"
               className="flex min-w-0 items-center gap-2 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
@@ -94,18 +75,33 @@ export default function Navbar() {
             <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
               <LanguageSwitcher />
               {user?.isVerified && <NotificationBell />}
+              {hasRoleNavigation && (
+                <button
+                  ref={navigationTriggerRef}
+                  type="button"
+                  onClick={onToggleNavigation}
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                    navigationOpen ? "bg-slate-100" : ""
+                  }`}
+                  aria-label={t("navbar.mainNavigation")}
+                  aria-expanded={navigationOpen}
+                  aria-controls="desktop-navigation-sidebar mobile-navigation-drawer"
+                >
+                  <Menu className="h-5 w-5" aria-hidden="true" />
+                </button>
+              )}
               {!hasRoleNavigation && <UserMenu user={user} logout={logout} />}
             </div>
           )}
         </div>
       </nav>
       <MobileNavigationDrawer
-        open={mobileDrawerOpen}
+        open={hasRoleNavigation && navigationOpen}
         role={user?.role}
         user={user}
         logout={logout}
-        onClose={closeMobileMenu}
-        triggerRef={mobileMenuTriggerRef}
+        onClose={onCloseNavigation}
+        triggerRef={navigationTriggerRef}
       />
     </>
   );
