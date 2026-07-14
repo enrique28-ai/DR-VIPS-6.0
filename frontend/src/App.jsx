@@ -95,15 +95,15 @@ const WithNav = () => {
           hasRoleNavigation ? "min-h-[calc(100vh-4rem)] lg:flex" : ""
         }
       >
+        <div className={hasRoleNavigation ? "min-w-0 flex-1" : ""}>
+          <Outlet />
+        </div>
         <Sidebar
           open={showDesktopSidebar}
           role={hasRoleNavigation ? user.role : undefined}
           user={hasRoleNavigation ? user : undefined}
           logout={logout}
         />
-        <div className={hasRoleNavigation ? "min-w-0 flex-1" : ""}>
-          <Outlet />
-        </div>
       </div>
     </>
   );

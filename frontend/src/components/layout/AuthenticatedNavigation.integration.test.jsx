@@ -126,18 +126,18 @@ function IntegratedNavigationLayout() {
         data-testid="navigation-layout"
         className={hasRoleNavigation ? "min-h-[calc(100vh-4rem)] lg:flex" : ""}
       >
-        <Sidebar
-          open={hasRoleNavigation && navigationOpen}
-          role={hasRoleNavigation ? user.role : undefined}
-          user={hasRoleNavigation ? user : undefined}
-          logout={logout}
-        />
         <main
           data-testid="route-content"
           className={hasRoleNavigation ? "min-w-0 flex-1" : ""}
         >
           <Outlet />
         </main>
+        <Sidebar
+          open={hasRoleNavigation && navigationOpen}
+          role={hasRoleNavigation ? user.role : undefined}
+          user={hasRoleNavigation ? user : undefined}
+          logout={logout}
+        />
       </div>
     </>
   );
@@ -243,6 +243,10 @@ describe("Authenticated navigation integration", () => {
       "Profile",
     ]);
     const sidebar = container.querySelector("aside");
+    const layout = screen.getByTestId("navigation-layout");
+    const routeContent = screen.getByTestId("route-content");
+    expect(layout.firstElementChild).toBe(routeContent);
+    expect(layout.lastElementChild).toBe(sidebar);
     expect(within(sidebar).getByText("Patient Person")).toBeInTheDocument();
     expect(within(sidebar).getByText("patient@example.com")).toBeInTheDocument();
     expect(within(sidebar).getByRole("button", { name: "Logout" })).toBeInTheDocument();
@@ -316,6 +320,7 @@ describe("Authenticated navigation integration", () => {
     const drawer = openDrawer();
     const sidebar = container.querySelector("aside");
     expect(sidebar).not.toBeNull();
+    expect(sidebar.previousElementSibling).toContainElement(initialPage);
     fireEvent.click(
       within(drawer).getByRole("link", { name: "My children" }),
     );

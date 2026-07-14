@@ -165,6 +165,8 @@ describe("Sidebar", () => {
     expect(aside).toHaveClass("flex-col", "lg:flex");
     expect(aside).toHaveAttribute("id", "desktop-navigation-sidebar");
     expect(aside).toHaveClass("sticky", "top-16", "h-[calc(100vh-4rem)]");
+    expect(aside).toHaveClass("border-l");
+    expect(aside).not.toHaveClass("border-r");
     expect(nav).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
     expect(
       within(aside).getByRole("img", { name: "Doctor Person avatar" }),

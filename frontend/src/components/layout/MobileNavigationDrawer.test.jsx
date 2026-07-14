@@ -338,7 +338,12 @@ describe("MobileNavigationDrawer", () => {
       "z-30",
       "lg:hidden",
     );
-    expect(screen.getByRole("dialog")).toHaveClass("pointer-events-auto");
+    expect(screen.getByRole("dialog")).toHaveClass(
+      "pointer-events-auto",
+      "ml-auto",
+      "border-l",
+    );
+    expect(screen.getByRole("dialog")).not.toHaveClass("border-r");
     expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
   });
 });

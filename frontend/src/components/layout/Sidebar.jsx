@@ -14,7 +14,7 @@ export default function Sidebar({ open, role, user, logout }) {
   return (
     <aside
       id="desktop-navigation-sidebar"
-      className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 self-start flex-col border-r border-slate-200 bg-white lg:flex"
+      className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 self-start flex-col border-l border-slate-200 bg-white lg:flex"
     >
       <nav
         aria-label={t("navbar.mainNavigation")}

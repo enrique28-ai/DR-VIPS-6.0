@@ -47,7 +47,7 @@ export default function MobileNavigationDrawer({
         role="dialog"
         aria-modal="false"
         aria-labelledby="mobile-navigation-title"
-        className="pointer-events-auto relative flex h-full w-72 max-w-[calc(100vw-2rem)] flex-col border-r border-slate-200 bg-white shadow-2xl"
+        className="pointer-events-auto relative ml-auto flex h-full w-72 max-w-[calc(100vw-2rem)] flex-col border-l border-slate-200 bg-white shadow-2xl"
       >
         <div className="flex min-h-16 items-center border-b border-slate-200 px-4">
           <h2
