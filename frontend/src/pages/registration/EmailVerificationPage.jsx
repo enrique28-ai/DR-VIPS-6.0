@@ -54,7 +54,7 @@ export default function EmailVerificationPage() {
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6" aria-busy={isLoading}>
-        <fieldset className="flex justify-between gap-2">
+        <fieldset className="grid grid-cols-6 gap-1 sm:flex sm:justify-between sm:gap-2">
           <legend className="sr-only">
             {t("auth.verify.codeLegend", { defaultValue: "Verification code" })}
           </legend>
@@ -70,7 +70,7 @@ export default function EmailVerificationPage() {
               value={digit}
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
-              className="h-12 w-12 rounded-lg border border-slate-300 bg-slate-50 text-center text-2xl font-bold text-slate-900 shadow-sm transition-colors
+              className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-slate-50 text-center text-xl font-bold text-slate-900 shadow-sm transition-colors sm:h-12 sm:w-12 sm:text-2xl
                          hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           ))}

@@ -36,6 +36,25 @@ export default function SignUpPage() {
   const recaptchaRef = useRef(null);
   const [captcha, setCaptcha] = useState("");
   const [role, setRole] = useState("doctor");
+  const [isDesktopCaptcha, setIsDesktopCaptcha] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(min-width: 640px)").matches
+      : true,
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const query = window.matchMedia("(min-width: 640px)");
+    const handleChange = (event) => setIsDesktopCaptcha(event.matches);
+
+    setIsDesktopCaptcha(query.matches);
+    query.addEventListener?.("change", handleChange);
+
+    return () => query.removeEventListener?.("change", handleChange);
+  }, []);
 
 
 
@@ -129,16 +148,15 @@ export default function SignUpPage() {
         </fieldset>
 
         {CAPTCHA_ENABLED && (
-          <div className="mt-3 flex justify-center">
-            <div className="inline-block">
+          <div className="mt-3 flex w-full justify-center">
            <ReCAPTCHA
-            key={i18n.language}
+            key={`${i18n.language}-${isDesktopCaptcha ? "normal" : "compact"}`}
             hl={i18n.language}
+             size={isDesktopCaptcha ? "normal" : "compact"}
              ref={recaptchaRef}
              sitekey={RECAPTCHA_SITE_KEY}
              onChange={(token) => setCaptcha(token || "")}
            />
-            </div>
          </div>
         )}
 

@@ -47,6 +47,19 @@ describe("AuthShell", () => {
     expect(screen.getByText("third")).toBeInTheDocument();
   });
 
+  test("keeps the full-width max-w-lg card with responsive horizontal padding", () => {
+    render(<AuthShell title="Login">Responsive body</AuthShell>);
+
+    const heading = screen.getByRole("heading", { name: "Login" });
+    const header = heading.parentElement;
+    const card = header.parentElement;
+    const content = screen.getByText("Responsive body");
+
+    expect(card).toHaveClass("w-full", "max-w-lg");
+    expect(header).toHaveClass("px-4", "sm:px-8");
+    expect(content).toHaveClass("px-4", "sm:px-8");
+  });
+
   test("allows an empty title string without throwing and still renders the h1", () => {
     render(
       <AuthShell title="">

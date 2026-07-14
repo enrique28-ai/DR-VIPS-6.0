@@ -98,6 +98,31 @@ describe("EmailVerificationPage", () => {
     expect(screen.getByRole("button", { name: "Resend code" })).toBeInTheDocument();
   });
 
+  test("uses a six-column mobile layout with responsive input sizing", () => {
+    const { inputs } = renderEmailVerification();
+    const fieldset = screen.getByRole("group", { name: "Verification code" });
+
+    expect(fieldset).toHaveClass(
+      "grid",
+      "grid-cols-6",
+      "gap-1",
+      "sm:flex",
+      "sm:justify-between",
+      "sm:gap-2",
+    );
+    for (const input of inputs()) {
+      expect(input).toHaveClass(
+        "h-11",
+        "w-full",
+        "min-w-0",
+        "text-xl",
+        "sm:h-12",
+        "sm:w-12",
+        "sm:text-2xl",
+      );
+    }
+  });
+
   test("typing one digit advances focus to the next input", () => {
     const { inputs } = renderEmailVerification();
     const codeInputs = inputs();
