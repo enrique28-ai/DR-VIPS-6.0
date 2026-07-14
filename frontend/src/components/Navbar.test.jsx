@@ -237,7 +237,7 @@ describe("Navbar", () => {
     });
   });
 
-  test("verified patient renders NotificationBell and greeting using the first name from user.name", () => {
+  test("verified patient renders the hamburger, LanguageSwitcher, and NotificationBell without a top UserMenu", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -247,14 +247,13 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    renderNavbar();
+    const { container } = renderNavbar();
 
     expect(screen.getByTestId("notification-bell-stub")).toBeInTheDocument();
-    expect(
-      screen.getByText((_text, element) => {
-        return element?.textContent.replace(/\s+/g, " ").trim() === "Hi Dr";
-      }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("language-switcher-stub")).toBeInTheDocument();
+    expect(screen.queryByText(/^Hi\s/)).not.toBeInTheDocument();
+    expect(getAvatarButton(container)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
     const hamburger = screen.getByRole("button", { name: "Main navigation" });
     expect(hamburger).toHaveClass("lg:hidden");
     expect(hamburger).toHaveAttribute("aria-haspopup", "dialog");
@@ -262,7 +261,7 @@ describe("Navbar", () => {
     expect(hamburger).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("verified patient hamburger opens and closes the patient navigation drawer", () => {
+  test("verified patient hamburger opens the drawer with navigation and the account footer", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -287,11 +286,45 @@ describe("Navbar", () => {
     expect(
       screen.queryByRole("link", { name: "Patients" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Dr Person")).toBeInTheDocument();
+    expect(screen.getByText("doctor@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(hamburger).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("drawer Logout closes immediately before awaiting logout and navigating", async () => {
+    let resolveLogout;
+    logoutMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
+    authState.user = {
+      name: "Patient Person",
+      email: "patient@example.com",
+      isVerified: true,
+      role: "patient",
+    };
+    authState.isAuthenticated = true;
+    authState.isCheckingAuth = false;
+
+    renderNavbar();
+    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    resolveLogout();
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith("/login", { replace: true }),
+    );
   });
 
   test("losing verification closes an open drawer without reopening it later", () => {
@@ -334,7 +367,7 @@ describe("Navbar", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  test("verified patient UserMenu shows only Profile and Logout", () => {
+  test("verified patient has no top avatar, Profile UserMenu, or greeting", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -346,24 +379,10 @@ describe("Navbar", () => {
 
     const { container } = renderNavbar();
 
-    fireEvent.click(getAvatarButton(container));
-
-    expect(
-      screen.getByRole("menuitem", { name: "Profile" }),
-    ).toHaveAttribute("href", "/profile");
-    expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "Calendar" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "My health state" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "My health information" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "My children" }),
-    ).not.toBeInTheDocument();
+    expect(getAvatarButton(container)).toBeNull();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Hi\s/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
   });
 
   test("verified user with an unsupported role does not get a hamburger", () => {
@@ -376,17 +395,22 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    renderNavbar();
+    const { container } = renderNavbar();
 
     expect(
       screen.queryByRole("button", { name: "Main navigation" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const avatar = getAvatarButton(container);
+    expect(avatar).not.toBeNull();
+    fireEvent.click(avatar);
+    expect(screen.getByRole("menuitem", { name: "Profile" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
   });
 
-  test("verified doctor with no name derives greeting from user.email and renders NotificationBell", () => {
+  test("verified doctor renders notifications and drawer account without a top UserMenu", () => {
     authState.user = {
-      name: "",
+      name: "Doctor Person",
       email: "doctor@example.com",
       isVerified: true,
       role: "doctor",
@@ -394,16 +418,11 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    renderNavbar();
+    const { container } = renderNavbar();
 
     expect(screen.getByTestId("notification-bell-stub")).toBeInTheDocument();
-    expect(
-      screen.getByText((_text, element) => {
-        return (
-          element?.textContent.replace(/\s+/g, " ").trim() === "Hi doctor"
-        );
-      }),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Hi\s/)).not.toBeInTheDocument();
+    expect(getAvatarButton(container)).toBeNull();
     const hamburger = screen.getByRole("button", { name: "Main navigation" });
     expect(hamburger).toHaveClass("lg:hidden");
 
@@ -415,9 +434,11 @@ describe("Navbar", () => {
     expect(
       screen.queryByRole("link", { name: "My health state" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("doctor@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
   });
 
-  test("verified doctor UserMenu shows only Profile and Logout", () => {
+  test("verified doctor has no top avatar or Profile UserMenu", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -429,21 +450,12 @@ describe("Navbar", () => {
 
     const { container } = renderNavbar();
 
-    fireEvent.click(getAvatarButton(container));
-
-    expect(
-      screen.getByRole("menuitem", { name: "Profile" }),
-    ).toHaveAttribute("href", "/profile");
-    expect(screen.getByRole("menuitem", { name: "Logout" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "Calendar" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "Patients" }),
-    ).not.toBeInTheDocument();
+    expect(getAvatarButton(container)).toBeNull();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
   });
 
-  test("renders img alt=avatar with the avatar src when user.avatar is set", () => {
+  test("drawer account renders the verified user's avatar", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -456,11 +468,11 @@ describe("Navbar", () => {
 
     const { container } = renderNavbar();
 
-    const avatarImg = container.querySelector(
-      'button[aria-haspopup="menu"] img[alt="avatar"]',
-    );
-    expect(avatarImg).not.toBeNull();
-    expect(avatarImg.getAttribute("src")).toBe("https://example.com/avatar.png");
+    expect(getAvatarButton(container)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Main navigation" }));
+    expect(
+      screen.getByRole("img", { name: "Dr Person avatar" }),
+    ).toHaveAttribute("src", "https://example.com/avatar.png");
   });
 
   test("outside click closes an open menu", () => {
@@ -489,7 +501,7 @@ describe("Navbar", () => {
     expect(avatar).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("clicking a verified patient menu link closes the menu", () => {
+  test("clicking a verified patient drawer Profile route closes the drawer", () => {
     authState.user = {
       name: "Dr Person",
       email: "doctor@example.com",
@@ -499,20 +511,14 @@ describe("Navbar", () => {
     authState.isAuthenticated = true;
     authState.isCheckingAuth = false;
 
-    const { container } = renderNavbar();
+    renderNavbar();
 
-    const avatar = getAvatarButton(container);
-    fireEvent.click(avatar);
-    expect(
-      screen.getByRole("menuitem", { name: "Profile" }),
-    ).toBeInTheDocument();
+    const hamburger = screen.getByRole("button", { name: "Main navigation" });
+    fireEvent.click(hamburger);
+    fireEvent.click(screen.getByRole("link", { name: "Profile" }));
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Profile" }));
-
-    expect(
-      screen.queryByRole("menuitem", { name: "Profile" }),
-    ).not.toBeInTheDocument();
-    expect(avatar).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(hamburger).toHaveAttribute("aria-expanded", "false");
   });
 
   test("avatar initial comes from user.email when user.name is missing", () => {

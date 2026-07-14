@@ -16,23 +16,23 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTriggerRef = useRef(null);
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
-  const hasMobileNavigation =
+  const hasRoleNavigation =
     !isCheckingAuth &&
     isAuthenticated &&
     user?.isVerified &&
     getNavigation(user?.role).length > 0;
-  const mobileDrawerOpen = hasMobileNavigation && mobileMenuOpen;
+  const mobileDrawerOpen = hasRoleNavigation && mobileMenuOpen;
 
   useEffect(() => {
-    if (!hasMobileNavigation) setMobileMenuOpen(false);
-  }, [hasMobileNavigation]);
+    if (!hasRoleNavigation) setMobileMenuOpen(false);
+  }, [hasRoleNavigation]);
 
   return (
     <>
       <nav className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-3 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-            {hasMobileNavigation && (
+            {hasRoleNavigation && (
               <button
                 ref={mobileMenuTriggerRef}
                 type="button"
@@ -56,7 +56,7 @@ export default function Navbar() {
                 className="h-12 w-auto sm:h-14"
               />
               <span
-                className={`${hasMobileNavigation ? "hidden sm:block" : ""} truncate text-base font-semibold tracking-tight text-slate-950 sm:text-lg`}
+                className={`${hasRoleNavigation ? "hidden sm:block" : ""} truncate text-base font-semibold tracking-tight text-slate-950 sm:text-lg`}
               >
                 DR-VIPS
               </span>
@@ -94,7 +94,7 @@ export default function Navbar() {
             <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
               <LanguageSwitcher />
               {user?.isVerified && <NotificationBell />}
-              <UserMenu user={user} logout={logout} />
+              {!hasRoleNavigation && <UserMenu user={user} logout={logout} />}
             </div>
           )}
         </div>
@@ -102,6 +102,8 @@ export default function Navbar() {
       <MobileNavigationDrawer
         open={mobileDrawerOpen}
         role={user?.role}
+        user={user}
+        logout={logout}
         onClose={closeMobileMenu}
         triggerRef={mobileMenuTriggerRef}
       />

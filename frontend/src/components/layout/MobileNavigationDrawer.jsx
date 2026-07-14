@@ -3,10 +3,13 @@ import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { getNavigation, isActive } from "./navigationConfig.js";
+import NavigationAccount from "./NavigationAccount.jsx";
 
 export default function MobileNavigationDrawer({
   open,
   role,
+  user,
+  logout,
   onClose,
   triggerRef,
 }) {
@@ -144,6 +147,11 @@ export default function MobileNavigationDrawer({
             );
           })}
         </nav>
+        <NavigationAccount
+          user={user}
+          logout={logout}
+          onBeforeLogout={onClose}
+        />
       </div>
     </div>
   );

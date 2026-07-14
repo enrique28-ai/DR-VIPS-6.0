@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getNavigation, isActive } from "./navigationConfig.js";
+import NavigationAccount from "./NavigationAccount.jsx";
 
-export default function Sidebar({ role }) {
+export default function Sidebar({ role, user, logout }) {
   const { t } = useTranslation();
   const location = useLocation();
 
@@ -11,10 +12,10 @@ export default function Sidebar({ role }) {
   if (items.length === 0) return null;
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white lg:flex">
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
       <nav
         aria-label={t("navbar.mainNavigation")}
-        className="w-full space-y-1 px-3 py-4"
+        className="w-full flex-1 space-y-1 overflow-y-auto px-3 py-4"
       >
         {items.map((item) => {
   const Icon = item.icon;
@@ -39,6 +40,7 @@ export default function Sidebar({ role }) {
           );
         })}
       </nav>
+      <NavigationAccount user={user} logout={logout} />
     </aside>
   );
 }

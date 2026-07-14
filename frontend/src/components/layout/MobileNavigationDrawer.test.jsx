@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import MobileNavigationDrawer from "./MobileNavigationDrawer.jsx";
 
@@ -17,11 +17,35 @@ vi.mock("react-i18next", () => ({
         "navbar.myHealthState": "My health state",
         "navbar.myHealthInfo": "My health information",
         "navbar.myChildren": "My children",
+        "navbar.logout": "Logout",
       })[key] ?? key,
   }),
 }));
 
-function DrawerHarness({ open = true, role = "patient", onClose }) {
+const users = {
+  patient: {
+    name: "Patient Person",
+    email: "patient@example.com",
+    avatar: "https://example.com/patient.png",
+  },
+  doctor: {
+    name: "Doctor Person",
+    email: "doctor@example.com",
+  },
+};
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
+function DrawerHarness({
+  open = true,
+  role = "patient",
+  user = users[role],
+  logout = vi.fn().mockResolvedValue(undefined),
+  onClose,
+}) {
   const triggerRef = useRef(null);
 
   return (
@@ -32,9 +56,12 @@ function DrawerHarness({ open = true, role = "patient", onClose }) {
       <MobileNavigationDrawer
         open={open}
         role={role}
+        user={user}
+        logout={logout}
         onClose={onClose}
         triggerRef={triggerRef}
       />
+      <LocationProbe />
     </>
   );
 }
@@ -55,6 +82,8 @@ function ResponsiveDrawerHarness({ role = "patient", onClose }) {
       <MobileNavigationDrawer
         open={open}
         role={role}
+        user={users[role]}
+        logout={vi.fn().mockResolvedValue(undefined)}
         onClose={handleClose}
         triggerRef={triggerRef}
       />
@@ -67,11 +96,20 @@ const renderDrawer = ({
   role = "patient",
   pathname = "/",
   onClose = vi.fn(),
+  user = users[role],
+  logout = vi.fn().mockResolvedValue(undefined),
 } = {}) => ({
   onClose,
+  logout,
   ...render(
     <MemoryRouter initialEntries={[pathname]}>
-      <DrawerHarness open={open} role={role} onClose={onClose} />
+      <DrawerHarness
+        open={open}
+        role={role}
+        user={user}
+        logout={logout}
+        onClose={onClose}
+      />
     </MemoryRouter>,
   ),
 });
@@ -170,6 +208,38 @@ describe("MobileNavigationDrawer", () => {
     ).not.toBeInTheDocument();
   });
 
+  test.each(["patient", "doctor"])(
+    "%s drawer renders the account footer and Profile only once as navigation",
+    (role) => {
+      renderDrawer({ role });
+      const dialog = screen.getByRole("dialog", { name: "Main navigation" });
+
+      expect(within(dialog).getByText(users[role].name)).toBeInTheDocument();
+      expect(within(dialog).getByText(users[role].email)).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Logout" })).toBeInTheDocument();
+      expect(within(dialog).getAllByRole("link", { name: "Profile" })).toHaveLength(1);
+    },
+  );
+
+  test("drawer Logout closes before logout and navigates to login", async () => {
+    const events = [];
+    const onClose = vi.fn(() => events.push("close"));
+    const logout = vi.fn(() => {
+      events.push("logout");
+      return Promise.resolve();
+    });
+    renderDrawer({ onClose, logout, pathname: "/calendar" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    expect(events).toEqual(["close", "logout"]);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/login"),
+    );
+  });
+
   test("marks Patients active for a nested doctor diagnosis route", () => {
     renderDrawer({
       role: "doctor",
@@ -249,11 +319,11 @@ describe("MobileNavigationDrawer", () => {
   test("Tab and Shift+Tab wrap focus within the modal drawer", () => {
     renderDrawer();
     const closeButton = screen.getByRole("button", { name: "Close" });
-    const lastLink = screen.getByRole("link", { name: "Profile" });
+    const logoutButton = screen.getByRole("button", { name: "Logout" });
 
     expect(closeButton).toHaveFocus();
     fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
-    expect(lastLink).toHaveFocus();
+    expect(logoutButton).toHaveFocus();
 
     fireEvent.keyDown(window, { key: "Tab" });
     expect(closeButton).toHaveFocus();

@@ -53,7 +53,7 @@ import CalendarPage from "./pages/calendar/CalendarPage.jsx";
 
 
 const WithNav = () => {
-  const { user, isAuthenticated, isCheckingAuth } = useAuthStore();
+  const { user, isAuthenticated, isCheckingAuth, logout } = useAuthStore();
 
   const [initialAuthResolved, setInitialAuthResolved] = useState(
     () => !isCheckingAuth,
@@ -77,7 +77,11 @@ const WithNav = () => {
           showDesktopSidebar ? "min-h-[calc(100vh-4rem)] lg:flex" : ""
         }
       >
-        <Sidebar role={showDesktopSidebar ? user.role : undefined} />
+        <Sidebar
+          role={showDesktopSidebar ? user.role : undefined}
+          user={showDesktopSidebar ? user : undefined}
+          logout={logout}
+        />
         <div className={showDesktopSidebar ? "min-w-0 flex-1" : ""}>
           <Outlet />
         </div>

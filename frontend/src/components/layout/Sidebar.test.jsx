@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import Sidebar from "./Sidebar.jsx";
 
@@ -14,16 +14,40 @@ vi.mock("react-i18next", () => ({
         "navbar.myChildren": "My children",
         "navbar.profile": "Profile",
         "navbar.mainNavigation": "Main navigation",
+        "navbar.logout": "Logout",
         "calendar.menu": "Calendar",
       })[key] ?? key,
   }),
 }));
 
-const renderSidebar = (role, initialPath = "/") =>
+const defaultUser = {
+  name: "Doctor Person",
+  email: "doctor@example.com",
+  avatar: "https://example.com/doctor.png",
+};
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
+const renderSidebar = (
+  role,
+  initialPath = "/",
+  { user = defaultUser, logout = vi.fn().mockResolvedValue(undefined) } = {},
+) =>
   render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
-        <Route path="*" element={<Sidebar role={role} />} />
+        <Route
+          path="*"
+          element={
+            <>
+              <Sidebar role={role} user={user} logout={logout} />
+              <LocationProbe />
+            </>
+          }
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -120,5 +144,36 @@ describe("Sidebar", () => {
 
     const nav = screen.getByRole("navigation");
     expect(nav).toHaveAccessibleName("Main navigation");
+  });
+
+  test("renders the verified account footer at the bottom with identity and Logout", () => {
+    const { container } = renderSidebar("doctor");
+    const aside = container.querySelector("aside");
+    const nav = within(aside).getByRole("navigation");
+
+    expect(aside).toHaveClass("flex-col", "lg:flex");
+    expect(nav).toHaveClass("flex-1", "overflow-y-auto");
+    expect(
+      within(aside).getByRole("img", { name: "Doctor Person avatar" }),
+    ).toHaveAttribute("src", defaultUser.avatar);
+    expect(within(aside).getByText("Doctor Person")).toBeInTheDocument();
+    expect(within(aside).getByText("doctor@example.com")).toBeInTheDocument();
+    expect(within(aside).getByRole("button", { name: "Logout" })).toBeInTheDocument();
+    expect(within(nav).getAllByRole("link", { name: "Profile" })).toHaveLength(1);
+    expect(aside.lastElementChild).toContainElement(
+      within(aside).getByRole("button", { name: "Logout" }),
+    );
+  });
+
+  test("Logout from the desktop Sidebar awaits logout and navigates to login", async () => {
+    const logout = vi.fn().mockResolvedValue(undefined);
+    renderSidebar("patient", "/profile", { logout });
+
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/login"),
+    );
   });
 });
