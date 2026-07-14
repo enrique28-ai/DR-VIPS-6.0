@@ -33,6 +33,7 @@ const integrationState = vi.hoisted(() => ({
     markOne: vi.fn(),
     markAll: vi.fn(),
   },
+  routeContentAction: vi.fn(),
 }));
 
 vi.mock("../../stores/authStore.js", () => ({
@@ -84,7 +85,14 @@ const setGuest = () => {
 
 function RouteProbe() {
   const location = useLocation();
-  return <div data-testid="route-path">{location.pathname}</div>;
+  return (
+    <div data-testid="route-path">
+      {location.pathname}
+      <button type="button" onClick={integrationState.routeContentAction}>
+        Route content action
+      </button>
+    </div>
+  );
 }
 
 function IntegratedNavigationLayout() {
@@ -301,6 +309,33 @@ describe("Authenticated navigation integration", () => {
     expect(integrationState.notifications.markAll).not.toHaveBeenCalled();
     expect(integrationState.auth.user).toBe(originalUser);
     expect(integrationState.auth.isAuthenticated).toBe(true);
+  });
+
+  test("an open mobile drawer presents an interactive backdrop over route content", () => {
+    setAuthenticatedUser(patientUser);
+    const { container } = renderNavigation();
+    const routeAction = screen.getByRole("button", { name: "Route content action" });
+    fireEvent.click(routeAction);
+    expect(integrationState.routeContentAction).toHaveBeenCalledTimes(1);
+    integrationState.routeContentAction.mockClear();
+
+    openDrawer();
+    const backdrop = screen.getByTestId("mobile-navigation-backdrop");
+    expect(backdrop.parentElement).toHaveClass("pointer-events-auto", "z-30", "top-16");
+    expect(container.querySelector("nav")).toHaveClass("z-40");
+    expect(backdrop).toHaveClass(
+      "pointer-events-auto",
+      "touch-none",
+      "overscroll-contain",
+    );
+    fireEvent.click(backdrop);
+
+    expect(integrationState.routeContentAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Main navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   test("the real App keeps its authenticated navigation shell across a registered route change", async () => {

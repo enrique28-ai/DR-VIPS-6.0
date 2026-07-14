@@ -36,9 +36,9 @@ export default function MobileNavigationDrawer({
   if (!drawerAvailable) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 top-16 z-30 lg:hidden">
+    <div className="pointer-events-auto fixed inset-x-0 bottom-0 top-16 z-30 lg:hidden">
       <div
-        className="pointer-events-none absolute inset-0 bg-slate-950/50"
+        className="pointer-events-auto absolute inset-0 bg-slate-950/50 touch-none overscroll-contain"
         data-testid="mobile-navigation-backdrop"
         aria-hidden="true"
       />

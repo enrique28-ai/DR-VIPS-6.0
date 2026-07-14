@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import format from "date-fns/format";
 import parse from "date-fns/parse";
@@ -32,7 +32,44 @@ export default function CalendarPage() {
   const { t, i18n } = useTranslation(); 
   
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState("month");
+  const [isCompactCalendar, setIsCompactCalendar] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return false;
+    }
+
+    return window.matchMedia("(max-width: 639px)").matches;
+  });
+  const [currentView, setCurrentView] = useState(() =>
+    isCompactCalendar ? "agenda" : "month",
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const handleCompactChange = (event) => {
+      const compact = event.matches;
+      setIsCompactCalendar(compact);
+
+      if (compact) {
+        setCurrentView((view) =>
+          ["agenda", "day"].includes(view) ? view : "agenda",
+        );
+      }
+    };
+
+    mediaQuery.addEventListener("change", handleCompactChange);
+    handleCompactChange(mediaQuery);
+    return () => {
+      mediaQuery.removeEventListener("change", handleCompactChange);
+    };
+  }, []);
+
+  const calendarViews = isCompactCalendar
+    ? ["agenda", "day"]
+    : ["month", "week", "day", "agenda"];
 
   const lang = (i18n.language || "en").toLowerCase();
   const culture = lang.startsWith("es") ? "es" : "en-US";
@@ -361,7 +398,7 @@ export default function CalendarPage() {
       )}
 
       {/* Calendario Grande */}
-      <div className="relative z-0 h-[560px] rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:h-[600px] sm:p-4">
+      <div className="relative z-0 min-w-0 h-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:h-[600px] sm:p-4">
         <Calendar
           culture={culture}
           localizer={localizer}
@@ -374,6 +411,7 @@ export default function CalendarPage() {
           eventPropGetter={eventStyleGetter}
           date={currentDate}
           view={currentView}
+          views={calendarViews}
           onNavigate={onNavigate}
           onView={onView}
           titleAccessor={(evt) =>

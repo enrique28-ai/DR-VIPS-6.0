@@ -7,10 +7,38 @@ const authState = vi.hoisted(() => ({
 }));
 
 vi.mock("react-big-calendar", () => ({
-  Calendar: ({ events, culture, titleAccessor, onSelectEvent }) => (
+  Calendar: ({
+    events,
+    culture,
+    titleAccessor,
+    onSelectEvent,
+    view,
+    views,
+    onView,
+    date,
+    onNavigate,
+  }) => (
     <div data-testid="calendar">
       <div data-testid="event-count">{events?.length ?? 0}</div>
       <div data-testid="culture">{culture}</div>
+      <div data-testid="calendar-view">{view}</div>
+      <div data-testid="calendar-views">{views?.join(",")}</div>
+      <div data-testid="calendar-date">{date?.toISOString()}</div>
+      {views?.map((availableView) => (
+        <button
+          key={availableView}
+          type="button"
+          onClick={() => onView?.(availableView)}
+        >
+          Set calendar view {availableView}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => onNavigate?.(new Date("2026-07-10T00:00:00Z"))}
+      >
+        Navigate calendar
+      </button>
       {events?.map((evt, idx) => (
         <div key={idx} data-testid="event-title">
           <span>{typeof titleAccessor === "function" ? titleAccessor(evt) : evt.title}</span>
@@ -196,6 +224,38 @@ const noIdAppointment = {
 
 const renderCalendarPage = () => render(<CalendarPage />);
 
+let compactMediaQuery;
+
+const installMatchMedia = (matches = false) => {
+  const listeners = new Set();
+  compactMediaQuery = {
+    matches,
+    media: "(max-width: 639px)",
+    addEventListener: vi.fn((event, listener) => {
+      if (event === "change") listeners.add(listener);
+    }),
+    removeEventListener: vi.fn((event, listener) => {
+      if (event === "change") listeners.delete(listener);
+    }),
+    dispatch(matchesNext) {
+      this.matches = matchesNext;
+      listeners.forEach((listener) =>
+        listener({ matches: matchesNext, media: this.media }),
+      );
+    },
+  };
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn(() => compactMediaQuery),
+  });
+};
+
+const setCompactCalendar = (matches) => {
+  act(() => compactMediaQuery.dispatch(matches));
+};
+
 const resetAuth = () => {
   authState.user = null;
 };
@@ -211,6 +271,7 @@ const resetMocks = () => {
 
 describe("CalendarPage", () => {
   beforeEach(() => {
+    installMatchMedia(false);
     resetAuth();
     resetMocks();
   });
@@ -280,6 +341,125 @@ describe("CalendarPage", () => {
     expect(screen.getByRole("list", { name: "Appointment status legend" })).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
     expect(screen.getByText("Accepted")).toBeInTheDocument();
+  });
+
+  describe("responsive calendar views", () => {
+    test("desktop starts in month view and exposes every calendar view", () => {
+      authState.user = patientUser;
+
+      renderCalendarPage();
+
+      expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 639px)");
+      expect(screen.getByTestId("calendar-view")).toHaveTextContent("month");
+      expect(screen.getByTestId("calendar-views")).toHaveTextContent(
+        "month,week,day,agenda",
+      );
+      expect(screen.getByRole("button", { name: "Set calendar view month" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Set calendar view week" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Set calendar view day" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Set calendar view agenda" })).toBeInTheDocument();
+    });
+
+    test("mobile starts in agenda view and exposes only agenda and day", () => {
+      installMatchMedia(true);
+      authState.user = patientUser;
+
+      renderCalendarPage();
+
+      expect(screen.getByTestId("calendar-view")).toHaveTextContent("agenda");
+      expect(screen.getByTestId("calendar-views")).toHaveTextContent("agenda,day");
+      expect(screen.getByRole("button", { name: "Set calendar view agenda" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Set calendar view day" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Set calendar view month" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Set calendar view week" })).not.toBeInTheDocument();
+    });
+
+    test("onView controls desktop view changes", () => {
+      authState.user = patientUser;
+      renderCalendarPage();
+
+      fireEvent.click(screen.getByRole("button", { name: "Set calendar view week" }));
+
+      expect(screen.getByTestId("calendar-view")).toHaveTextContent("week");
+    });
+
+    test.each(["month", "week"])(
+      "entering compact mode from %s changes the view to agenda without resetting the date",
+      (desktopView) => {
+        authState.user = patientUser;
+        renderCalendarPage();
+        if (desktopView === "week") {
+          fireEvent.click(screen.getByRole("button", { name: "Set calendar view week" }));
+        }
+        fireEvent.click(screen.getByRole("button", { name: "Navigate calendar" }));
+
+        setCompactCalendar(true);
+
+        expect(screen.getByTestId("calendar-view")).toHaveTextContent("agenda");
+        expect(screen.getByTestId("calendar-date")).toHaveTextContent(
+          "2026-07-10T00:00:00.000Z",
+        );
+      },
+    );
+
+    test("entering compact mode while on day preserves day", () => {
+      authState.user = patientUser;
+      renderCalendarPage();
+      fireEvent.click(screen.getByRole("button", { name: "Set calendar view day" }));
+
+      setCompactCalendar(true);
+
+      expect(screen.getByTestId("calendar-view")).toHaveTextContent("day");
+      expect(screen.getByTestId("calendar-views")).toHaveTextContent("agenda,day");
+    });
+
+    test.each(["agenda", "day"])(
+      "returning to desktop preserves the current %s view",
+      (view) => {
+        installMatchMedia(true);
+        authState.user = patientUser;
+        renderCalendarPage();
+        if (view === "day") {
+          fireEvent.click(screen.getByRole("button", { name: "Set calendar view day" }));
+        }
+
+        setCompactCalendar(false);
+
+        expect(screen.getByTestId("calendar-view")).toHaveTextContent(view);
+        expect(screen.getByTestId("calendar-views")).toHaveTextContent(
+          "month,week,day,agenda",
+        );
+      },
+    );
+
+    test("removes the media-query listener on unmount", () => {
+      authState.user = patientUser;
+      const { unmount } = renderCalendarPage();
+      const registeredListener = compactMediaQuery.addEventListener.mock.calls.find(
+        ([event]) => event === "change",
+      )[1];
+
+      unmount();
+
+      expect(compactMediaQuery.removeEventListener).toHaveBeenCalledWith(
+        "change",
+        registeredListener,
+      );
+    });
+
+    test("calendar container prevents horizontal overflow at responsive heights", () => {
+      authState.user = patientUser;
+      renderCalendarPage();
+
+      expect(screen.getByTestId("calendar").parentElement).toHaveClass(
+        "min-w-0",
+        "h-[520px]",
+        "overflow-hidden",
+        "p-2",
+        "sm:h-[600px]",
+        "sm:p-4",
+      );
+    });
   });
 
   test("calls usePatients with enabled false for patient and true for doctor", () => {

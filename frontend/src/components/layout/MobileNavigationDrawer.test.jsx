@@ -45,6 +45,7 @@ function DrawerHarness({
   user = users[role],
   logout = vi.fn().mockResolvedValue(undefined),
   onClose,
+  onBackgroundClick,
 }) {
   const triggerRef = useRef(null);
 
@@ -52,6 +53,9 @@ function DrawerHarness({
     <>
       <button ref={triggerRef} type="button">
         Open navigation
+      </button>
+      <button type="button" onClick={onBackgroundClick}>
+        Background action
       </button>
       <MobileNavigationDrawer
         open={open}
@@ -73,9 +77,11 @@ const renderDrawer = ({
   onClose = vi.fn(),
   user = users[role],
   logout = vi.fn().mockResolvedValue(undefined),
+  onBackgroundClick = vi.fn(),
 } = {}) => ({
   onClose,
   logout,
+  onBackgroundClick,
   ...render(
     <MemoryRouter initialEntries={[pathname]}>
       <DrawerHarness
@@ -84,6 +90,7 @@ const renderDrawer = ({
         user={user}
         logout={logout}
         onClose={onClose}
+        onBackgroundClick={onBackgroundClick}
       />
     </MemoryRouter>,
   ),
@@ -260,6 +267,18 @@ describe("MobileNavigationDrawer", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  test("clicking the backdrop does not invoke the background action or close the drawer", () => {
+    const onBackgroundClick = vi.fn();
+    const onClose = vi.fn();
+    renderDrawer({ onBackgroundClick, onClose });
+
+    fireEvent.click(screen.getByTestId("mobile-navigation-backdrop"));
+
+    expect(onBackgroundClick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+  });
+
   test("clicking inside the drawer panel does not call onClose", () => {
     const onClose = vi.fn();
     renderDrawer({ onClose });
@@ -332,11 +351,21 @@ describe("MobileNavigationDrawer", () => {
 
     const overlay = screen.getByTestId("mobile-navigation-backdrop").parentElement;
     expect(overlay).toHaveClass(
-      "pointer-events-none",
+      "pointer-events-auto",
       "top-16",
       "bottom-0",
       "z-30",
       "lg:hidden",
+    );
+    expect(overlay).not.toHaveClass("pointer-events-none");
+    expect(screen.getByTestId("mobile-navigation-backdrop")).toHaveClass(
+      "pointer-events-auto",
+      "bg-slate-950/50",
+      "touch-none",
+      "overscroll-contain",
+    );
+    expect(screen.getByTestId("mobile-navigation-backdrop")).not.toHaveClass(
+      "pointer-events-none",
     );
     expect(screen.getByRole("dialog")).toHaveClass(
       "pointer-events-auto",
