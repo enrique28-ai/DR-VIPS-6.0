@@ -9,7 +9,8 @@ vi.mock("react-i18next", () => ({
     i18n: { language: "en" },
     t: (key, options = {}) => {
       const labels = {
-        "patients.empty.cta": "Search global patients",
+        "patients.empty.cta": "Add patient",
+        "patients.empty.description": "Start by creating your first patient to manage records and diagnoses.",
         "patients.empty.title": "No patients yet",
         "patients.list.ageCategories.adult": "Adult",
         "patients.list.ageCategories.child": "Child",
@@ -24,7 +25,7 @@ vi.mock("react-i18next", () => ({
         "patients.list.filters.diseases": "Diseases",
         "patients.list.filters.gender": "Gender",
         "patients.list.filters.medications": "Medications",
-        "patients.list.filters.more": "More",
+        "patients.list.filters.more": "More filters",
         "patients.list.filters.options.alive": "Alive",
         "patients.list.filters.options.all": "All",
         "patients.list.filters.options.deceased": "Deceased",
@@ -97,10 +98,6 @@ vi.mock("../../components/patient/PatientCard.jsx", () => ({
       <p>Patient id: {patient._id}</p>
     </article>
   ),
-}));
-
-vi.mock("../../components/patient/EmptyPatients.jsx", () => ({
-  default: () => <section data-testid="empty-patients">Empty patients</section>,
 }));
 
 const anaPatient = {
@@ -192,11 +189,14 @@ describe("PatientsPage", () => {
     });
   });
 
-  test("renders list header, search link, and patient cards", () => {
+  test("renders the full list controls and patient cards when patients exist", () => {
     renderPatientsPage();
 
     expect(screen.getByRole("heading", { name: "Patients" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Search global patients" })).toHaveAttribute(
+    expect(screen.getByPlaceholderText("Search patients")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /More/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add patient" })).toHaveAttribute(
       "href",
       "/patients/search",
     );
@@ -213,10 +213,21 @@ describe("PatientsPage", () => {
     });
   });
 
-  test("renders empty patients when there are no patients and no filters", () => {
+  test("renders only the empty-patients state when there are no patients and no filters", () => {
     renderPatientsPage(listData([]));
 
-    expect(screen.getByTestId("empty-patients")).toHaveTextContent("Empty patients");
+    expect(screen.getByRole("heading", { name: "No patients yet" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Start by creating your first patient to manage records and diagnoses."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Add patient" })).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "Patients" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Showing 0 patients/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search patients")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /More/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
 
   test("trims search params and locally filters displayed cards by fullname prefix", () => {
@@ -263,6 +274,37 @@ describe("PatientsPage", () => {
     });
     expect(screen.getByText("Try adjusting your filters")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search patients")).toHaveValue("cardiology");
+    expect(screen.getByRole("button", { name: /More/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+  });
+
+  test("keeps list controls visible when a filtered request returns no patients", async () => {
+    usePatients.mockImplementation((params) => ({
+      data: params.q ? listData([]) : listData(),
+      isLoading: false,
+      isFetching: false,
+    }));
+
+    render(
+      <MemoryRouter>
+        <PatientsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Search patients"), {
+      target: { value: "cardiology" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "No matching patients" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: "Patients" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search patients")).toHaveValue("cardiology");
+    expect(screen.getByRole("button", { name: "More filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Add patient" })).toHaveLength(1);
+    expectLastParams({ q: "cardiology", page: 1 });
   });
 
   test("opens advanced filters and applies the country filter from localized country options", () => {

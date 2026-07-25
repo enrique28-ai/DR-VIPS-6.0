@@ -404,23 +404,27 @@ export default function PatientsPage() {
     );
   }
 
-  const renderContent = () => {
-    if (!isLoading && items.length === 0) {
-      if (hasAnyFilter) {
-        return (
-          <NoMatchState
-            title={t("patients.list.noMatch.title")}
-            description={t("patients.list.noMatch.description")}
-            clearLabel={t("patients.list.noMatch.clear")}
-            onClear={clearFilters}
-          />
-        );
-      }
-
-      return (
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <EmptyPatients />
+  if (!isLoading && !hasAnyFilter && items.length === 0) {
+    return (
+      <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <EmptyPatients />
+          </div>
         </div>
+      </main>
+    );
+  }
+
+  const renderContent = () => {
+    if (!isLoading && hasAnyFilter && items.length === 0) {
+      return (
+        <NoMatchState
+          title={t("patients.list.noMatch.title")}
+          description={t("patients.list.noMatch.description")}
+          clearLabel={t("patients.list.noMatch.clear")}
+          onClear={clearFilters}
+        />
       );
     }
 
