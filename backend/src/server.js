@@ -11,6 +11,7 @@ import path from "path";
 import { apiLimiter } from "./middleware/rateLimit.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { startReminderJob } from "./services/reminderService.js";
+import { apiNoStore, createSecurityHeaders } from "./middleware/securityHeaders.js";
 
 
 
@@ -30,6 +31,8 @@ const __dirname = path.resolve();
 
 app.set("trust proxy", 1);
 
+app.use(createSecurityHeaders());
+
 const allowed = [process.env.CLIENT_URL, "http://localhost:5173"].filter(Boolean);
 app.use(cors({
   origin: allowed,
@@ -40,6 +43,7 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 // Limita todo lo que pase por /api (300 req / 15 min por IP)
+app.use("/api", apiNoStore);
 app.use("/api", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/patients", patientRoutes);
