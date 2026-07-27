@@ -16,7 +16,7 @@ import path from "path";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { isCaptchaEnabled } from "../middleware/recaptcha.js";
+import { isCaptchaEnabled } from "../middleware/captcha.js";
 const PENDING_SECRET = process.env.PENDING_SECRET;
 if (!PENDING_SECRET) {
   throw new Error("Missing required env var: PENDING_SECRET");

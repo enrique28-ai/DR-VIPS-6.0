@@ -14,11 +14,13 @@ export function createSecurityHeaders({ isProduction = process.env.NODE_ENV === 
           "https://www.google.com",
           "https://www.gstatic.com",
           "https://www.recaptcha.net",
+          "https://challenges.cloudflare.com",
         ],
         frameSrc: [
           "https://www.google.com",
           "https://recaptcha.google.com",
           "https://www.recaptcha.net",
+          "https://challenges.cloudflare.com",
         ],
         connectSrc: [
           "'self'",

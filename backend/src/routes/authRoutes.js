@@ -9,7 +9,7 @@ import {
   updateProfile, deleteMe, updateAvatar, importAvatarFromUrl, verifyResetCode,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/auth.js";
-import { verifyRecaptcha } from "../middleware/recaptcha.js";
+import { verifyCaptcha } from "../middleware/captcha.js";
 import multer from "multer";
 import {
   authLimiter,
@@ -20,8 +20,8 @@ import {
 
 const router = Router();
 const isProd = process.env.NODE_ENV === "production";
-// 1) Pre-paso: valida reCAPTCHA y deja cookie corta
-router.post("/google/recaptcha", authLimiter, verifyRecaptcha(), (req, res) => {
+// 1) Pre-paso: valida CAPTCHA y deja cookie corta
+router.post("/google/recaptcha", authLimiter, verifyCaptcha({ expectedAction: "google_oauth" }), (req, res) => {
   res.cookie("g_captcha", "ok", {
     httpOnly: true,
     sameSite: "lax",
@@ -31,8 +31,8 @@ router.post("/google/recaptcha", authLimiter, verifyRecaptcha(), (req, res) => {
   });
   res.json({ ok: true });
 });
-router.post("/register", authLimiter, verifyRecaptcha(), register);
-router.post("/login",  authLimiter, verifyRecaptcha(), login);
+router.post("/register", authLimiter, verifyCaptcha({ expectedAction: "register" }), register);
+router.post("/login",  authLimiter, verifyCaptcha({ expectedAction: "login" }), login);
 router.post("/logout", logout);
 router.get("/me", protect, me);
 

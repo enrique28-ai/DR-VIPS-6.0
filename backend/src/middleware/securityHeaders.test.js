@@ -16,11 +16,13 @@ const REQUIRED_CSP_DIRECTIVES = {
     "https://www.google.com",
     "https://www.gstatic.com",
     "https://www.recaptcha.net",
+    "https://challenges.cloudflare.com",
   ],
   "frame-src": [
     "https://www.google.com",
     "https://recaptcha.google.com",
     "https://www.recaptcha.net",
+    "https://challenges.cloudflare.com",
   ],
   "connect-src": [
     "'self'",
@@ -82,6 +84,9 @@ function assertRequiredCsp(response) {
   for (const [directive, sources] of Object.entries(REQUIRED_CSP_DIRECTIVES)) {
     assert.deepEqual(directives[directive], sources, `${directive} sources`);
   }
+
+  assert.equal(directives["script-src"].includes("https:"), false);
+  assert.equal(directives["frame-src"].includes("https:"), false);
 
   return directives;
 }
