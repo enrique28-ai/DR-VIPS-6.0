@@ -5,7 +5,8 @@ import { useAuthStore } from "../../stores/authStore.js";
 import AuthShell from "../../components/forms/AuthShell.jsx";
 import Input from "../../components/forms/Input.jsx";
 import Button from "../../components/forms/Button.jsx";
-import ReCAPTCHA from "react-google-recaptcha";
+import CaptchaWidget from "../../components/forms/CaptchaWidget.jsx";
+import { captchaConfig } from "../../lib/captchaConfig.js";
 import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
@@ -18,17 +19,15 @@ const GoogleIcon = (props) => (
   </svg>
 );
 
-const CAPTCHA_ENABLED = import.meta.env.VITE_CAPTCHA_ENABLED === "true";
-
-
 export default function LoginPage() {
   const { t, i18n } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { login, isLoading, googleStart } = useAuthStore();
-  const RECAPTCHA_SITE_KEY = "6LeuCt4rAAAAAMmxLbdnWGKp8XpfVJRMWSdjU4k_"; // pega aquí la site key
-  const recaptchaRef = useRef(null);
-  const [captcha, setCaptcha] = useState("");
+  const captchaRef = useRef(null);
+  const googleCaptchaPendingRef = useRef(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [isGoogleCaptchaLoading, setIsGoogleCaptchaLoading] = useState(false);
   const [isDesktopCaptcha, setIsDesktopCaptcha] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(min-width: 640px)").matches
@@ -53,15 +52,44 @@ export default function LoginPage() {
  
   const handleLogin = async (e) => {
     e.preventDefault();
-     if (CAPTCHA_ENABLED && !captcha) return toast.error(t("auth.login.errors.captcha"));
+     if (captchaConfig.enabled && (!captchaConfig.isValid || !captchaToken)) return toast.error(t("auth.login.errors.captcha"));
 
   try {
-    await login(email, password, CAPTCHA_ENABLED ? captcha : undefined);   // si falla, salta al catch
+    await login(email, password, captchaConfig.enabled ? captchaToken : undefined);   // si falla, salta al catch
     // si quieres, aquí pones navigate(...) u otra acción post-login
   } catch {
     // si el backend rechazó el captcha u otro error:
-    try { recaptchaRef.current?.reset(); setCaptcha(""); } catch {}
+    try { captchaRef.current?.reset(); setCaptchaToken(""); } catch {}
    }
+  };
+
+  const handleGoogleStart = async () => {
+    if (googleCaptchaPendingRef.current) return;
+    if (!captchaConfig.enabled) {
+      await googleStart(undefined);
+      return;
+    }
+    if (!captchaConfig.isValid || (captchaConfig.provider === "recaptcha" && !captchaToken)) {
+      toast.error(t("auth.login.errors.captcha"));
+      return;
+    }
+
+    googleCaptchaPendingRef.current = true;
+    setIsGoogleCaptchaLoading(true);
+    let hasGoogleCaptchaToken = false;
+    try {
+      const googleCaptchaToken = captchaConfig.provider === "turnstile"
+        ? await captchaRef.current?.getTokenForAction("google_oauth")
+        : captchaToken;
+      if (!googleCaptchaToken) throw new Error("Missing captcha");
+      hasGoogleCaptchaToken = true;
+      await googleStart(googleCaptchaToken);
+    } catch {
+      if (!hasGoogleCaptchaToken) toast.error(t("auth.login.errors.captcha"));
+    } finally {
+      googleCaptchaPendingRef.current = false;
+      setIsGoogleCaptchaLoading(false);
+    }
   };
 
   return (
@@ -94,20 +122,20 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {CAPTCHA_ENABLED && (
+        {captchaConfig.enabled && (
           <div className="mt-3 mb-6 flex w-full justify-center">
-           <ReCAPTCHA
-            key={`${i18n.language}-${isDesktopCaptcha ? "normal" : "compact"}`}
-            hl={i18n.language}
+           <CaptchaWidget
+             ref={captchaRef}
+             action="login"
+             language={i18n.language}
              size={isDesktopCaptcha ? "normal" : "compact"}
-             ref={recaptchaRef}
-             sitekey={RECAPTCHA_SITE_KEY}
-             onChange={(token) => setCaptcha(token || "")}
+             onTokenChange={setCaptchaToken}
+             onError={() => toast.error(t("auth.login.errors.captcha"))}
            />
          </div>
         )}
 
-        <Button type="submit" className="cursor-pointer" loading={isLoading} disabled={isLoading || (CAPTCHA_ENABLED && !captcha)}> {t("auth.login.button")}</Button>
+        <Button type="submit" className="cursor-pointer" loading={isLoading} disabled={isLoading || (captchaConfig.enabled && (!captchaConfig.isValid || !captchaToken))}> {t("auth.login.button")}</Button>
         
 
         <div className="my-5 flex items-center gap-3" aria-hidden="true">
@@ -120,10 +148,9 @@ export default function LoginPage() {
 
         <button
           type="button"
-          onClick={async () => {
-            if (CAPTCHA_ENABLED && !captcha) { toast.error(t("auth.login.errors.captcha")); return; }
-            await googleStart(CAPTCHA_ENABLED ? captcha : undefined);
-          }}
+          onClick={handleGoogleStart}
+          disabled={isGoogleCaptchaLoading || (captchaConfig.enabled && !captchaConfig.isValid)}
+          aria-busy={isGoogleCaptchaLoading}
           aria-label={t("auth.login.google")}
           className="cursor-pointer w-full inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors duration-150 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:bg-slate-100"
         >

@@ -98,10 +98,10 @@ export const useAuthStore = create(persist((set) => ({
     }
   },
 
-  login: async (email, password, recaptchaToken) => {
+  login: async (email, password, captchaToken) => {
     set({ isLoading: true, error: null });
     try {
-      await api.post(`${API}/login`, { email, password, recaptchaToken });
+      await api.post(`${API}/login`, { email, password, captchaToken });
       queryClient.clear();
       const { data } = await api.get(`${API}/me`);
       set({ user: data.user, isAuthenticated: true, isLoading: false });
@@ -123,10 +123,10 @@ export const useAuthStore = create(persist((set) => ({
     }
   },
 
-  signup: async (name, email, password, recaptchaToken, role = "doctor") => {
+  signup: async (name, email, password, captchaToken, role = "doctor") => {
     set({ isLoading: true, error: null });
     try {
-      await api.post(`${API}/register`, { name, email, password, recaptchaToken, role });
+      await api.post(`${API}/register`, { name, email, password, captchaToken, role });
       queryClient.clear();
       const { data } = await api.get(`${API}/me`);
       set({ user: data.user, isAuthenticated: true, isLoading: false });
@@ -229,11 +229,11 @@ export const useAuthStore = create(persist((set) => ({
     }
   },
 
- googleStart: async (recaptchaToken) => {
+ googleStart: async (captchaToken) => {
     try {
       // 1. Validar captcha con Axios (Usa la variable API correctamente)
       if (CAPTCHA_ENABLED) {
-        await api.post(`${API}/google/recaptcha`, { recaptchaToken });
+        await api.post(`${API}/google/recaptcha`, { captchaToken });
       }
 
       // 2. Redirigir a Google (Necesitamos la ruta ABSOLUTA del backend)

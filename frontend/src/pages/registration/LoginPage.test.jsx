@@ -5,6 +5,19 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import LoginPage from "./LoginPage.jsx";
 import { useAuthStore } from "../../stores/authStore.js";
 
+const captchaHarness = vi.hoisted(() => ({
+  config: {
+    enabled: false,
+    provider: "recaptcha",
+    siteKey: "recaptcha-site-key",
+    isSupportedProvider: true,
+    isValid: true,
+  },
+  getTokenForAction: vi.fn(),
+  reset: vi.fn(),
+  widgetProps: null,
+}));
+
 vi.mock("framer-motion", () => ({
   motion: {
     button: ({ children, whileHover, whileTap, ...props }) => (
@@ -13,9 +26,31 @@ vi.mock("framer-motion", () => ({
   },
 }));
 
-vi.mock("react-google-recaptcha", () => ({
-  default: () => <div data-testid="recaptcha-stub">recaptcha</div>,
+vi.mock("../../lib/captchaConfig.js", () => ({
+  captchaConfig: captchaHarness.config,
 }));
+
+vi.mock("../../components/forms/CaptchaWidget.jsx", async () => {
+  const React = await vi.importActual("react");
+  const CaptchaWidget = React.forwardRef(function CaptchaWidget(props, ref) {
+    captchaHarness.widgetProps = props;
+    React.useImperativeHandle(ref, () => ({
+      getTokenForAction: captchaHarness.getTokenForAction,
+      reset: captchaHarness.reset,
+    }));
+    return (
+      <button
+        type="button"
+        data-testid="captcha-widget"
+        data-action={props.action}
+        onClick={() => props.onTokenChange("credential-token")}
+      >
+        captcha
+      </button>
+    );
+  });
+  return { default: CaptchaWidget };
+});
 
 vi.mock("react-hot-toast", () => ({
   toast: {
@@ -86,6 +121,15 @@ const fillLoginForm = (
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.assign(captchaHarness.config, {
+      enabled: false,
+      provider: "recaptcha",
+      siteKey: "recaptcha-site-key",
+      isSupportedProvider: true,
+      isValid: true,
+    });
+    captchaHarness.widgetProps = null;
+    captchaHarness.getTokenForAction.mockResolvedValue("google-token");
   });
 
   test("renders the login form, auth links, and Google button", () => {
@@ -164,7 +208,89 @@ describe("LoginPage", () => {
   test("does not render the ReCAPTCHA widget in the default captcha-disabled environment", () => {
     renderLoginPage();
 
-    expect(screen.queryByTestId("recaptcha-stub")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("captcha-widget")).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalledWith("Please complete the captcha");
+  });
+
+  test("preserves reCAPTCHA token compatibility for login and Google auth", async () => {
+    captchaHarness.config.enabled = true;
+    const login = vi.fn().mockResolvedValue({ role: "doctor" });
+    const googleStart = vi.fn().mockResolvedValue(undefined);
+    const view = renderLoginPage({ login, googleStart });
+
+    expect(screen.getByTestId("captcha-widget")).toHaveAttribute("data-action", "login");
+    fireEvent.click(screen.getByTestId("captcha-widget"));
+    fillLoginForm(view);
+    fireEvent.submit(view.form());
+
+    await waitFor(() =>
+      expect(login).toHaveBeenCalledWith(
+        "person@example.com",
+        "Secret1!",
+        "credential-token",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(googleStart).toHaveBeenCalledWith("credential-token"));
+    expect(captchaHarness.getTokenForAction).not.toHaveBeenCalled();
+  });
+
+  test("uses the Turnstile login action, forwards its credential token, and resets after failure", async () => {
+    Object.assign(captchaHarness.config, {
+      enabled: true,
+      provider: "turnstile",
+      siteKey: "turnstile-site-key",
+    });
+    const login = vi.fn().mockRejectedValue(new Error("bad login"));
+    const view = renderLoginPage({ login });
+
+    expect(captchaHarness.widgetProps.action).toBe("login");
+    fireEvent.click(screen.getByTestId("captcha-widget"));
+    fillLoginForm(view);
+    fireEvent.submit(view.form());
+
+    await waitFor(() => {
+      expect(login).toHaveBeenCalledWith(
+        "person@example.com",
+        "Secret1!",
+        "credential-token",
+      );
+      expect(captchaHarness.reset).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("deduplicates pending Turnstile Google clicks and allows retry with a separate google_oauth token", async () => {
+    Object.assign(captchaHarness.config, {
+      enabled: true,
+      provider: "turnstile",
+      siteKey: "turnstile-site-key",
+    });
+    let rejectFirst;
+    const firstAttempt = new Promise((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    captchaHarness.getTokenForAction
+      .mockReturnValueOnce(firstAttempt)
+      .mockResolvedValueOnce("retry-google-token");
+    const googleStart = vi.fn().mockResolvedValue(undefined);
+    renderLoginPage({ googleStart });
+    const googleButton = screen.getByRole("button", { name: "Continue with Google" });
+
+    fireEvent.click(googleButton);
+    fireEvent.click(googleButton);
+    expect(captchaHarness.getTokenForAction).toHaveBeenCalledTimes(1);
+    expect(captchaHarness.getTokenForAction).toHaveBeenCalledWith("google_oauth");
+    expect(googleButton).toHaveAttribute("aria-busy", "true");
+
+    rejectFirst(new Error("captcha failed"));
+    await waitFor(() => expect(googleButton).toHaveAttribute("aria-busy", "false"));
+    expect(toast.error).toHaveBeenCalledWith("Please complete the captcha");
+
+    fireEvent.click(googleButton);
+    await waitFor(() => {
+      expect(captchaHarness.getTokenForAction).toHaveBeenCalledTimes(2);
+      expect(googleStart).toHaveBeenCalledWith("retry-google-token");
+    });
+    expect(googleStart).not.toHaveBeenCalledWith("credential-token");
   });
 });

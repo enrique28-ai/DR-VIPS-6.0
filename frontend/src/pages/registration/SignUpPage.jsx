@@ -8,7 +8,8 @@ import PasswordStrengthMeter from "../../components/forms/PasswordStrengthMeter.
 import { toast } from "react-hot-toast";
 import Button from "../../components/forms/Button.jsx";
 import { isStrongPassword } from "../../lib/password.js";
-import ReCAPTCHA from "react-google-recaptcha";
+import CaptchaWidget from "../../components/forms/CaptchaWidget.jsx";
+import { captchaConfig } from "../../lib/captchaConfig.js";
 import { useTranslation } from "react-i18next";
 
 
@@ -21,9 +22,6 @@ const GoogleIcon = (props) => (
   </svg>
 );
 
-const CAPTCHA_ENABLED = import.meta.env.VITE_CAPTCHA_ENABLED === "true";
-
-
 export default function SignUpPage() {
   const { t, i18n } = useTranslation();
   const [name, setName] = useState("");
@@ -32,9 +30,10 @@ export default function SignUpPage() {
   const { signup, isLoading, googleStart } = useAuthStore();
   const strong = isStrongPassword(password);
   const navigate = useNavigate();
-  const RECAPTCHA_SITE_KEY = "6LeuCt4rAAAAAMmxLbdnWGKp8XpfVJRMWSdjU4k_"; // pega aquí la site key
-  const recaptchaRef = useRef(null);
-  const [captcha, setCaptcha] = useState("");
+  const captchaRef = useRef(null);
+  const googleCaptchaPendingRef = useRef(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [isGoogleCaptchaLoading, setIsGoogleCaptchaLoading] = useState(false);
   const [role, setRole] = useState("doctor");
   const [isDesktopCaptcha, setIsDesktopCaptcha] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -94,12 +93,41 @@ export default function SignUpPage() {
   const handleSignUp = async (e) => {
     e.preventDefault();
     if (!strong) return toast.error(t("auth.signup.errors.weakPassword"));
-    if (CAPTCHA_ENABLED && !captcha) return toast.error(t("auth.signup.errors.captcha"));
+    if (captchaConfig.enabled && (!captchaConfig.isValid || !captchaToken)) return toast.error(t("auth.signup.errors.captcha"));
     try {
-      await signup(name, email, password, CAPTCHA_ENABLED ? captcha : undefined, role)
+      await signup(name, email, password, captchaConfig.enabled ? captchaToken : undefined, role)
       navigate("/verify-email");
     } catch {
-      try { recaptchaRef.current?.reset(); setCaptcha(""); } catch {}
+      try { captchaRef.current?.reset(); setCaptchaToken(""); } catch {}
+    }
+  };
+
+  const handleGoogleStart = async () => {
+    if (googleCaptchaPendingRef.current) return;
+    if (!captchaConfig.enabled) {
+      await googleStart(undefined);
+      return;
+    }
+    if (!captchaConfig.isValid || (captchaConfig.provider === "recaptcha" && !captchaToken)) {
+      toast.error(t("auth.signup.errors.captcha"));
+      return;
+    }
+
+    googleCaptchaPendingRef.current = true;
+    setIsGoogleCaptchaLoading(true);
+    let hasGoogleCaptchaToken = false;
+    try {
+      const googleCaptchaToken = captchaConfig.provider === "turnstile"
+        ? await captchaRef.current?.getTokenForAction("google_oauth")
+        : captchaToken;
+      if (!googleCaptchaToken) throw new Error("Missing captcha");
+      hasGoogleCaptchaToken = true;
+      await googleStart(googleCaptchaToken);
+    } catch {
+      if (!hasGoogleCaptchaToken) toast.error(t("auth.signup.errors.captcha"));
+    } finally {
+      googleCaptchaPendingRef.current = false;
+      setIsGoogleCaptchaLoading(false);
     }
   };
 
@@ -147,20 +175,20 @@ export default function SignUpPage() {
           </div>
         </fieldset>
 
-        {CAPTCHA_ENABLED && (
+        {captchaConfig.enabled && (
           <div className="mt-3 flex w-full justify-center">
-           <ReCAPTCHA
-            key={`${i18n.language}-${isDesktopCaptcha ? "normal" : "compact"}`}
-            hl={i18n.language}
+           <CaptchaWidget
+             ref={captchaRef}
+             action="register"
+             language={i18n.language}
              size={isDesktopCaptcha ? "normal" : "compact"}
-             ref={recaptchaRef}
-             sitekey={RECAPTCHA_SITE_KEY}
-             onChange={(token) => setCaptcha(token || "")}
+             onTokenChange={setCaptchaToken}
+             onError={() => toast.error(t("auth.signup.errors.captcha"))}
            />
          </div>
         )}
 
-        <Button className="mt-4 cursor-pointer" type="submit" loading={isLoading} disabled={!strong || isLoading || (CAPTCHA_ENABLED && !captcha)}>{t("auth.signup.button")}</Button>
+        <Button className="mt-4 cursor-pointer" type="submit" loading={isLoading} disabled={!strong || isLoading || (captchaConfig.enabled && (!captchaConfig.isValid || !captchaToken))}>{t("auth.signup.button")}</Button>
 
         <div className="my-5 flex items-center gap-3" aria-hidden="true">
           <span className="h-px flex-1 bg-slate-200" />
@@ -172,10 +200,9 @@ export default function SignUpPage() {
 
         <button
           type="button"
-          onClick={async () => {
-            if (CAPTCHA_ENABLED && !captcha) { toast.error(t("auth.signup.errors.captcha")); return; }
-            await googleStart(CAPTCHA_ENABLED ? captcha : undefined);
-          }}
+          onClick={handleGoogleStart}
+          disabled={isGoogleCaptchaLoading || (captchaConfig.enabled && !captchaConfig.isValid)}
+          aria-busy={isGoogleCaptchaLoading}
           aria-label={t("auth.signup.google")}
           className="cursor-pointer w-full inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors duration-150 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:bg-slate-100"
         >
