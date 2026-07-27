@@ -16,16 +16,22 @@ export const apiLimiter = base({
   max: 300,
 });
 
-// Auth sensible (login/register/reset): 10 req / 15 min por IP
+// Login, registro y pre-paso de Google reCAPTCHA: 10 req / 15 min por IP
 export const authLimiter = base({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  max: 10,
 });
 
 // Forgot/Resend: 3 req / hora por IP
-export const forgotLimiter = base({
+export const emailActionLimiter = base({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+});
+
+// Verification attempts: 10 req / 15 min por IP
+export const verificationLimiter = base({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 10,
 });
 
 // Opcional para escritura (POST/PUT/DELETE): 60 req / 15 min

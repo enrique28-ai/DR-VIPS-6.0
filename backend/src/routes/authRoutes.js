@@ -11,7 +11,11 @@ import {
 import { protect } from "../middleware/auth.js";
 import { verifyRecaptcha } from "../middleware/recaptcha.js";
 import multer from "multer";
-import { authLimiter, forgotLimiter } from "../middleware/rateLimit.js";
+import {
+  authLimiter,
+  emailActionLimiter,
+  verificationLimiter,
+} from "../middleware/rateLimit.js";
 
 
 const router = Router();
@@ -32,12 +36,12 @@ router.post("/login",  authLimiter, verifyRecaptcha(), login);
 router.post("/logout", logout);
 router.get("/me", protect, me);
 
-router.post("/verify-email", protect, verifyEmail);
-router.post("/resend-code", protect, forgotLimiter, resendVerificationCode);
+router.post("/verify-email", protect, verificationLimiter, verifyEmail);
+router.post("/resend-code", protect, emailActionLimiter, resendVerificationCode);
 
-router.post("/forgot-password", forgotLimiter, forgotPassword);
-router.post("/verify-reset-code", forgotLimiter, verifyResetCode);
-router.post("/reset-password/:token", authLimiter, resetPassword);
+router.post("/forgot-password", emailActionLimiter, forgotPassword);
+router.post("/verify-reset-code", verificationLimiter, verifyResetCode);
+router.post("/reset-password/:token", verificationLimiter, resetPassword);
 
 // Google OAuth (server-side)
 router.get("/google/init", googleInit);
