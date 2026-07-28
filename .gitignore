@@ -34,3 +34,7 @@ coverage/
 
 #Claude
 CLAUDE.md
+# Cloudflare local
+.dev.vars
+.dev.vars.*
+.wrangler/
