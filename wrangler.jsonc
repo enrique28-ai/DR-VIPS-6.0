@@ -1,0 +1,32 @@
+﻿{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dr-vips",
+  "main": "cloudflare/src/index.js",
+  "compatibility_date": "2026-07-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "containers": [
+    {
+      "class_name": "DrVipsApi",
+      "image": "./Dockerfile",
+      "instance_type": "lite",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DR_VIPS_API",
+        "class_name": "DrVipsApi"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DrVipsApi"]
+    }
+  ]
+}
