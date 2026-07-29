@@ -49,7 +49,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (!url.pathname.startsWith("/api")) {
+    const isApiRequest =
+      url.pathname === "/api" || url.pathname.startsWith("/api/");
+
+    if (!isApiRequest) {
       return new Response("Not Found", { status: 404 });
     }
 
