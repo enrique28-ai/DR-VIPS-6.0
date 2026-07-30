@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import dotenv from 'dotenv';
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -62,7 +62,9 @@ if (process.env.NODE_ENV === "production") {
 }
  
 connectDB().then(() => {
-    startReminderJob();
+    if (process.env.APPT_REMINDERS_ENABLED !== "false") {
+      startReminderJob();
+    }
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
