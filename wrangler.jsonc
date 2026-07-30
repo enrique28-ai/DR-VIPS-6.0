@@ -4,8 +4,25 @@
   "main": "cloudflare/src/index.js",
   "compatibility_date": "2026-07-28",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "dr-vips.com",
+      "custom_domain": true
+    }
+  ],
   "observability": {
     "enabled": true
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "PORT": "8080",
+    "CLIENT_URL": "https://dr-vips.com",
+    "CAPTCHA_ENABLED": "true",
+    "CAPTCHA_PROVIDER": "turnstile",
+    "TURNSTILE_EXPECTED_HOSTNAMES": "dr-vips.com",
+    "API_GOOGLE_REDIRECT_URI": "https://dr-vips.com/api/auth/google/callback",
+    "APPT_REMINDERS_ENABLED": "false"
   },
   "assets": {
     "directory": "./frontend/dist",
