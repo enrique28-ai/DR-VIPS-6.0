@@ -20,18 +20,31 @@ function loadTurnstileScript() {
   if (window.turnstile) return Promise.resolve(window.turnstile);
   if (turnstileScriptPromise) return turnstileScriptPromise;
 
-  turnstileScriptPromise = new Promise((resolve, reject) => {
+  const loadPromise = new Promise((resolve, reject) => {
     let script = document.querySelector(`script[src="${TURNSTILE_SCRIPT_URL}"]`);
 
+    const cleanup = () => {
+      script.removeEventListener("load", handleLoad);
+      script.removeEventListener("error", handleError);
+    };
+    const fail = (error) => {
+      cleanup();
+      script.remove();
+      if (turnstileScriptPromise === loadPromise) {
+        turnstileScriptPromise = undefined;
+      }
+      reject(error);
+    };
     const handleLoad = () => {
       if (window.turnstile) {
+        cleanup();
         resolve(window.turnstile);
       } else {
-        reject(new Error("Turnstile did not initialize"));
+        fail(new Error("Turnstile did not initialize"));
       }
     };
     const handleError = () => {
-      reject(new Error("Turnstile script failed to load"));
+      fail(new Error("Turnstile script failed to load"));
     };
 
     if (!script) {
@@ -45,6 +58,7 @@ function loadTurnstileScript() {
     script.addEventListener("error", handleError, { once: true });
     if (!script.isConnected) document.head.appendChild(script);
   });
+  turnstileScriptPromise = loadPromise;
 
   return turnstileScriptPromise;
 }

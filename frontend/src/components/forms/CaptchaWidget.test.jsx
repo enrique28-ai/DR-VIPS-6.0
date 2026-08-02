@@ -95,23 +95,29 @@ describe("CaptchaWidget", () => {
     const second = render(<CaptchaWidget action="register" onError={secondError} />);
 
     expect(scripts()).toHaveLength(1);
-    const script = scripts()[0];
-    expect(script.src).toBe(TURNSTILE_SCRIPT_URL);
-    expect(script.async).toBe(true);
-    expect(script.defer).toBe(true);
+    const failedScript = scripts()[0];
+    expect(failedScript.src).toBe(TURNSTILE_SCRIPT_URL);
+    expect(failedScript.async).toBe(true);
+    expect(failedScript.defer).toBe(true);
 
-    fireEvent.error(script);
+    fireEvent.error(failedScript);
     await waitFor(() => {
       expect(firstError).toHaveBeenCalledTimes(1);
       expect(secondError).toHaveBeenCalledTimes(1);
     });
+    expect(scripts()).toHaveLength(0);
+    expect(failedScript.isConnected).toBe(false);
     first.unmount();
     second.unmount();
 
+    const retry = render(<CaptchaWidget action="login" />);
+    expect(scripts()).toHaveLength(1);
+    const retryScript = scripts()[0];
+    expect(retryScript).not.toBe(failedScript);
+
     const turnstile = makeTurnstile();
     window.turnstile = turnstile;
-    const retry = render(<CaptchaWidget action="login" />);
-    fireEvent.load(script);
+    fireEvent.load(retryScript);
 
     await waitFor(() => expect(turnstile.render).toHaveBeenCalledTimes(1));
     expect(scripts()).toHaveLength(1);
