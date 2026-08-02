@@ -32,8 +32,49 @@ afterEach(() => {
   }
 });
 
-function fakeProviderResponse(data) {
-  return { json: async () => data };
+function fakeProviderResponse(data, status = 200) {
+  return { status, json: async () => data };
+}
+
+async function captureDiagnostics(callback) {
+  const calls = [];
+  const originalError = console.error;
+  console.error = (...args) => calls.push(args);
+
+  try {
+    const result = await callback();
+    return { calls, result };
+  } finally {
+    console.error = originalError;
+  }
+}
+
+function assertDiagnostic(calls, expected, sensitiveValues = []) {
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "[captcha-diagnostic]");
+  assert.deepEqual(calls[0][1], expected);
+
+  const serialized = JSON.stringify(calls);
+  for (const value of sensitiveValues) {
+    assert.equal(serialized.includes(value), false);
+  }
+}
+
+function expectedDiagnostic(stage, overrides = {}) {
+  return {
+    stage,
+    provider: "recaptcha",
+    httpStatus: null,
+    success: null,
+    errorCodes: [],
+    expectedAction: null,
+    receivedAction: null,
+    expectedHostnames: [],
+    receivedHostname: null,
+    secretPresent: true,
+    tokenPresent: true,
+    ...overrides,
+  };
 }
 
 async function runCaptcha({
@@ -187,14 +228,44 @@ test("captchaToken takes precedence when both token fields exist", async () => {
 test("failed and malformed recaptcha responses return the exact provider failure", async () => {
   enableRecaptcha();
 
-  for (const fetchImpl of [
-    async () => fakeProviderResponse({ success: false }),
-    async () => ({ json: async () => { throw new SyntaxError("bad JSON"); } }),
-  ]) {
-    const { state } = await runCaptcha({
-      body: { recaptchaToken: "token" },
-      options: { fetchImpl },
-    });
+  const scenarios = [
+    {
+      fetchImpl: async () =>
+        fakeProviderResponse(
+          { success: false, "error-codes": ["invalid-input-response"] },
+          403,
+        ),
+      diagnostic: expectedDiagnostic("siteverify-rejected", {
+        httpStatus: 403,
+        success: false,
+        errorCodes: ["invalid-input-response"],
+      }),
+    },
+    {
+      fetchImpl: async () => ({
+        status: 502,
+        json: async () => {
+          throw new SyntaxError("bad JSON");
+        },
+      }),
+      diagnostic: expectedDiagnostic("siteverify-non-json", {
+        httpStatus: 502,
+        timedOut: false,
+      }),
+    },
+  ];
+
+  for (const { fetchImpl, diagnostic } of scenarios) {
+    const { calls, result: { state } } = await captureDiagnostics(() =>
+      runCaptcha({
+        body: { recaptchaToken: "sensitive-recaptcha-token" },
+        options: { fetchImpl },
+      }),
+    );
+    assertDiagnostic(calls, diagnostic, [
+      "test-recaptcha-secret",
+      "sensitive-recaptcha-token",
+    ]);
     assert.equal(state.status, 400);
     assert.deepEqual(state.body, { error: "Captcha failed" });
     assert.equal(state.nextCalls, 0);
@@ -243,17 +314,51 @@ test("Turnstile posts the secret and token to Siteverify and sets only req.captc
 test("Turnstile rejects provider failure and action mismatch", async () => {
   enableTurnstile();
 
-  for (const result of [
-    { success: false },
-    { success: true, action: "register", hostname: "example.com" },
-  ]) {
-    const { state } = await runCaptcha({
-      body: { captchaToken: "token" },
-      options: {
-        expectedAction: "login",
-        fetchImpl: async () => fakeProviderResponse(result),
+  const scenarios = [
+    {
+      providerResult: {
+        success: false,
+        "error-codes": ["invalid-input-response"],
       },
-    });
+      diagnostic: expectedDiagnostic("siteverify-rejected", {
+        provider: "turnstile",
+        httpStatus: 200,
+        success: false,
+        errorCodes: ["invalid-input-response"],
+        expectedAction: "login",
+      }),
+    },
+    {
+      providerResult: {
+        success: true,
+        action: "register",
+        hostname: "example.com",
+      },
+      diagnostic: expectedDiagnostic("action-mismatch", {
+        provider: "turnstile",
+        httpStatus: 200,
+        success: true,
+        expectedAction: "login",
+        receivedAction: "register",
+        receivedHostname: "example.com",
+      }),
+    },
+  ];
+
+  for (const { providerResult, diagnostic } of scenarios) {
+    const { calls, result: { state } } = await captureDiagnostics(() =>
+      runCaptcha({
+        body: { captchaToken: "sensitive-turnstile-token" },
+        options: {
+          expectedAction: "login",
+          fetchImpl: async () => fakeProviderResponse(providerResult),
+        },
+      }),
+    );
+    assertDiagnostic(calls, diagnostic, [
+      "test-turnstile-secret",
+      "sensitive-turnstile-token",
+    ]);
     assert.equal(state.status, 400);
     assert.deepEqual(state.body, { error: "Captcha failed" });
     assert.equal(state.nextCalls, 0);
@@ -286,16 +391,29 @@ test("Turnstile rejects unlisted hostnames without wildcard suffix matching", as
 
   for (const allowlist of ["allowed.example.com", "*.example.com"]) {
     process.env.TURNSTILE_EXPECTED_HOSTNAMES = allowlist;
-    const { state } = await runCaptcha({
-      body: { captchaToken: "token" },
-      options: {
-        fetchImpl: async () =>
-          fakeProviderResponse({
-            success: true,
-            hostname: "sub.example.com",
-          }),
-      },
-    });
+    const { calls, result: { state } } = await captureDiagnostics(() =>
+      runCaptcha({
+        body: { captchaToken: "sensitive-turnstile-token" },
+        options: {
+          fetchImpl: async () =>
+            fakeProviderResponse({
+              success: true,
+              hostname: "sub.example.com",
+            }),
+        },
+      }),
+    );
+    assertDiagnostic(
+      calls,
+      expectedDiagnostic("hostname-mismatch", {
+        provider: "turnstile",
+        httpStatus: 200,
+        success: true,
+        expectedHostnames: [allowlist],
+        receivedHostname: "sub.example.com",
+      }),
+      ["test-turnstile-secret", "sensitive-turnstile-token"],
+    );
     assert.equal(state.status, 400);
     assert.deepEqual(state.body, { error: "Captcha failed" });
     assert.equal(state.nextCalls, 0);
@@ -307,17 +425,28 @@ test("production Turnstile fails closed before fetch without expected hostnames"
   process.env.NODE_ENV = "production";
   let fetchCalls = 0;
 
-  const { state } = await runCaptcha({
-    body: { captchaToken: "token" },
-    options: {
-      fetchImpl: async () => {
-        fetchCalls += 1;
-        return fakeProviderResponse({ success: true });
+  const { calls, result: { state } } = await captureDiagnostics(() =>
+    runCaptcha({
+      body: { captchaToken: "sensitive-turnstile-token" },
+      options: {
+        expectedAction: "login",
+        fetchImpl: async () => {
+          fetchCalls += 1;
+          return fakeProviderResponse({ success: true });
+        },
       },
-    },
-  });
+    }),
+  );
 
   assert.equal(fetchCalls, 0);
+  assertDiagnostic(
+    calls,
+    expectedDiagnostic("missing-production-hostnames", {
+      provider: "turnstile",
+      expectedAction: "login",
+    }),
+    ["test-turnstile-secret", "sensitive-turnstile-token"],
+  );
   assert.equal(state.status, 500);
   assert.deepEqual(state.body, { error: "Captcha verification error" });
   assert.equal(state.nextCalls, 0);
@@ -335,10 +464,28 @@ test("missing secrets and an invalid provider fail closed without network reques
     process.env.CAPTCHA_PROVIDER = provider;
     delete process.env.RECAPTCHA_SECRET;
     delete process.env.TURNSTILE_SECRET_KEY;
-    const { state } = await runCaptcha({
-      body: { captchaToken: "token" },
-      options: { fetchImpl },
-    });
+    const { calls, result: { state } } = await captureDiagnostics(() =>
+      runCaptcha({
+        body: { captchaToken: "sensitive-captcha-token" },
+        options: { expectedAction: "login", fetchImpl },
+      }),
+    );
+    assertDiagnostic(
+      calls,
+      expectedDiagnostic(
+        provider === "unsupported" ? "invalid-provider" : "missing-secret",
+        {
+          provider: provider === "unsupported" ? "invalid" : provider,
+          expectedAction: "login",
+          secretPresent: false,
+        },
+      ),
+      [
+        "test-recaptcha-secret",
+        "test-turnstile-secret",
+        "sensitive-captcha-token",
+      ],
+    );
     assert.equal(state.status, 500);
     assert.deepEqual(state.body, { error: "Captcha verification error" });
     assert.equal(state.nextCalls, 0);
@@ -349,28 +496,36 @@ test("missing secrets and an invalid provider fail closed without network reques
 
 test("network failure returns the generic 500 without exposing or logging secrets", async () => {
   enableTurnstile();
-  const logs = [];
-  const originalError = console.error;
-  console.error = (...args) => logs.push(args.join(" "));
-
-  try {
-    const { state } = await runCaptcha({
-      body: { captchaToken: "token" },
+  const { calls, result: { state } } = await captureDiagnostics(() =>
+    runCaptcha({
+      body: { captchaToken: "sensitive-turnstile-token" },
       options: {
+        expectedAction: "login",
         fetchImpl: async () => {
-          throw new Error("network failed test-turnstile-secret");
+          const error = new Error(
+            "network failed test-turnstile-secret sensitive-turnstile-token",
+          );
+          error.name = "test-turnstile-secret";
+          throw error;
         },
       },
-    });
+    }),
+  );
 
-    assert.equal(state.status, 500);
-    assert.deepEqual(state.body, { error: "Captcha verification error" });
-    assert.equal(JSON.stringify(state.body).includes("test-turnstile-secret"), false);
-    assert.equal(logs.some((line) => line.includes("test-turnstile-secret")), false);
-    assert.equal(state.nextCalls, 0);
-  } finally {
-    console.error = originalError;
-  }
+  assertDiagnostic(
+    calls,
+    expectedDiagnostic("siteverify-network-error", {
+      provider: "turnstile",
+      expectedAction: "login",
+      timedOut: false,
+      errorName: "Error",
+    }),
+    ["test-turnstile-secret", "sensitive-turnstile-token"],
+  );
+  assert.equal(state.status, 500);
+  assert.deepEqual(state.body, { error: "Captcha verification error" });
+  assert.equal(JSON.stringify(state.body).includes("test-turnstile-secret"), false);
+  assert.equal(state.nextCalls, 0);
 });
 
 test("request timeout aborts verification and returns the generic 500", async () => {
@@ -388,12 +543,23 @@ test("request timeout aborts verification and returns the generic 500", async ()
       );
     });
 
-  const { state } = await runCaptcha({
-    body: { recaptchaToken: "token" },
-    options: { fetchImpl, timeoutMs: 5 },
-  });
+  const { calls, result: { state } } = await captureDiagnostics(() =>
+    runCaptcha({
+      body: { recaptchaToken: "sensitive-recaptcha-token" },
+      options: { expectedAction: "ignored-for-v2", fetchImpl, timeoutMs: 5 },
+    }),
+  );
 
   assert.equal(aborted, true);
+  assertDiagnostic(
+    calls,
+    expectedDiagnostic("siteverify-network-error", {
+      expectedAction: "ignored-for-v2",
+      timedOut: true,
+      errorName: "Error",
+    }),
+    ["test-recaptcha-secret", "sensitive-recaptcha-token"],
+  );
   assert.equal(state.status, 500);
   assert.deepEqual(state.body, { error: "Captcha verification error" });
   assert.equal(state.nextCalls, 0);
