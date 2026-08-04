@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { connectDB } from "./config/db.js"
+import healthRoutes from "./routes/healthRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import patientRoutes from "./routes/patientRoutes.js"
 import diagnosesRoutes from "./routes/diagnosesRoutes.js"
@@ -45,6 +46,7 @@ app.use(cookieParser());
 // Limita todo lo que pase por /api (300 req / 15 min por IP)
 app.use("/api", apiNoStore);
 app.use("/api", apiLimiter);
+app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/diagnoses", diagnosesRoutes);
