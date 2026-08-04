@@ -13,6 +13,7 @@ import { apiLimiter } from "./middleware/rateLimit.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { startReminderJob } from "./services/reminderService.js";
 import { apiNoStore, createSecurityHeaders } from "./middleware/securityHeaders.js";
+import { apiNotFound, errorHandler } from "./middleware/errorHandler.js";
 
 
 
@@ -52,6 +53,7 @@ app.use("/api/patients", patientRoutes);
 app.use("/api/diagnoses", diagnosesRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api", apiNotFound);
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 if (process.env.NODE_ENV === "production") {
@@ -62,6 +64,8 @@ if (process.env.NODE_ENV === "production") {
       res.sendFile(path.join(distPath, "index.html"));
     });
 }
+
+app.use(errorHandler);
  
 connectDB().then(() => {
     if (process.env.APPT_REMINDERS_ENABLED !== "false") {
