@@ -44,10 +44,14 @@ export function createSecurityHeaders({ isProduction = process.env.NODE_ENV === 
   });
 }
 
-export function apiNoStore(_req, res, next) {
+export function setApiNoStoreHeaders(res) {
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   res.setHeader("Surrogate-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
+}
+
+export function apiNoStore(_req, res, next) {
+  setApiNoStoreHeaders(res);
   next();
 }
