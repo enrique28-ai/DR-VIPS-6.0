@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import mongoose from "mongoose";
 
 import Diagnosis from "../../../models/Diagnosis.js";
 import DiagnosisHistory from "../../../models/DiagnosisHistory.js";
@@ -18,6 +19,17 @@ const DECEASED_ERROR_BODY = {
   error: "Cannot create or edit diagnoses for a deceased patient.",
 };
 
+const GENERIC_ERROR_BODY = { error: "Internal server error" };
+const PRIVACY_SENTINELS = [
+  "MEDICAL_SENTINEL",
+  "patient@example.test",
+  "TOKEN_SENTINEL",
+  "COOKIE_SENTINEL",
+  "SECRET_SENTINEL",
+  "mongodb://user:password@private-host/records",
+  "MongoServerError: private collection detail",
+];
+
 const originalPatientMethods = {
   exists: Patient.exists,
   findOne: Patient.findOne,
@@ -35,6 +47,8 @@ const originalDiagnosisHistoryMethods = {
   create: DiagnosisHistory.create,
 };
 
+const originalTransaction = mongoose.connection.transaction;
+
 after(() => {
   restoreModelMethods();
 });
@@ -48,6 +62,31 @@ function restoreModelMethods() {
   Diagnosis.find = originalDiagnosisMethods.find;
   Diagnosis.findOne = originalDiagnosisMethods.findOne;
   DiagnosisHistory.create = originalDiagnosisHistoryMethods.create;
+  mongoose.connection.transaction = originalTransaction;
+}
+
+function mockTransaction() {
+  const session = { id: "diagnosis-transaction-session" };
+  const state = {
+    aborts: 0,
+    commits: 0,
+    calls: 0,
+    session,
+  };
+
+  mongoose.connection.transaction = async (work) => {
+    state.calls += 1;
+    try {
+      const result = await work(session);
+      state.commits += 1;
+      return result;
+    } catch (error) {
+      state.aborts += 1;
+      throw error;
+    }
+  };
+
+  return state;
 }
 
 function makeReq(overrides = {}) {
@@ -80,12 +119,70 @@ function makeRes() {
   };
 }
 
+async function captureConsoleErrors(work) {
+  const originalConsoleError = console.error;
+  const calls = [];
+  console.error = (...args) => calls.push(args);
+  try {
+    await work();
+  } finally {
+    console.error = originalConsoleError;
+  }
+  return calls;
+}
+
+function assertPrivateSentinelsAbsent(value) {
+  const serialized = JSON.stringify(value);
+  for (const sentinel of PRIVACY_SENTINELS) {
+    assert.equal(serialized.includes(sentinel), false);
+  }
+}
+
+function makeDiagnosisDocument(overrides = {}) {
+  const doc = {
+    _id: "diagnosis-id",
+    title: "Existing Diagnosis",
+    description: "Private details",
+    medicine: [],
+    treatment: [],
+    operation: [],
+    patient: "patient-id",
+    createdBy: "doctor-id",
+    async save() {
+      return this;
+    },
+    toObject() {
+      return {
+        _id: this._id,
+        title: this.title,
+        description: this.description,
+        medicine: this.medicine,
+        treatment: this.treatment,
+        operation: this.operation,
+        patient: this.patient,
+        createdBy: this.createdBy,
+      };
+    },
+  };
+
+  return Object.assign(doc, overrides);
+}
+
 function rejectPatientOwnership() {
   const calls = [];
+  Object.defineProperty(calls, "sessions", { value: [] });
 
-  Patient.exists = async (query) => {
+  Patient.exists = (query) => {
     calls.push(query);
-    return null;
+    return {
+      session(session) {
+        calls.sessions.push(session);
+        return Promise.resolve(null);
+      },
+      then(resolve, reject) {
+        return Promise.resolve(null).then(resolve, reject);
+      },
+    };
   };
 
   return calls;
@@ -93,10 +190,19 @@ function rejectPatientOwnership() {
 
 function acceptPatientOwnership(response = { _id: "patient-id" }) {
   const calls = [];
+  Object.defineProperty(calls, "sessions", { value: [] });
 
-  Patient.exists = async (query) => {
+  Patient.exists = (query) => {
     calls.push(query);
-    return response;
+    return {
+      session(session) {
+        calls.sessions.push(session);
+        return Promise.resolve(response);
+      },
+      then(resolve, reject) {
+        return Promise.resolve(response).then(resolve, reject);
+      },
+    };
   };
 
   return calls;
@@ -104,19 +210,25 @@ function acceptPatientOwnership(response = { _id: "patient-id" }) {
 
 function mockPatientDeathStatus(response) {
   const calls = [];
+  Object.defineProperty(calls, "sessions", { value: [] });
 
   Patient.findOne = (query) => {
     const call = { query, select: undefined };
     calls.push(call);
 
-    return {
+    const queryResult = {
       select(select) {
         call.select = select;
-        return {
-          lean: async () => response,
-        };
+        return queryResult;
       },
+      session(session) {
+        calls.sessions.push(session);
+        return queryResult;
+      },
+      lean: async () => response,
     };
+
+    return queryResult;
   };
 
   return calls;
@@ -136,10 +248,14 @@ function rejectDiagnosisCreate() {
 
 function mockDiagnosisCreate(response) {
   const calls = [];
+  Object.defineProperty(calls, "options", { value: [] });
+  Object.defineProperty(calls, "payloads", { value: [] });
 
-  Diagnosis.create = async (payload) => {
-    calls.push(payload);
-    return response;
+  Diagnosis.create = async (payload, options) => {
+    calls.payloads.push(payload);
+    calls.options.push(options);
+    calls.push(Array.isArray(payload) ? payload[0] : payload);
+    return Array.isArray(payload) ? [response] : response;
   };
 
   return calls;
@@ -147,13 +263,19 @@ function mockDiagnosisCreate(response) {
 
 function mockDiagnosisFindOne(response) {
   const calls = [];
+  Object.defineProperty(calls, "sessions", { value: [] });
 
   Diagnosis.findOne = (query) => {
     calls.push(query);
-    return {
+    const queryResult = {
+      session(session) {
+        calls.sessions.push(session);
+        return queryResult;
+      },
       lean: async () => response,
       then: (resolve, reject) => Promise.resolve(response).then(resolve, reject),
     };
+    return queryResult;
   };
 
   return calls;
@@ -196,10 +318,14 @@ function mockDiagnosisFind(response) {
 
 function mockDiagnosisHistoryCreate() {
   const calls = [];
+  Object.defineProperty(calls, "options", { value: [] });
+  Object.defineProperty(calls, "payloads", { value: [] });
 
-  DiagnosisHistory.create = async (payload) => {
-    calls.push(payload);
-    return { _id: "diagnosis-history-id" };
+  DiagnosisHistory.create = async (payload, options) => {
+    calls.payloads.push(payload);
+    calls.options.push(options);
+    calls.push(Array.isArray(payload) ? payload[0] : payload);
+    return [{ _id: "diagnosis-history-id" }];
   };
 
   return calls;
@@ -207,6 +333,7 @@ function mockDiagnosisHistoryCreate() {
 
 test("createDiagnosis rejects when doctor does not own the patient", async () => {
   restoreModelMethods();
+  mockTransaction();
 
   const existsCalls = rejectPatientOwnership();
   rejectDiagnosisCreate();
@@ -238,6 +365,7 @@ test("createDiagnosis rejects when doctor does not own the patient", async () =>
 
 test("createDiagnosis rejects deceased patient with 409 and does not write diagnosis or history", async () => {
   restoreModelMethods();
+  mockTransaction();
 
   const existsCalls = acceptPatientOwnership();
   const patientFindCalls = mockPatientDeathStatus({
@@ -284,6 +412,7 @@ test("createDiagnosis rejects deceased patient with 409 and does not write diagn
 
 test("createDiagnosis still works for alive patients", async () => {
   restoreModelMethods();
+  const transaction = mockTransaction();
 
   const existsCalls = acceptPatientOwnership();
   const patientFindCalls = mockPatientDeathStatus({
@@ -324,6 +453,15 @@ test("createDiagnosis still works for alive patients", async () => {
 
     assert.equal(res.statusCode, 201);
     assert.equal(res.body, createdDoc);
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 1);
+    assert.equal(transaction.aborts, 0);
+    assert.equal(diagnosisCreateCalls.payloads[0].length, 1);
+    assert.equal(diagnosisCreateCalls.options[0].session, transaction.session);
+    assert.equal(historyCreateCalls.payloads[0].length, 1);
+    assert.equal(historyCreateCalls.options[0].session, transaction.session);
+    assert.deepEqual(existsCalls.sessions, [transaction.session]);
+    assert.deepEqual(patientFindCalls.sessions, [transaction.session]);
     assert.deepEqual(existsCalls, [
       {
         _id: "patient-id",
@@ -355,6 +493,106 @@ test("createDiagnosis still works for alive patients", async () => {
         changeType: "created",
       },
     ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createDiagnosis returns 500 and aborts when Diagnosis.create fails", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  acceptPatientOwnership();
+  mockPatientDeathStatus({ isDeceased: false });
+  const historyCreateCalls = mockDiagnosisHistoryCreate();
+  const diagnosisCreateCalls = [];
+  Diagnosis.create = async (payload, options) => {
+    diagnosisCreateCalls.push({ payload, options });
+    throw new Error(PRIVACY_SENTINELS.join(" | "));
+  };
+
+  const req = makeReq({
+    body: { title: "Private diagnosis", patient: "patient-id" },
+  });
+  const res = makeRes();
+
+  try {
+    const logs = await captureConsoleErrors(() => createDiagnosis(req, res));
+
+    assert.equal(res.statusCode, 500);
+    assert.deepEqual(res.body, GENERIC_ERROR_BODY);
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 0);
+    assert.equal(transaction.aborts, 1);
+    assert.equal(diagnosisCreateCalls.length, 1);
+    assert.equal(diagnosisCreateCalls[0].options.session, transaction.session);
+    assert.deepEqual(historyCreateCalls, []);
+    assert.deepEqual(logs, [["[diagnosis-write] atomic_write_failed"]]);
+    assertPrivateSentinelsAbsent({ response: res.body, logs });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createDiagnosis returns 500 and aborts when DiagnosisHistory.create fails", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  acceptPatientOwnership();
+  mockPatientDeathStatus({ isDeceased: false });
+  const snapshot = {
+    _id: "diagnosis-id",
+    title: "Private diagnosis",
+    patient: "patient-id",
+    createdBy: "doctor-id",
+  };
+  const createdDoc = { ...snapshot, toObject: () => snapshot };
+  const diagnosisCreateCalls = mockDiagnosisCreate(createdDoc);
+  const historyCreateCalls = [];
+  DiagnosisHistory.create = async (payload, options) => {
+    historyCreateCalls.push({ payload, options });
+    throw new Error(PRIVACY_SENTINELS.join(" | "));
+  };
+
+  const req = makeReq({
+    body: { title: "Private diagnosis", patient: "patient-id" },
+  });
+  const res = makeRes();
+
+  try {
+    const logs = await captureConsoleErrors(() => createDiagnosis(req, res));
+
+    assert.equal(res.statusCode, 500);
+    assert.deepEqual(res.body, GENERIC_ERROR_BODY);
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 0);
+    assert.equal(transaction.aborts, 1);
+    assert.equal(diagnosisCreateCalls.options[0].session, transaction.session);
+    assert.equal(historyCreateCalls.length, 1);
+    assert.equal(historyCreateCalls[0].options.session, transaction.session);
+    assert.deepEqual(logs, [["[diagnosis-write] atomic_write_failed"]]);
+    assertPrivateSentinelsAbsent({ response: res.body, logs });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createDiagnosis preserves the required-fields 400 contract", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  const diagnosisCreateCalls = mockDiagnosisCreate({ _id: "diagnosis-id" });
+  const historyCreateCalls = mockDiagnosisHistoryCreate();
+  const req = makeReq({ body: { title: "", patient: "patient-id" } });
+  const res = makeRes();
+
+  try {
+    await createDiagnosis(req, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, { error: "title and patient are required" });
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 1);
+    assert.equal(transaction.aborts, 0);
+    assert.deepEqual(diagnosisCreateCalls, []);
+    assert.deepEqual(historyCreateCalls, []);
   } finally {
     restoreModelMethods();
   }
@@ -516,6 +754,7 @@ test("getDiagnosisById still returns historical diagnosis detail for deceased pa
 
 test("updateDiagnosis rejects when diagnosis patient is not owned by doctor", async () => {
   restoreModelMethods();
+  mockTransaction();
 
   const existsCalls = rejectPatientOwnership();
   const diagnosisDoc = {
@@ -560,6 +799,7 @@ test("updateDiagnosis rejects when diagnosis patient is not owned by doctor", as
 
 test("updateDiagnosis rejects when associated patient is deceased and does not save or create history", async () => {
   restoreModelMethods();
+  mockTransaction();
 
   const existsCalls = acceptPatientOwnership();
   const patientFindCalls = mockPatientDeathStatus({
@@ -621,13 +861,14 @@ test("updateDiagnosis rejects when associated patient is deceased and does not s
 
 test("updateDiagnosis still works for alive patients", async () => {
   restoreModelMethods();
+  const transaction = mockTransaction();
 
   const existsCalls = acceptPatientOwnership();
   const patientFindCalls = mockPatientDeathStatus({
     _id: "patient-id",
     isDeceased: false,
   });
-  let saveCalls = 0;
+  const saveCalls = [];
   const diagnosisDoc = {
     _id: "diagnosis-id",
     title: "Existing Diagnosis",
@@ -637,8 +878,8 @@ test("updateDiagnosis still works for alive patients", async () => {
     operation: [],
     patient: "patient-id",
     createdBy: "doctor-id",
-    save: async function save() {
-      saveCalls += 1;
+    save: async function save(options) {
+      saveCalls.push(options);
       return this;
     },
     toObject() {
@@ -673,7 +914,16 @@ test("updateDiagnosis still works for alive patients", async () => {
     await updateDiagnosis(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(saveCalls, 1);
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 1);
+    assert.equal(transaction.aborts, 0);
+    assert.equal(saveCalls.length, 1);
+    assert.equal(saveCalls[0].session, transaction.session);
+    assert.equal(historyCreateCalls.payloads[0].length, 1);
+    assert.equal(historyCreateCalls.options[0].session, transaction.session);
+    assert.deepEqual(findOneCalls.sessions, [transaction.session]);
+    assert.deepEqual(existsCalls.sessions, [transaction.session]);
+    assert.deepEqual(patientFindCalls.sessions, [transaction.session]);
     assert.equal(res.body, diagnosisDoc);
     assert.equal(diagnosisDoc.title, "Changed Diagnosis");
     assert.equal(diagnosisDoc.description, "Updated details");
@@ -712,6 +962,151 @@ test("updateDiagnosis still works for alive patients", async () => {
         changeType: "updated",
       },
     ]);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("updateDiagnosis returns 500 and aborts when d.save fails", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  acceptPatientOwnership();
+  mockPatientDeathStatus({ isDeceased: false });
+  const saveCalls = [];
+  const diagnosisDoc = makeDiagnosisDocument({
+    async save(options) {
+      saveCalls.push(options);
+      throw new Error(PRIVACY_SENTINELS.join(" | "));
+    },
+  });
+  mockDiagnosisFindOne(diagnosisDoc);
+  const historyCreateCalls = mockDiagnosisHistoryCreate();
+  const req = makeReq({
+    params: { id: "diagnosis-id" },
+    body: { title: "Changed Diagnosis" },
+  });
+  const res = makeRes();
+
+  try {
+    const logs = await captureConsoleErrors(() => updateDiagnosis(req, res));
+
+    assert.equal(res.statusCode, 500);
+    assert.deepEqual(res.body, GENERIC_ERROR_BODY);
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 0);
+    assert.equal(transaction.aborts, 1);
+    assert.equal(saveCalls.length, 1);
+    assert.equal(saveCalls[0].session, transaction.session);
+    assert.deepEqual(historyCreateCalls, []);
+    assert.deepEqual(logs, [["[diagnosis-write] atomic_write_failed"]]);
+    assertPrivateSentinelsAbsent({ response: res.body, logs });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("updateDiagnosis returns 500 and aborts when DiagnosisHistory.create fails", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  acceptPatientOwnership();
+  mockPatientDeathStatus({ isDeceased: false });
+  const saveCalls = [];
+  const diagnosisDoc = makeDiagnosisDocument({
+    async save(options) {
+      saveCalls.push(options);
+      return this;
+    },
+  });
+  mockDiagnosisFindOne(diagnosisDoc);
+  const historyCreateCalls = [];
+  DiagnosisHistory.create = async (payload, options) => {
+    historyCreateCalls.push({ payload, options });
+    throw new Error(PRIVACY_SENTINELS.join(" | "));
+  };
+  const req = makeReq({
+    params: { id: "diagnosis-id" },
+    body: { title: "Changed Diagnosis" },
+  });
+  const res = makeRes();
+
+  try {
+    const logs = await captureConsoleErrors(() => updateDiagnosis(req, res));
+
+    assert.equal(res.statusCode, 500);
+    assert.deepEqual(res.body, GENERIC_ERROR_BODY);
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 0);
+    assert.equal(transaction.aborts, 1);
+    assert.equal(saveCalls.length, 1);
+    assert.equal(saveCalls[0].session, transaction.session);
+    assert.equal(historyCreateCalls.length, 1);
+    assert.equal(historyCreateCalls[0].options.session, transaction.session);
+    assert.deepEqual(logs, [["[diagnosis-write] atomic_write_failed"]]);
+    assertPrivateSentinelsAbsent({ response: res.body, logs });
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("updateDiagnosis preserves the not-found 404 contract", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  const findOneCalls = mockDiagnosisFindOne(null);
+  const historyCreateCalls = mockDiagnosisHistoryCreate();
+  const req = makeReq({
+    params: { id: "missing-diagnosis-id" },
+    body: { title: "Changed Diagnosis" },
+  });
+  const res = makeRes();
+
+  try {
+    await updateDiagnosis(req, res);
+
+    assert.equal(res.statusCode, 404);
+    assert.deepEqual(res.body, { error: "Diagnostic not found" });
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 1);
+    assert.equal(transaction.aborts, 0);
+    assert.deepEqual(findOneCalls.sessions, [transaction.session]);
+    assert.deepEqual(historyCreateCalls, []);
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("updateDiagnosis preserves the NO_CHANGES 400 contract", async () => {
+  restoreModelMethods();
+  const transaction = mockTransaction();
+  acceptPatientOwnership();
+  mockPatientDeathStatus({ isDeceased: false });
+  const saveCalls = [];
+  const diagnosisDoc = makeDiagnosisDocument({
+    async save(options) {
+      saveCalls.push(options);
+      return this;
+    },
+  });
+  mockDiagnosisFindOne(diagnosisDoc);
+  const historyCreateCalls = mockDiagnosisHistoryCreate();
+  const req = makeReq({
+    params: { id: "diagnosis-id" },
+    body: {},
+  });
+  const res = makeRes();
+
+  try {
+    await updateDiagnosis(req, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, {
+      errorCode: "NO_CHANGES",
+      error: "No changes detected. Update cancelled.",
+    });
+    assert.equal(transaction.calls, 1);
+    assert.equal(transaction.commits, 1);
+    assert.equal(transaction.aborts, 0);
+    assert.deepEqual(saveCalls, []);
+    assert.deepEqual(historyCreateCalls, []);
   } finally {
     restoreModelMethods();
   }

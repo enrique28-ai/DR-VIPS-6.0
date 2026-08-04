@@ -1,4 +1,5 @@
 // controllers/diagnosis.controller.js
+import mongoose from "mongoose";
 import Diagnosis from "../models/Diagnosis.js";
 import Patient from "../models/Patient.js";
 import DiagnosisHistory from "../models/DiagnosisHistory.js";
@@ -16,13 +17,18 @@ const diagnosisPatientDeceasedBody = () => ({
 
 
 // Helper: confirmar que el paciente pertenece al usuario autenticado
-const ownsPatient = async (patientId, userId) =>
-  !!(await Patient.exists({ _id: patientId, $or: [{ owners: userId }, { createdBy: userId }] }));
+const ownsPatient = async (patientId, userId, session) => {
+  const query = Patient.exists({
+    _id: patientId,
+    $or: [{ owners: userId }, { createdBy: userId }],
+  });
+  return !!(await (session ? query.session(session) : query));
+};
 
-const patientIsDeceased = async (patientId) => {
-  const patient = await Patient.findOne({ _id: patientId })
-    .select("isDeceased")
-    .lean();
+const patientIsDeceased = async (patientId, session) => {
+  let query = Patient.findOne({ _id: patientId }).select("isDeceased");
+  if (session) query = query.session(session);
+  const patient = await query.lean();
   return patient?.isDeceased === true;
 };
 
@@ -40,50 +46,48 @@ const getLang = (req) => (req.query.lang || "").trim();
 // POST /api/diagnoses
 export const createDiagnosis = async (req, res, next) => {
   try {
-    const { title, description, medicine, treatment, operation, patient } = req.body;
-    const meds = normalize(medicine);
-    const txs  = normalize(treatment);
-    const ops  = normalize(operation);
+    const result = await mongoose.connection.transaction(async (session) => {
+      const { title, description, medicine, treatment, operation, patient } = req.body;
+      const meds = normalize(medicine);
+      const txs  = normalize(treatment);
+      const ops  = normalize(operation);
 
-    if (!title?.trim() || !patient) {
-      return res.status(400).json({ error: "title and patient are required" });
-    }
-    
-    if (!(await ownsPatient(patient, req.user._id))) {
-      return res.status(403).json({ error: "Not authorized for this patient" });
-    }
+      if (!title?.trim() || !patient) {
+        return { status: 400, body: { error: "title and patient are required" } };
+      }
 
-    if (await patientIsDeceased(patient)) {
-      return res.status(409).json(diagnosisPatientDeceasedBody());
-    }
+      if (!(await ownsPatient(patient, req.user._id, session))) {
+        return { status: 403, body: { error: "Not authorized for this patient" } };
+      }
 
-    const doc = await Diagnosis.create({
-      title: title.trim(),
-      description: description?.trim() ?? "",
-      medicine: meds,
-      treatment: txs,
-      operation: ops,
-      patient,
-      createdBy: req.user._id,
+      if (await patientIsDeceased(patient, session)) {
+        return { status: 409, body: diagnosisPatientDeceasedBody() };
+      }
+
+      const [doc] = await Diagnosis.create([{
+        title: title.trim(),
+        description: description?.trim() ?? "",
+        medicine: meds,
+        treatment: txs,
+        operation: ops,
+        patient,
+        createdBy: req.user._id,
+      }], { session });
+
+      await DiagnosisHistory.create([{
+        diagnosisId: doc._id,
+        editedBy: req.user._id,
+        snapshot: doc.toObject(),
+        changeType: "created",
+      }], { session });
+
+      return { status: 201, body: doc };
     });
 
-    try {
-  await DiagnosisHistory.create({
-    diagnosisId: doc._id,
-    editedBy: req.user._id,
-    snapshot: doc.toObject(),
-    changeType: "created",
-  });
-} catch (e) {
-  console.error("DiagnosisHistory(create) error:", e);
-}
-
-
-
-    return res.status(201).json(doc);
-  } catch (err) {
-    console.error("createDiagnosis error:", err);
-   return res.status(500).json({ error: "Internal server error" });
+    return res.status(result.status).json(result.body);
+  } catch {
+    console.error("[diagnosis-write] atomic_write_failed");
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -247,68 +251,71 @@ export const getDiagnosisById = async (req, res, next) => {
 // PUT /api/diagnoses/:id
 export const updateDiagnosis = async (req, res, next) => {
   try {
-    const d = await Diagnosis.findOne({
-      _id: req.params.id,
-      createdBy: req.user._id,
+    const result = await mongoose.connection.transaction(async (session) => {
+      const d = await Diagnosis.findOne({
+        _id: req.params.id,
+        createdBy: req.user._id,
+      }).session(session);
+      if (!d) return { status: 404, body: { error: "Diagnostic not found" } };
+      if (!(await ownsPatient(d.patient, req.user._id, session))) {
+        return { status: 403, body: { error: "Not authorized" } };
+      }
+
+      if (await patientIsDeceased(d.patient, session)) {
+        return { status: 409, body: diagnosisPatientDeceasedBody() };
+      }
+
+      // --- DETECT CHANGES ---
+      // Evita guardar si el doctor no cambió nada (para mostrar toast de "No changes").
+      const nextTitle =
+        req.body.title != null ? String(req.body.title).trim() : (d.title ?? "");
+      const nextDesc =
+        req.body.description != null
+          ? String(req.body.description).trim()
+          : (d.description ?? "");
+      const nextMed = ("medicine" in req.body) ? normalize(req.body.medicine) : normalize(d.medicine);
+      const nextTx  = ("treatment" in req.body) ? normalize(req.body.treatment) : normalize(d.treatment);
+      const nextOp  = ("operation" in req.body) ? normalize(req.body.operation) : normalize(d.operation);
+
+      const arrKey = (a) => normalize(a).slice().sort().join("||");
+      const noChanges =
+        String(nextTitle) === String(d.title ?? "") &&
+        String(nextDesc) === String(d.description ?? "") &&
+        arrKey(nextMed) === arrKey(d.medicine) &&
+        arrKey(nextTx) === arrKey(d.treatment) &&
+        arrKey(nextOp) === arrKey(d.operation);
+
+      if (noChanges) {
+        return {
+          status: 400,
+          body: {
+            errorCode: "NO_CHANGES",
+            error: "No changes detected. Update cancelled.",
+          },
+        };
+      }
+
+      // Aplicar cambios (ya normalizados)
+      d.title = nextTitle;
+      d.description = nextDesc;
+      d.medicine = nextMed;
+      d.treatment = nextTx;
+      d.operation = nextOp;
+
+      await d.save({ session });
+      await DiagnosisHistory.create([{
+        diagnosisId: d._id,
+        editedBy: req.user._id,
+        snapshot: d.toObject(),
+        changeType: "updated",
+      }], { session });
+
+      return { status: 200, body: d };
     });
-    if (!d) return res.status(404).json({ error: "Diagnostic not found" });
-    if (!(await ownsPatient(d.patient, req.user._id))) {
-      return res.status(403).json({ error: "Not authorized" });
-    }
 
-    if (await patientIsDeceased(d.patient)) {
-      return res.status(409).json(diagnosisPatientDeceasedBody());
-    }
-
-   // --- DETECT CHANGES ---
-    // Evita guardar si el doctor no cambió nada (para mostrar toast de "No changes").
-    const nextTitle =
-      req.body.title != null ? String(req.body.title).trim() : (d.title ?? "");
-    const nextDesc =
-      req.body.description != null
-        ? String(req.body.description).trim()
-        : (d.description ?? "");
-    const nextMed = ("medicine" in req.body) ? normalize(req.body.medicine) : normalize(d.medicine);
-    const nextTx  = ("treatment" in req.body) ? normalize(req.body.treatment) : normalize(d.treatment);
-    const nextOp  = ("operation" in req.body) ? normalize(req.body.operation) : normalize(d.operation);
-
-    const arrKey = (a) => normalize(a).slice().sort().join("||");
-    const noChanges =
-      String(nextTitle) === String(d.title ?? "") &&
-      String(nextDesc) === String(d.description ?? "") &&
-      arrKey(nextMed) === arrKey(d.medicine) &&
-      arrKey(nextTx) === arrKey(d.treatment) &&
-      arrKey(nextOp) === arrKey(d.operation);
-
-    if (noChanges) {
-      return res.status(400).json({
-        errorCode: "NO_CHANGES",
-        error: "No changes detected. Update cancelled.",
-      });
-    }
-
-    // Aplicar cambios (ya normalizados)
-    d.title = nextTitle;
-    d.description = nextDesc;
-    d.medicine = nextMed;
-    d.treatment = nextTx;
-    d.operation = nextOp;
-
-
-    await d.save();
-   try {
-  await DiagnosisHistory.create({
-    diagnosisId: d._id,
-    editedBy: req.user._id,
-    snapshot: d.toObject(),
-    changeType: "updated",
-  });
-} catch (e) {
-  console.error("DiagnosisHistory(update) error:", e);
-}
-    return res.json(d);
-  } catch (err) {
-    console.error("updateDiagnosis error:", err);
+    return res.status(result.status).json(result.body);
+  } catch {
+    console.error("[diagnosis-write] atomic_write_failed");
     return res.status(500).json({ error: "Internal server error" });
   }
 };
