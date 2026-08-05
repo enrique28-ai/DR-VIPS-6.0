@@ -90,6 +90,7 @@ let mediaQuery;
 
 beforeAll(async () => {
   vi.stubEnv("VITE_CAPTCHA_ENABLED", "true");
+  vi.stubEnv("VITE_CAPTCHA_PROVIDER", "recaptcha");
   SignUpPage = (await import("./SignUpPage.jsx")).default;
 });
 
