@@ -1,6 +1,6 @@
 import Notification from "../models/Notification.js";
 
-export const getMyNotifications = async (req, res) => {
+export const getMyNotifications = async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit || "30", 10), 100);
     const unreadOnly = req.query.unread === "1";
@@ -14,12 +14,12 @@ export const getMyNotifications = async (req, res) => {
     ]);
 
     return res.json({ items, unreadCount });
-  } catch (e) {
-    return res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    return next(error);
   }
 };
 
-export const markAsRead = async (req, res) => {
+export const markAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -33,19 +33,19 @@ export const markAsRead = async (req, res) => {
     }
 
     return res.json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    return next(error);
   }
 };
 
-export const markAllRead = async (req, res) => {
+export const markAllRead = async (req, res, next) => {
   try {
     await Notification.updateMany(
       { recipient: req.user._id, isRead: false },
       { $set: { isRead: true } }
     );
     return res.json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    return next(error);
   }
 };
