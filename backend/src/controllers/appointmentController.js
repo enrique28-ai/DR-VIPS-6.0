@@ -214,7 +214,7 @@ export const getAppointments = async (req, res, next) => {
   }
 };
 
-export const acceptAppointment = async (req, res) => {
+export const acceptAppointment = async (req, res, next) => {
   try {
     const appt = await Appointment.findById(req.params.id).populate("patient", APPOINTMENT_PATIENT_POPULATE_SELECT);
     if (!appt) return res.status(404).json({ error: "Not found" });
@@ -263,9 +263,8 @@ export const acceptAppointment = async (req, res) => {
       meta: { role: "doctor" },
     });
     return res.json(appt);
-  } catch (err) {
-    console.error("acceptAppointment error:", err);
-    return res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    return next(error);
   }
 };
 
