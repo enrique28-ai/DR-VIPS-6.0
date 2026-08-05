@@ -174,7 +174,7 @@ export const createAppointment = async (req, res) => {
   }
 };
 
-export const getAppointments = async (req, res) => {
+export const getAppointments = async (req, res, next) => {
   try {
     let query = {};
 
@@ -209,9 +209,8 @@ export const getAppointments = async (req, res) => {
           !appointmentPatientIsDeceased(appt)
       )
     );
-  } catch (err) {
-    console.error("getAppointments error:", err);
-    return res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    return next(error);
   }
 };
 
