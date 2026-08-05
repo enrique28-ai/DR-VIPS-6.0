@@ -268,7 +268,7 @@ export const acceptAppointment = async (req, res, next) => {
   }
 };
 
-export const deleteAppointment = async (req, res) => {
+export const deleteAppointment = async (req, res, next) => {
   try {
     const appt = await Appointment.findById(req.params.id).populate("patient", APPOINTMENT_PATIENT_POPULATE_SELECT).populate("doctor", "name  email");
     if (!appt) return res.status(404).json({ error: "Not found" });
@@ -336,8 +336,7 @@ export const deleteAppointment = async (req, res) => {
     }
     await appt.deleteOne();
     return res.json({ message: "Appointment deleted" });
-  } catch (err) {
-    console.error("deleteAppointment error:", err);
-    return res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    return next(error);
   }
 };
