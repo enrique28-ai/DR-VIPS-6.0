@@ -11,13 +11,24 @@ const appointmentErrorKey = (code) => {
   return map[code] || null;
 };
 
-const appointmentErrorMessage = (error, fallbackKey, { allowBackendMessage = false } = {}) => {
+const CREATE_APPOINTMENT_ALLOWED_BACKEND_MESSAGES = Object.freeze([
+  "Invalid dates",
+  "End must be after start",
+  "Patient not found or is deceased",
+  "Time range overlaps an existing appointment",
+]);
+
+const appointmentErrorMessage = (
+  error,
+  fallbackKey,
+  { allowedBackendMessages = [] } = {}
+) => {
   const code = error?.response?.data?.errorCode;
   const key = appointmentErrorKey(code);
   if (key) return i18n.t(key);
 
   const backendMessage = error?.response?.data?.error;
-  if (allowBackendMessage && backendMessage) return backendMessage;
+  if (allowedBackendMessages.includes(backendMessage)) return backendMessage;
 
   return i18n.t(fallbackKey);
 };
@@ -53,7 +64,7 @@ export function useCreateAppointment() {
     onError: (e) =>
       toast.error(
         appointmentErrorMessage(e, "calendar.toasts.createFailed", {
-          allowBackendMessage: true,
+          allowedBackendMessages: CREATE_APPOINTMENT_ALLOWED_BACKEND_MESSAGES,
         })
       ),
   });
