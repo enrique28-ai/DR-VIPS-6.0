@@ -1,4 +1,5 @@
 ﻿import express from 'express';
+import mongoose from "mongoose";
 import dotenv from 'dotenv';
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -14,6 +15,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import { startReminderJob } from "./services/reminderService.js";
 import { apiNoStore, createSecurityHeaders } from "./middleware/securityHeaders.js";
 import { apiNotFound, errorHandler } from "./middleware/errorHandler.js";
+import { createGracefulShutdown } from "./runtime/gracefulShutdown.js";
 
 
 
@@ -68,10 +70,20 @@ if (process.env.NODE_ENV === "production") {
 app.use(errorHandler);
  
 connectDB().then(() => {
-    if (process.env.APPT_REMINDERS_ENABLED !== "false") {
-      startReminderJob();
-    }
-    app.listen(PORT, () => {
+    const reminderJob =
+      process.env.APPT_REMINDERS_ENABLED !== "false"
+        ? startReminderJob()
+        : null;
+
+    const server = app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
+
+    const lifecycle = createGracefulShutdown({
+      server,
+      reminderJob,
+      disconnectMongo: () => mongoose.disconnect(),
+    });
+
+    lifecycle.registerSignalHandlers();
 });
