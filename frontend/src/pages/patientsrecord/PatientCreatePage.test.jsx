@@ -246,7 +246,6 @@ describe("PatientCreatePage phone country behavior", () => {
     renderCreatePage();
 
     fillValidAdultBaseline();
-    selectMexicoBirthplace();
     submitForm();
 
     expect(mutate).toHaveBeenCalledTimes(1);
