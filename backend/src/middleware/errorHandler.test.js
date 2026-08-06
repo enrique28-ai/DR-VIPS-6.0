@@ -412,12 +412,12 @@ test("server registers API 404 before static handling and errorHandler last", as
   const uploads = serverSource.indexOf('app.use("/uploads"');
   const spaFallback = serverSource.indexOf("app.get(/^(?!\\/api).*/");
   const globalHandler = serverSource.indexOf("app.use(errorHandler);");
-  const connect = serverSource.indexOf("connectDB().then");
+  const startup = serverSource.indexOf("const startup = createStartup");
 
   assert.ok(notificationRoutes >= 0);
   assert.ok(api404 > notificationRoutes);
   assert.ok(uploads > api404);
   assert.ok(spaFallback > uploads);
   assert.ok(globalHandler > spaFallback);
-  assert.ok(connect > globalHandler);
+  assert.ok(startup > globalHandler);
 });

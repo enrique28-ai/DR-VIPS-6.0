@@ -567,12 +567,13 @@ test("server source wires captured reminder, listener, Mongo disconnect, and han
   const serverSource = await readFile(new URL("../server.js", import.meta.url), "utf8");
 
   assert.match(serverSource, /import\s+\{\s*createGracefulShutdown\s*\}/);
-  assert.match(serverSource, /connectDB\(\)\.then\s*\(\s*\(\)\s*=>\s*\{/);
-  assert.match(serverSource, /const\s+reminderJob\s*=/);
-  assert.match(serverSource, /process\.env\.APPT_REMINDERS_ENABLED\s*!==\s*"false"\s*\?\s*startReminderJob\(\)\s*:\s*null/);
-  assert.match(serverSource, /const\s+server\s*=\s*app\.listen\s*\(/);
-  assert.match(serverSource, /createGracefulShutdown\s*\(\s*\{[\s\S]*?server,[\s\S]*?reminderJob,[\s\S]*?disconnectMongo:/);
-  assert.match(serverSource, /lifecycle\.registerSignalHandlers\s*\(\s*\)/);
+  assert.match(serverSource, /import\s+\{\s*createStartup\s*\}/);
+  assert.match(serverSource, /const\s+startup\s*=\s*createStartup\s*\(/);
+  assert.match(serverSource, /startReminder:\s*startReminderJob/);
+  assert.match(serverSource, /listenHttp:\s*\(\)\s*=>\s*app\.listen\s*\(/);
+  assert.match(serverSource, /createLifecycle:\s*createGracefulShutdown/);
+  assert.match(serverSource, /disconnectMongo:\s*\(\)\s*=>\s*mongoose\.disconnect\(\)/);
+  assert.match(serverSource, /void\s+startup\.start\s*\(\s*\)/);
   assert.match(serverSource, /app\.use\("\/api\/health",\s*healthRoutes\)/);
   assert.match(serverSource, /app\.use\("\/api\/auth",\s*authRoutes\)/);
   assert.match(serverSource, /app\.use\("\/api",\s*apiNotFound\)/);
