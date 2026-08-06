@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
+import mongoose from "mongoose";
+
 import Appointment from "../../../models/Appointment.js";
 import Notification from "../../../models/Notification.js";
 import Patient from "../../../models/Patient.js";
@@ -28,13 +30,19 @@ const originalUserMethods = {
   findOne: User.findOne,
 };
 
+const originalTransaction = mongoose.connection.transaction;
+const TEST_SESSION = Object.freeze({ id: "appointment-create-test-session" });
+
 const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
 const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
 const APPOINTMENT_GUARDIAN_SELECT = "_id isDeceased";
 
 after(() => {
   restoreModelMethods();
+  mongoose.connection.transaction = originalTransaction;
 });
+
+mongoose.connection.transaction = async (callback) => callback(TEST_SESSION);
 
 function restoreModelMethods() {
   Appointment.create = originalAppointmentMethods.create;
@@ -105,18 +113,39 @@ function makeAppointment(overrides = {}) {
   return appt;
 }
 
+function makeQueryResult(response, { onSelect, onLean } = {}) {
+  const query = {
+    lean() {
+      onLean?.();
+      return query;
+    },
+    select(projection) {
+      onSelect?.(projection);
+      return query;
+    },
+    session(session) {
+      assert.equal(session, TEST_SESSION);
+      return query;
+    },
+    then(resolve, reject) {
+      return Promise.resolve(response).then(resolve, reject);
+    },
+  };
+
+  return query;
+}
+
 function mockPatientFindOne(response) {
   const calls = [];
 
   Patient.findOne = (query) => {
     const call = { query, select: undefined };
     calls.push(call);
-    return {
-      select: (projection) => {
+    return makeQueryResult(response, {
+      onSelect: (projection) => {
         call.select = projection;
-        return response;
       },
-    };
+    });
   };
 
   return calls;
@@ -134,13 +163,12 @@ function mockPatientFindOneSequence(responses) {
     calls.push(call);
     index += 1;
 
-    return {
-      select: (projection) => {
+    return makeQueryResult(response.value, {
+      onSelect: (projection) => {
         call.select = projection;
         if (response.projection) assert.equal(projection, response.projection);
-        return response.value;
       },
-    };
+    });
   };
 
   return calls;
@@ -152,12 +180,11 @@ function mockAppointmentFindOne(response) {
   Appointment.findOne = (query) => {
     const call = { query, select: undefined };
     calls.push(call);
-    return {
-      select: (projection) => {
+    return makeQueryResult(response, {
+      onSelect: (projection) => {
         call.select = projection;
-        return response;
       },
-    };
+    });
   };
 
   return calls;
@@ -166,9 +193,12 @@ function mockAppointmentFindOne(response) {
 function mockAppointmentCreate(response) {
   const calls = [];
 
-  Appointment.create = async (payload) => {
-    calls.push(payload);
-    return response;
+  Appointment.create = async (payload, options) => {
+    assert.deepEqual(options, { session: TEST_SESSION });
+    assert.equal(Array.isArray(payload), true);
+    assert.equal(payload.length, 1);
+    calls.push(payload[0]);
+    return [response];
   };
 
   return calls;
@@ -193,16 +223,16 @@ function mockUserFindOne(response) {
   const calls = [];
 
   User.findOne = (query) => {
-    const call = { query, select: undefined };
+    const call = { query, select: undefined, lean: false };
     calls.push(call);
-    return {
-      select: (projection) => {
-        call.select = projection;
-        return {
-          lean: async () => response,
-        };
+    return makeQueryResult(response, {
+      onLean: () => {
+        call.lean = true;
       },
-    };
+      onSelect: (projection) => {
+        call.select = projection;
+      },
+    });
   };
 
   return calls;
@@ -211,8 +241,15 @@ function mockUserFindOne(response) {
 function mockNotificationCreate() {
   const calls = [];
 
-  Notification.create = async (payload) => {
-    calls.push(payload);
+  Notification.create = async (payload, options) => {
+    if (options) {
+      assert.deepEqual(options, { session: TEST_SESSION });
+      assert.equal(Array.isArray(payload), true);
+      assert.equal(payload.length, 1);
+      calls.push(payload[0]);
+    } else {
+      calls.push(payload);
+    }
     return payload;
   };
 
@@ -459,6 +496,7 @@ test("createAppointment allows alive minor when guardian is alive", async () => 
       {
         query: { email: "parent@example.com" },
         select: "_id",
+        lean: true,
       },
     ]);
   } finally {
@@ -523,6 +561,7 @@ test("createAppointment allows a reassigned minor when the new guardian is alive
       {
         query: { email: "newparent@example.com" },
         select: "_id",
+        lean: true,
       },
     ]);
   } finally {
@@ -594,11 +633,28 @@ test("createAppointment sends patient notification when patient user exists", as
       {
         query: { email: "patient@example.com" },
         select: "_id",
+        lean: true,
       },
     ]);
     assert.equal(notificationCalls.length, 1);
     assert.equal(notificationCalls[0].recipient, "patient-user-id");
     assert.equal(notificationCalls[0].code, "APPT_NEW_appointment-id");
+    assert.deepEqual(notificationCalls[0].title, {
+      en: "New Appointment Request",
+      es: "Nueva Solicitud de Cita",
+    });
+    assert.equal(
+      notificationCalls[0].message.en.includes("Dr. Test scheduled an appointment"),
+      true,
+    );
+    assert.equal(
+      notificationCalls[0].message.es.includes("Dr. Test"),
+      true,
+    );
+    assert.equal(
+      notificationCalls[0].message.es.includes("Por favor"),
+      true,
+    );
     assert.equal(notificationCalls[0].relatedAppointment, "appointment-id");
     assert.equal(notificationCalls[0].meta.role, "patient");
   } finally {
@@ -631,6 +687,7 @@ test("createAppointment sends parent notification when minor has parentEmail and
       {
         query: { email: "parent@example.com" },
         select: "_id",
+        lean: true,
       },
     ]);
     assert.equal(notificationCalls.length, 1);
@@ -665,6 +722,7 @@ test("createAppointment skips notification when patient has no email or patient 
       {
         query: { email: "missing@example.com" },
         select: "_id",
+        lean: true,
       },
     ]);
   } finally {

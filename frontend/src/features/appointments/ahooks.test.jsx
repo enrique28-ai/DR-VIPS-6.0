@@ -37,6 +37,27 @@ describe("appointment hooks", () => {
     vi.clearAllMocks();
   });
 
+  async function expectCreateFailure(error, expectedMessage) {
+    api.post.mockRejectedValueOnce(error);
+
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = createQueryWrapper(queryClient);
+
+    const { result } = renderHook(() => useCreateAppointment(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.mutateAsync({ patientId: "patient-1" });
+      }),
+    ).rejects.toBe(error);
+
+    expect(toast.error).toHaveBeenCalledOnce();
+    expect(toast.error).toHaveBeenCalledWith(expectedMessage);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  }
+
   test("useAppointments fetches appointments and normalizes dates", async () => {
     const appointment = {
       _id: "appointment-1",
@@ -126,29 +147,41 @@ describe("appointment hooks", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["appointments"] });
   });
 
-  test("useCreateAppointment maps deceased patient error codes to the stable calendar error key", async () => {
-    const error = {
-      response: {
-        data: {
-          errorCode: "APPOINTMENT_PATIENT_DECEASED",
-        },
-      },
-    };
-    api.post.mockRejectedValueOnce(error);
-
-    const queryClient = createTestQueryClient();
-    const wrapper = createQueryWrapper(queryClient);
-
-    const { result } = renderHook(() => useCreateAppointment(), { wrapper });
-
-    await expect(
-      act(async () => {
-        await result.current.mutateAsync({ patient: "patient-1" });
-      }),
-    ).rejects.toBe(error);
-
-    expect(toast.error).toHaveBeenCalledWith("calendar.errors.patientDeceased");
+  test.each([
+    ["APPOINTMENT_PATIENT_DECEASED", "calendar.errors.patientDeceased"],
+    ["APPOINTMENT_GUARDIAN_UNAVAILABLE", "calendar.errors.guardianUnavailable"],
+  ])("useCreateAppointment translates the stable error code %s", async (errorCode, expectedMessage) => {
+    await expectCreateFailure(
+      { response: { data: { errorCode, error: "Unexpected backend text" } } },
+      expectedMessage,
+    );
   });
+
+  test.each([
+    "Invalid dates",
+    "End must be after start",
+    "Patient not found or is deceased",
+    "Time range overlaps an existing appointment",
+  ])("useCreateAppointment preserves the known backend message: %s", async (backendMessage) => {
+    await expectCreateFailure(
+      { response: { status: 400, data: { error: backendMessage } } },
+      backendMessage,
+    );
+  });
+
+  test.each([
+    [500, "Internal server error"],
+    [409, "Resource already exists"],
+    [400, "Unexpected backend message"],
+  ])(
+    "useCreateAppointment hides unexpected HTTP %s backend errors",
+    async (status, backendMessage) => {
+      await expectCreateFailure(
+        { response: { status, data: { error: backendMessage } } },
+        "calendar.toasts.createFailed",
+      );
+    },
+  );
 
   test("useAcceptAppointment maps unavailable guardian error codes to the stable calendar error key", async () => {
     const error = {

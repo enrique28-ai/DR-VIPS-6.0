@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
+import mongoose from "mongoose";
+
 import Appointment from "../../../models/Appointment.js";
 import Notification from "../../../models/Notification.js";
 import Patient from "../../../models/Patient.js";
@@ -27,6 +29,10 @@ const originalPatientMethods = {
   findOne: Patient.findOne,
 };
 
+const originalTransaction = mongoose.connection.transaction;
+const TEST_SESSION = Object.freeze({ id: "appointment-create-privacy-session" });
+let transactionCalls = 0;
+
 const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
 const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
 const APPOINTMENT_PATIENT_LIST_POPULATE_SELECT = "fullname email parentEmail minorKey age name isDeceased";
@@ -34,7 +40,14 @@ const APPOINTMENT_GUARDIAN_SELECT = "_id isDeceased";
 
 after(() => {
   restoreModelMethods();
+  mongoose.connection.transaction = originalTransaction;
 });
+
+mongoose.connection.transaction = async (callback) => {
+  transactionCalls += 1;
+  assert.equal(typeof callback, "function");
+  return callback(TEST_SESSION);
+};
 
 function restoreModelMethods() {
   Appointment.create = originalAppointmentMethods.create;
@@ -94,19 +107,34 @@ function guardAppointmentFindOne() {
   };
 }
 
+function makeQueryResult(response, onSelect) {
+  const query = {
+    select(projection) {
+      onSelect?.(projection);
+      return query;
+    },
+    session(session) {
+      assert.equal(session, TEST_SESSION);
+      return query;
+    },
+    then(resolve, reject) {
+      return Promise.resolve(response).then(resolve, reject);
+    },
+  };
+
+  return query;
+}
+
 function mockPatientFindOne(response, expectedProjection = APPOINTMENT_PATIENT_SELECT) {
   const calls = [];
 
   Patient.findOne = (query) => {
     const call = { query, select: undefined };
     calls.push(call);
-    return {
-      select: (projection) => {
-        call.select = projection;
-        assert.equal(projection, expectedProjection);
-        return response;
-      },
-    };
+    return makeQueryResult(response, (projection) => {
+      call.select = projection;
+      assert.equal(projection, expectedProjection);
+    });
   };
 
   return calls;
@@ -129,13 +157,10 @@ function mockPatientFindOneSequence(responses) {
     calls.push(call);
     index += 1;
 
-    return {
-      select: (projection) => {
-        call.select = projection;
-        assert.equal(projection, expectedProjection);
-        return value;
-      },
-    };
+    return makeQueryResult(value, (projection) => {
+      call.select = projection;
+      assert.equal(projection, expectedProjection);
+    });
   };
 
   return calls;
@@ -223,12 +248,9 @@ function mockAppointmentFindOne(response) {
   Appointment.findOne = (query) => {
     const call = { query, select: undefined };
     calls.push(call);
-    return {
-      select: (projection) => {
-        call.select = projection;
-        return response;
-      },
-    };
+    return makeQueryResult(response, (projection) => {
+      call.select = projection;
+    });
   };
 
   return calls;
@@ -525,12 +547,14 @@ test("createAppointment rejects invalid dates with 400", async () => {
     },
   });
   const res = makeRes();
+  const transactionCallsBefore = transactionCalls;
 
   try {
     await createAppointment(req, res);
 
     assert.equal(res.statusCode, 400);
     assert.deepEqual(res.body, { error: "Invalid dates" });
+    assert.equal(transactionCalls, transactionCallsBefore);
   } finally {
     restoreModelMethods();
   }
@@ -549,12 +573,14 @@ test("createAppointment rejects end before or equal to start with 400", async ()
     },
   });
   const res = makeRes();
+  const transactionCallsBefore = transactionCalls;
 
   try {
     await createAppointment(req, res);
 
     assert.equal(res.statusCode, 400);
     assert.deepEqual(res.body, { error: "End must be after start" });
+    assert.equal(transactionCalls, transactionCallsBefore);
   } finally {
     restoreModelMethods();
   }

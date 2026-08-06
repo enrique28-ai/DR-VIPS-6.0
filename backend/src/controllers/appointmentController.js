@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Appointment from "../models/Appointment.js";
 import Patient from "../models/Patient.js";
 import Notification from "../models/Notification.js";
@@ -62,7 +63,7 @@ const appointmentPatientUsesGuardian = (patient) => {
       (Number.isFinite(age) && age < 18)
   );
 };
-const getAppointmentGuardian = async (patient) => {
+const getAppointmentGuardian = async (patient, session) => {
   if (!appointmentPatientUsesGuardian(patient)) {
     return { required: false, guardian: null };
   }
@@ -72,17 +73,18 @@ const getAppointmentGuardian = async (patient) => {
     return { required: true, guardian: null };
   }
 
-  const guardian = await Patient.findOne({ email: parentEmail }).select("_id isDeceased");
+  const guardianQuery = Patient.findOne({ email: parentEmail }).select("_id isDeceased");
+  const guardian = await (session ? guardianQuery.session(session) : guardianQuery);
   return { required: true, guardian };
 };
-const appointmentGuardianIsUnavailable = async (patient) => {
-  const { required, guardian } = await getAppointmentGuardian(patient);
+const appointmentGuardianIsUnavailable = async (patient, session) => {
+  const { required, guardian } = await getAppointmentGuardian(patient, session);
   return required && (!guardian || guardian.isDeceased === true);
 };
 // -----------------------
 
 
-export const createAppointment = async (req, res) => {
+export const createAppointment = async (req, res, next) => {
   try {
     const { patientId, start, end, reason } = req.body;
 
@@ -96,81 +98,110 @@ export const createAppointment = async (req, res) => {
       return res.status(400).json({ error: "End must be after start" });
     }
 
-    const patient = await Patient.findOne({
-      _id: patientId,
-      isDeceased: false,
-      $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-    }).select(APPOINTMENT_PATIENT_SELECT);
-
-    if (!patient) {
-      const deceasedPatient = await Patient.findOne({
+    const result = await mongoose.connection.transaction(async (session) => {
+      const patient = await Patient.findOne({
         _id: patientId,
-        isDeceased: true,
+        isDeceased: false,
         $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
-      }).select(APPOINTMENT_PATIENT_SELECT);
+      })
+        .select(APPOINTMENT_PATIENT_SELECT)
+        .session(session);
 
-      if (deceasedPatient) {
-        return res
-          .status(404)
-          .json(deceasedAppointmentErrorBody("Patient not found or is deceased"));
+      if (!patient) {
+        const deceasedPatient = await Patient.findOne({
+          _id: patientId,
+          isDeceased: true,
+          $or: [{ createdBy: req.user._id }, { owners: req.user._id }],
+        })
+          .select(APPOINTMENT_PATIENT_SELECT)
+          .session(session);
+
+        if (deceasedPatient) {
+          return {
+            status: 404,
+            body: deceasedAppointmentErrorBody("Patient not found or is deceased"),
+          };
+        }
+
+        return {
+          status: 404,
+          body: { error: "Patient not found or is deceased" },
+        };
       }
 
-      return res.status(404).json({ error: "Patient not found or is deceased" });
-    }
+      if (await appointmentGuardianIsUnavailable(patient, session)) {
+        return {
+          status: 409,
+          body: guardianUnavailableAppointmentErrorBody(),
+        };
+      }
 
-    if (await appointmentGuardianIsUnavailable(patient)) {
-      return res.status(409).json(guardianUnavailableAppointmentErrorBody());
-    }
+      // ✅ ANTI-OVERLAP (Backend Check)
+      // Buscamos si el doctor o paciente ya tiene algo 'pending' o 'accepted' en ese rango
+      const conflict = await Appointment.findOne({
+        status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+        $or: [{ doctor: req.user._id }, { patient: patientId }],
+        start: { $lt: e }, // Empieza antes de que yo termine
+        end: { $gt: s },   // Termina después de que yo empiece
+      })
+        .select("_id")
+        .session(session);
 
-    // ✅ ANTI-OVERLAP (Backend Check)
-    // Buscamos si el doctor o paciente ya tiene algo 'pending' o 'accepted' en ese rango
-    const conflict = await Appointment.findOne({
-      status: { $in: ACTIVE_APPOINTMENT_STATUSES },
-      $or: [{ doctor: req.user._id }, { patient: patientId }],
-      start: { $lt: e }, // Empieza antes de que yo termine
-      end: { $gt: s },   // Termina después de que yo empiece
-    }).select("_id");
+      if (conflict) {
+        return {
+          status: 409,
+          body: { error: "Time range overlaps an existing appointment" },
+        };
+      }
 
-    if (conflict) {
-      return res.status(409).json({
-        error: "Time range overlaps an existing appointment",
-      });
-    }
-
-    const appt = await Appointment.create({
-      doctor: req.user._id,
-      patient: patientId,
-      start: s,
-      end: e,
-      reason: reason?.trim(),
-      status: "pending",
-    });
+      const [appt] = await Appointment.create(
+        [
+          {
+            doctor: req.user._id,
+            patient: patientId,
+            start: s,
+            end: e,
+            reason: reason?.trim(),
+            status: "pending",
+          },
+        ],
+        { session }
+      );
 
       // 🔔 NOTIF al paciente (si existe cuenta User para ese email)
-    const pEmail = normEmail(patient.email) || normEmail(patient.parentEmail);
-    if (pEmail) {
-      const patientUser = await User.findOne({ email: pEmail }).select("_id").lean();
-      if (patientUser?._id) {
-        const dName = doctorDisplayName(req.user);
-        await Notification.create({
-          recipient: patientUser._id,
-          code: `APPT_NEW_${appt._id}`,
-          title: { en: "New Appointment Request", es: "Nueva Solicitud de Cita" },
-          message: {
-            en: `${dName} scheduled an appointment for ${formatDateTime(s, "en-US")}. Please review it.`,
-            es: `${dName} programó una cita para el ${formatDateTime(s, "es-MX")}. Por favor revísala.`,
-          },
-          relatedAppointment: appt._id,
-          meta: { role: "patient" },
-        });
+      const pEmail = normEmail(patient.email) || normEmail(patient.parentEmail);
+      if (pEmail) {
+        const patientUser = await User.findOne({ email: pEmail })
+          .select("_id")
+          .session(session)
+          .lean();
+        if (patientUser?._id) {
+          const dName = doctorDisplayName(req.user);
+          await Notification.create(
+            [
+              {
+                recipient: patientUser._id,
+                code: `APPT_NEW_${appt._id}`,
+                title: { en: "New Appointment Request", es: "Nueva Solicitud de Cita" },
+                message: {
+                  en: `${dName} scheduled an appointment for ${formatDateTime(s, "en-US")}. Please review it.`,
+                  es: `${dName} programó una cita para el ${formatDateTime(s, "es-MX")}. Por favor revísala.`,
+                },
+                relatedAppointment: appt._id,
+                meta: { role: "patient" },
+              },
+            ],
+            { session }
+          );
+        }
       }
-    }
 
+      return { status: 201, body: appt };
+    });
 
-    return res.status(201).json(appt);
-  } catch (err) {
-    console.error("createAppointment error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    return next(error);
   }
 };
 
