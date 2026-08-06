@@ -16,19 +16,13 @@ import { startReminderJob } from "./services/reminderService.js";
 import { apiNoStore, createSecurityHeaders } from "./middleware/securityHeaders.js";
 import { apiNotFound, errorHandler } from "./middleware/errorHandler.js";
 import { createGracefulShutdown } from "./runtime/gracefulShutdown.js";
+import { createStartup } from "./runtime/startup.js";
 
 
 
 
 
 dotenv.config();
-const requiredEnv = ["MONGO_URI", "JWT_SECRET", "PENDING_SECRET"];
-
-for (const key of requiredEnv) {
-  if (!process.env[key]) {
-    throw new Error(`Missing required env var: ${key}`);
-  }
-}
 const app = express();
 const PORT = process.env.PORT || 5001;
 const __dirname = path.resolve();
@@ -69,21 +63,20 @@ if (process.env.NODE_ENV === "production") {
 
 app.use(errorHandler);
  
-connectDB().then(() => {
-    const reminderJob =
-      process.env.APPT_REMINDERS_ENABLED !== "false"
-        ? startReminderJob()
-        : null;
-
-    const server = app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-    });
-
-    const lifecycle = createGracefulShutdown({
-      server,
-      reminderJob,
-      disconnectMongo: () => mongoose.disconnect(),
-    });
-
-    lifecycle.registerSignalHandlers();
+const startup = createStartup({
+  env: process.env,
+  connectMongo: connectDB,
+  startReminder: startReminderJob,
+  listenHttp: () =>
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    }),
+  createLifecycle: createGracefulShutdown,
+  disconnectMongo: () => mongoose.disconnect(),
+  requestExit: (exitCode) => {
+    process.exitCode = exitCode;
+  },
+  logger: console,
 });
+
+void startup.start();
