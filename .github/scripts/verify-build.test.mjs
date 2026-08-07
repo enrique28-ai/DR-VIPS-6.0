@@ -336,10 +336,50 @@ test("workflow retains CI policy while hardening actions, jobs, and credentials"
   assert.doesNotMatch(workflow, /actions\/checkout@v4/);
   assert.doesNotMatch(workflow, /actions\/setup-node@v4/);
   assert.equal((workflow.match(/persist-credentials:\s*false/g) ?? []).length, 2);
+  assert.equal((workflow.match(/fetch-depth:\s*0/g) ?? []).length, 1);
+  assert.match(backend, /persist-credentials:\s*false[\s\S]*?fetch-depth:\s*0/);
   assert.equal((workflow.match(/node-version-file:\s*\.node-version/g) ?? []).length, 2);
   assert.doesNotMatch(workflow, /node-version:\s*22/);
 
-  assert.match(backend, /git diff --check/);
+  assert.doesNotMatch(workflow, /^\s*run:\s*git diff --check\s*$/m);
+  const whitespaceStepStart = backend.indexOf("- name: Check committed whitespace errors");
+  assert.ok(whitespaceStepStart >= 0);
+  const whitespaceStepRemainder = backend.slice(whitespaceStepStart);
+  const nextBackendStep = whitespaceStepRemainder.indexOf("\n      - name:", 1);
+  const whitespaceStep = nextBackendStep >= 0
+    ? whitespaceStepRemainder.slice(0, nextBackendStep)
+    : whitespaceStepRemainder;
+  const whitespaceScriptStart = whitespaceStep.indexOf("run: |");
+  assert.ok(whitespaceScriptStart >= 0);
+  const whitespaceScript = whitespaceStep.slice(whitespaceScriptStart);
+
+  assert.match(whitespaceStep, /EVENT_NAME:\s*\$\{\{\s*github\.event_name\s*\}\}/);
+  assert.match(
+    whitespaceStep,
+    /PR_BASE_SHA:\s*\$\{\{\s*github\.event\.pull_request\.base\.sha\s*\}\}/,
+  );
+  assert.match(
+    whitespaceStep,
+    /PUSH_BEFORE_SHA:\s*\$\{\{\s*github\.event\.before\s*\}\}/,
+  );
+  assert.match(whitespaceScript, /case\s+"\$EVENT_NAME"\s+in/);
+  assert.match(whitespaceScript, /^\s*pull_request\)\s*$/m);
+  assert.match(whitespaceScript, /git diff --check "\$PR_BASE_SHA\.\.\.HEAD"/);
+  assert.match(whitespaceScript, /^\s*push\)\s*$/m);
+  assert.match(whitespaceScript, /git diff --check "\$PUSH_BEFORE_SHA\.\.\.HEAD"/);
+  assert.match(whitespaceScript, /^\s*workflow_dispatch\)\s*$/m);
+  assert.match(whitespaceScript, /git rev-parse HEAD\^ >\/dev\/null 2>&1/);
+  assert.match(whitespaceScript, /git diff --check HEAD\^(?:\.\.|\.\.\.|\s+)HEAD/);
+  assert.match(whitespaceScript, /git show --check --format= HEAD/);
+  assert.match(whitespaceScript, /^\s*\*\)\s*$/m);
+  assert.match(whitespaceScript, /exit\s+1/);
+  assert.doesNotMatch(whitespaceScript, /\$\{\{/);
+  assert.doesNotMatch(
+    whitespaceScript,
+    /(?:echo|printf)[^\r\n]*(?:PR_BASE_SHA|PUSH_BEFORE_SHA)/,
+  );
+  assert.doesNotMatch(workflow, /\beval\b/);
+
   assert.match(backend, /node --test ["']\.github\/\*\*\/\*\.test\.mjs["']/);
   assert.match(backend, /npm ci/);
   for (const sourceFile of [
@@ -357,7 +397,7 @@ test("workflow retains CI policy while hardening actions, jobs, and credentials"
   const backendOrder = [
     "actions/checkout@",
     "actions/setup-node@",
-    "git diff --check",
+    "Check committed whitespace errors",
     'node --test ".github/**/*.test.mjs"',
     "npm ci",
     "node --check backend/src/server.js",
