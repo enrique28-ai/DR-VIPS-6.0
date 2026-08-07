@@ -16,38 +16,80 @@ concurrency:
 
 jobs:
   backend-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Check committed whitespace errors
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          case "$EVENT_NAME" in
+            pull_request)
+              git diff --check "$PR_BASE_SHA...HEAD"
+              ;;
+            push)
+              git diff --check "$PUSH_BEFORE_SHA...HEAD"
+              ;;
+            workflow_dispatch)
+              if git rev-parse HEAD^ >/dev/null 2>&1; then
+                git diff --check HEAD^ HEAD
+              else
+                git show --check --format= HEAD
+              fi
+              ;;
+            *)
+              echo "[ci] unsupported_event"
+              exit 1
+              ;;
+          esac
+
+      - name: Test CI helpers
+        run: node --test ".github/**/*.test.mjs"
 
       - name: Install backend dependencies
         run: npm ci
 
+      - name: Check critical entrypoint syntax
+        run: |
+          node --check backend/src/server.js
+          node --check backend/src/config/db.js
+          node --check backend/src/runtime/startup.js
+          node --check backend/src/runtime/gracefulShutdown.js
+          node --check cloudflare/src/index.js
+
       - name: Run backend tests
-        run: npm test
+        run: node --test "backend/**/*.test.js"
 
   frontend-test-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -59,3 +101,6 @@ jobs:
 
       - name: Build frontend
         run: npm --prefix frontend run build
+
+      - name: Verify frontend build
+        run: node .github/scripts/verify-build.mjs
