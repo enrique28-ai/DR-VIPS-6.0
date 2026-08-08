@@ -437,5 +437,125 @@ test("workflow retains CI policy while hardening actions, jobs, and credentials"
 test(".node-version pins exactly Node 22.23.2 with only its final newline", async () => {
   const nodeVersion = await readFile(join(process.cwd(), ".node-version"), "utf8");
 
-  assert.equal(nodeVersion, "22.23.2\n");
+  assert.match(nodeVersion, /^22\.23\.2\r?\n$/);
+});
+
+test("production deploy workflow is manual, protected, reproducible, and non-rolling-back", async () => {
+  const workflow = await readFile(
+    join(process.cwd(), ".github", "workflows", "deploy-production.yml"),
+    "utf8",
+  );
+  const preflightStart = workflow.indexOf("  preflight:");
+  const deployStart = workflow.indexOf("  deploy:");
+  assert.ok(preflightStart >= 0);
+  assert.ok(deployStart > preflightStart);
+  const preflight = workflow.slice(preflightStart, deployStart);
+  const deploy = workflow.slice(deployStart);
+
+  assert.match(workflow, /^name:\s*Deploy production\s*$/m);
+  assert.match(workflow, /^\s{2}workflow_dispatch:\s*$/m);
+  for (const forbiddenTrigger of [
+    /^\s{2}push:\s*$/m,
+    /^\s{2}pull_request:\s*$/m,
+    /^\s{2}workflow_run:\s*$/m,
+    /^\s{2}schedule:\s*$/m,
+    /^\s{2}repository_dispatch:\s*$/m,
+    /^\s{2}deployment:\s*$/m,
+    /pull_request_target/,
+  ]) {
+    assert.doesNotMatch(workflow, forbiddenTrigger);
+  }
+  assert.match(workflow, /confirmation:\s*\r?\n[\s\S]*?required:\s*true[\s\S]*?type:\s*string/);
+
+  assert.match(workflow, /^permissions:\s*\r?\n\s{2}contents:\s*read\s*$/m);
+  assert.doesNotMatch(workflow, /^\s*[\w-]+:\s*write\s*$/im);
+  assert.match(workflow, /^concurrency:\s*\r?\n\s{2}group:\s*production\s*\r?\n\s{2}cancel-in-progress:\s*false\s*$/m);
+
+  assert.doesNotMatch(preflight, /^\s{4}environment:\s*$/m);
+  assert.match(deploy, /^\s{4}environment:\s*\r?\n\s{6}name:\s*production\s*\r?\n\s{6}url:\s*https:\/\/dr-vips\.com\s*$/m);
+  assert.match(deploy, /^\s{4}needs:\s*preflight\s*$/m);
+  assert.equal((workflow.match(/runs-on:\s*ubuntu-24\.04/g) ?? []).length, 2);
+  assert.equal((workflow.match(/timeout-minutes:\s*(?:40|45)/g) ?? []).length, 2);
+
+  const checkoutSha = "11d5960a326750d5838078e36cf38b85af677262";
+  const setupNodeSha = "49933ea5288caeca8642d1e84afbd3f7d6820020";
+  assert.equal((workflow.match(new RegExp(`actions/checkout@${checkoutSha}`, "g")) ?? []).length, 2);
+  assert.equal((workflow.match(new RegExp(`actions/setup-node@${setupNodeSha}`, "g")) ?? []).length, 2);
+  assert.equal((workflow.match(/persist-credentials:\s*false/g) ?? []).length, 2);
+  assert.equal((workflow.match(/fetch-depth:\s*0/g) ?? []).length, 2);
+  assert.equal((workflow.match(/node-version-file:\s*\.node-version/g) ?? []).length, 2);
+
+  assert.match(preflight, /npm ci(?:\s|$)/m);
+  assert.match(preflight, /npm ci --prefix frontend/);
+  assert.match(preflight, /node --test ["']\.github\/\*\*\/\*\.test\.mjs["']/);
+  assert.match(preflight, /node --test ["']backend\/\*\*\/\*\.test\.js["']/);
+  assert.match(preflight, /npm --prefix frontend test/);
+  assert.match(preflight, /npm --prefix frontend run build/);
+  assert.match(preflight, /node \.github\/scripts\/verify-build\.mjs/);
+  assert.doesNotMatch(preflight, /docker\s+version|wrangler/i);
+
+  assert.match(deploy, /npm ci(?:\s|$)/m);
+  assert.match(deploy, /npm ci --prefix frontend/);
+  assert.match(deploy, /npm --prefix frontend run build/);
+  assert.match(deploy, /node \.github\/scripts\/verify-build\.mjs/);
+  assert.match(deploy, /docker version/);
+  assert.match(deploy, /^\s*run:\s*npx --no-install wrangler deploy\s*$/m);
+  assert.doesNotMatch(workflow, /\bnpm\s+install\b/);
+  assert.doesNotMatch(workflow, /npm\s+(?:install|i)[^\r\n]*wrangler|wrangler@|npm\s+install\s+-g/i);
+
+  const wranglerStepStart = deploy.indexOf("- name: Deploy with Wrangler");
+  assert.ok(wranglerStepStart >= 0);
+  const wranglerRemainder = deploy.slice(wranglerStepStart);
+  const nextDeployStep = wranglerRemainder.indexOf("\n      - name:", 1);
+  const wranglerStep = nextDeployStep >= 0
+    ? wranglerRemainder.slice(0, nextDeployStep)
+    : wranglerRemainder;
+  assert.match(
+    wranglerStep,
+    /CLOUDFLARE_API_TOKEN:\s*\$\{\{\s*secrets\.CLOUDFLARE_API_TOKEN\s*\}\}/,
+  );
+  assert.match(
+    wranglerStep,
+    /CLOUDFLARE_ACCOUNT_ID:\s*\$\{\{\s*vars\.CLOUDFLARE_ACCOUNT_ID\s*\}\}/,
+  );
+  assert.equal((workflow.match(/secrets\.CLOUDFLARE_API_TOKEN/g) ?? []).length, 1);
+  assert.equal((workflow.match(/vars\.CLOUDFLARE_ACCOUNT_ID/g) ?? []).length, 1);
+  assert.doesNotMatch(preflight, /CLOUDFLARE_API_TOKEN|CLOUDFLARE_ACCOUNT_ID/);
+  const deployWithoutWranglerStep = deploy.replace(wranglerStep, "");
+  assert.doesNotMatch(deployWithoutWranglerStep, /secrets\.|vars\./);
+
+  const smokeIndex = deploy.indexOf("node .github/scripts/production-smoke.mjs");
+  const wranglerIndex = deploy.indexOf("npx --no-install wrangler deploy");
+  assert.ok(wranglerIndex >= 0);
+  assert.ok(smokeIndex > wranglerIndex);
+
+  assert.match(preflight, /DEPLOY_CONFIRMATION:\s*\$\{\{\s*inputs\.confirmation\s*\}\}/);
+  assert.match(preflight, /EVENT_NAME:\s*\$\{\{\s*github\.event_name\s*\}\}/);
+  assert.match(preflight, /DEPLOY_REF:\s*\$\{\{\s*github\.ref\s*\}\}/);
+  assert.match(preflight, /DEPLOY_SHA:\s*\$\{\{\s*github\.sha\s*\}\}/);
+  assert.match(preflight, /"\$EVENT_NAME"\s*!=\s*"workflow_dispatch"/);
+  assert.match(preflight, /"\$DEPLOY_CONFIRMATION"\s*!=\s*"DEPLOY"/);
+  assert.match(preflight, /"\$DEPLOY_REF"\s*!=\s*"refs\/heads\/main"/);
+  assert.match(preflight, /git rev-parse HEAD/);
+  assert.match(preflight, /git fetch --no-tags origin main/);
+  assert.match(preflight, /git rev-parse origin\/main/);
+  assert.match(preflight, /MAIN_MOVED/);
+
+  assert.match(deploy, /git fetch --no-tags origin main/);
+  assert.match(deploy, /git rev-parse HEAD/);
+  assert.match(deploy, /git rev-parse origin\/main/);
+  assert.match(deploy, /GITHUB_SHA/);
+  assert.match(deploy, /MAIN_MOVED_AFTER_APPROVAL/);
+
+  for (const forbidden of [
+    /\beval\b/,
+    /continue-on-error/i,
+    /upload-artifact|download-artifact|\bartifacts?\s*:/i,
+    /wrangler\s+whoami/i,
+    /wrangler\s+secret/i,
+    /\brollback\b/i,
+    /^\s*token\s*:/im,
+  ]) {
+    assert.doesNotMatch(workflow, forbidden);
+  }
 });
