@@ -1,5 +1,5 @@
 // controllers/auth.controller.js
-import User from "../models/User.js";
+import User, { serializePublicUser } from "../models/User.js";
 import ProfessionalAllowlist from "../models/ProfessionalAllowlist.js";
 import { google } from "googleapis";
 import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
@@ -123,6 +123,8 @@ const isAllowedProfessional = async (email = "", hdClaim = "") => {
 };
 // Helpers para códigos/tokens
 const gen6Code = () => crypto.randomInt(100000, 1000000).toString(); // 6 dígitos (CSPRNG)
+const hashVerificationCode = (code) =>
+  crypto.createHash("sha256").update(String(code)).digest("hex");
 
 
 // POST /api/auth/register
@@ -148,12 +150,12 @@ export const register = async (req, res) => {
       return res.status(409).json({ error: "User already exists" });
     }
 
-    const verificationToken = gen6Code();
+    const verificationCode = gen6Code();
     const verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     const user = await User.create({
       name, email, password,
-      verificationToken,
+      verificationToken: hashVerificationCode(verificationCode),
       verificationTokenExpiresAt,
       isVerified: false,
       isProfessionalVerified: targetRole === "doctor",
@@ -165,12 +167,12 @@ export const register = async (req, res) => {
 
     // RESPONDE primero (no bloquees por SMTP)
     res.status(201).json({
-      user,
+      user: serializePublicUser(user),
       message: "Registered. Verification code sent to your email."
     });
 
     // Enviar verificación en background
-    sendVerificationEmail(user.email, user.verificationToken, lang)
+    sendVerificationEmail(user.email, verificationCode, lang)
       .catch((e) => console.error("Email send failed (register):", e.message));
   } catch (err) {
     console.error("register error:", err);
@@ -200,7 +202,7 @@ export const login = async (req, res) => {
     generateTokenAndSetCookie(res, user._id);
 
     const safeUser = await User.findById(user._id);
-    return res.json({ user: safeUser });
+    return res.json({ user: serializePublicUser(safeUser) });
   } catch (err) {
     console.error("login error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -225,7 +227,7 @@ export const logout = async (_req, res) => {
 export const me = async (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
  res.set("Pragma", "no-cache");
-  return res.json({ user: req.user });
+  return res.json({ user: serializePublicUser(req.user) });
 };
 
 // POST /api/auth/verify-email
@@ -235,14 +237,15 @@ export const verifyEmail = async (req, res) => {
     const { code } = req.body || {};
     if (!code) return res.status(400).json({ error: "Code is required" });
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id)
+      .select("+verificationToken +verificationTokenExpiresAt");
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const now = new Date();
     if (!user.verificationToken || !user.verificationTokenExpiresAt || now > user.verificationTokenExpiresAt) {
       return res.status(400).json({ error: "Verification code expired" });
     }
-    if (user.verificationToken !== code) {
+    if (user.verificationToken !== hashVerificationCode(code)) {
       return res.status(400).json({ error: "Invalid code" });
     }
 
@@ -271,13 +274,14 @@ export const resendVerificationCode = async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
     if (user.isVerified) return res.status(400).json({ error: "Already verified" });
 
-    user.verificationToken = gen6Code();
+    const verificationCode = gen6Code();
+    user.verificationToken = hashVerificationCode(verificationCode);
     user.verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
     // Enviar verificación (crítico — el usuario pidió el código explícitamente)
     try {
-      await sendVerificationEmail(user.email, user.verificationToken, lang);
+      await sendVerificationEmail(user.email, verificationCode, lang);
     } catch (e) {
       console.error("Email send failed (resend):", e.message);
       return res.status(500).json({ error: "Could not send verification email" });
@@ -338,7 +342,10 @@ export const resetPassword = async (req, res) => {
     const user = await User.findOne({
       resetPasswordToken: hashed,
       resetPasswordExpiresAt: { $gt: new Date() }
-    }).select("+password");
+    }).select(
+      "+password +resetPasswordToken +resetPasswordExpiresAt " +
+      "+verificationToken +verificationTokenExpiresAt"
+    );
 
     if (!user) return res.status(400).json({ error: "Invalid or expired reset code" });
 
@@ -377,7 +384,8 @@ export const verifyResetCode = async (req, res) => {
 
     if (!e || !c) return res.status(400).json({ error: "Invalid payload" });
 
-    const user = await User.findOne({ email: e });
+    const user = await User.findOne({ email: e })
+      .select("+resetPasswordToken +resetPasswordExpiresAt");
     // genérico para no filtrar
     if (!user) return res.status(400).json({ error: "Invalid or expired code" });
 
@@ -586,7 +594,7 @@ export const googleCallback = async (req, res) => {
      generateTokenAndSetCookie(res, user._id);
      return res.json({
        ok: true,
-       user: { _id: user._id, email: user.email, role: user.role, isVerified: user.isVerified }
+       user: serializePublicUser(user)
      });
    } catch (e) {
      console.error("googleFinalizeRole error", e);
@@ -622,18 +630,7 @@ export const updateProfile = async (req, res) => {
   }
 
     await user.save();
-    // Responde un objeto seguro (sin password)
-    return res.json({
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        role: user.role,
-        isVerified: user.isVerified,
-        isProfessionalVerified: user.isProfessionalVerified,
-      }
-    });
+    return res.json({ user: serializePublicUser(user) });
   } catch (err) {
     console.error("updateProfile error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -685,7 +682,7 @@ export const updateAvatar = async (req, res) => {
     user.avatar = result.secure_url;
     await user.save();
 
-    return res.json({ user });
+    return res.json({ user: serializePublicUser(user) });
   } catch (err) {
     console.error("updateAvatar error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -710,7 +707,7 @@ export const importAvatarFromUrl = async (req, res) => {
     user.avatar = result.secure_url;
     await user.save();
 
-    return res.json({ user });
+    return res.json({ user: serializePublicUser(user) });
   } catch (err) {
     console.error("importAvatarFromUrl error:", err);
     return res.status(500).json({ error: "Server error" });
