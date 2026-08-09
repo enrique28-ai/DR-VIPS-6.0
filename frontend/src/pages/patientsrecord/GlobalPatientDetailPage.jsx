@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Globe, Download } from "lucide-react";
+import { Globe, Send } from "lucide-react";
 import Button from "../../components/forms/Button.jsx";
 import { useGlobalPatient, useImportPatient } from "../../features/patients/phooks.js";
 import { localizeCountryName } from "../../utilsfront/geoLabels.js";
@@ -14,7 +14,8 @@ export default function GlobalPatientDetailPage() {
   const { id } = useParams();
 
   const { data: patient, isLoading, isError } = useGlobalPatient(id);
-  const { mutate: importPatient, isPending } = useImportPatient();
+  const { mutate: importPatient, isPending, data: accessRequestResult } = useImportPatient();
+  const requestPending = accessRequestResult?.accessRequest?.status === "pending";
 
   if (isLoading) {
     return (
@@ -83,7 +84,8 @@ export default function GlobalPatientDetailPage() {
   }
 
   const previewDescription =
-    t("patients.global.previewDesc") || "Import this patient to your list to edit and view more actions.";
+    t("patients.global.previewDesc") ||
+    "Request access from the patient or guardian before viewing or editing the medical record.";
   const patientFields = [
     {
       label: t("patients.detail.email") || "Email",
@@ -104,12 +106,13 @@ export default function GlobalPatientDetailPage() {
   ];
 
   const onImport = () => {
-    importPatient(patient._id, {
-      onSuccess: () => {
-        nav("/patients");
-      },
-    });
+    importPatient(patient._id);
   };
+  const requestActionLabel = requestPending
+    ? (t("patients.global.requestPending") || "Request pending")
+    : isPending
+      ? (t("patients.global.importing") || "Sending request...")
+      : (t("patients.global.importBtn") || "Request access");
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -146,15 +149,14 @@ export default function GlobalPatientDetailPage() {
           <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center">
             <Button
               onClick={onImport}
-              disabled={isPending}
+              disabled={isPending || requestPending}
+              aria-busy={isPending}
               aria-describedby="global-preview-desc"
               full={false}
               className="w-full sm:w-auto"
             >
-              <Download className="h-5 w-5" aria-hidden="true" />
-              {isPending
-                ? (t("patients.global.importing") || "Importing...")
-                : (t("patients.global.importBtn") || "Import Patient")}
+              <Send className="h-5 w-5" aria-hidden="true" />
+              {requestActionLabel}
             </Button>
 
             <Button

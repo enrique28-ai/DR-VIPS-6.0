@@ -40,10 +40,11 @@ vi.mock("react-i18next", () => ({
         "patients.detail.phone": "Phone",
         "patients.global.alreadyOwned": "You already have this patient.",
         "patients.global.goToDetail": "Go to Patient Detail",
-        "patients.global.importBtn": "Import Patient",
-        "patients.global.importing": "Importing...",
-        "patients.global.previewDesc": "Import this patient to your list.",
+        "patients.global.importBtn": "Request Access",
+        "patients.global.importing": "Sending Request...",
+        "patients.global.previewDesc": "Request access before viewing the medical record.",
         "patients.global.previewMode": "Global Preview",
+        "patients.global.requestPending": "Request Pending",
       }[key] ?? key),
   }),
 }));
@@ -95,6 +96,7 @@ describe("GlobalPatientDetailPage", () => {
     useImportPatient.mockReturnValue({
       mutate: importMutate,
       isPending: false,
+      data: undefined,
     });
   });
 
@@ -135,7 +137,7 @@ describe("GlobalPatientDetailPage", () => {
     renderGlobalPatientDetail();
 
     expect(screen.getAllByText("Global Preview").length).toBeGreaterThan(0);
-    expect(screen.getByText("Import this patient to your list.")).toBeInTheDocument();
+    expect(screen.getByText("Request access before viewing the medical record.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Global Patient" })).toBeInTheDocument();
     expect(screen.getAllByRole("term")).toHaveLength(4);
     expect(screen.getAllByRole("definition")).toHaveLength(4);
@@ -162,36 +164,42 @@ describe("GlobalPatientDetailPage", () => {
     expect(navigate).toHaveBeenCalledWith("/patients/search");
   });
 
-  test("imports the global patient and navigates back to patients on success", () => {
-    importMutate.mockImplementation((_patientId, options) => {
-      options.onSuccess();
-    });
+  test("submits an access request without navigating to the owned-patient list", () => {
     renderGlobalPatientDetail();
 
-    fireEvent.click(screen.getByRole("button", { name: "Import Patient" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request Access" }));
 
-    expect(importMutate).toHaveBeenCalledWith(
-      "patient-id",
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
-    expect(navigate).toHaveBeenCalledWith("/patients");
+    expect(importMutate).toHaveBeenCalledWith("patient-id");
+    expect(navigate).not.toHaveBeenCalledWith("/patients");
   });
 
-  test("shows pending import state and disables the import button", () => {
+  test("shows request-submission state and disables the action", () => {
     useImportPatient.mockReturnValue({
       mutate: importMutate,
       isPending: true,
+      data: undefined,
     });
     renderGlobalPatientDetail();
 
-    expect(screen.getByRole("button", { name: "Importing..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sending Request..." })).toBeDisabled();
+  });
+
+  test("shows pending status after the backend accepts the request", () => {
+    useImportPatient.mockReturnValue({
+      mutate: importMutate,
+      isPending: false,
+      data: { accessRequest: { status: "pending" } },
+    });
+    renderGlobalPatientDetail();
+
+    expect(screen.getByRole("button", { name: "Request Pending" })).toBeDisabled();
   });
 
   test("keeps decorative icons out of button accessible names", () => {
     renderGlobalPatientDetail();
 
-    expect(screen.getByRole("button", { name: "Import Patient" })).toHaveAccessibleDescription(
-      "Import this patient to your list.",
+    expect(screen.getByRole("button", { name: "Request Access" })).toHaveAccessibleDescription(
+      "Request access before viewing the medical record.",
     );
     expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
   });

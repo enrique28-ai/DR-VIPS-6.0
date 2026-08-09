@@ -11,8 +11,14 @@ import {
   getPatientByIdService,
   getGlobalPatientPreviewService,
   searchGlobalPatientsService,
-  importPatientService,
 } from "../services/patients/patientReadService.js";
+import {
+  approvePatientAccessRequestService,
+  createPatientAccessRequestService,
+  listDecidablePatientAccessRequestsService,
+  listDoctorPatientAccessRequestsService,
+  rejectPatientAccessRequestService,
+} from "../services/patients/patientAccessRequestService.js";
 import { getMyPatientsService } from "../services/patients/patientListService.js";
 import {
   getMyHealthInfoService,
@@ -127,14 +133,89 @@ export const getGlobalPatientPreview = async (req, res) => {
 
 export const importPatient = async (req, res) => {
   try {
-    const data = await importPatientService({
+    const data = await createPatientAccessRequestService({
       user: req.user,
       patientId: req.params.id,
     });
-    return res.json(data);
+    return res.status(202).json(data);
   } catch (err) {
     console.error("importPatient error:", err);
     return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      error: err.message || "Server error",
+    });
+  }
+};
+
+export const createPatientAccessRequest = async (req, res) => {
+  try {
+    const data = await createPatientAccessRequestService({
+      user: req.user,
+      patientId: req.params.patientId,
+    });
+    return res.status(202).json(data);
+  } catch (err) {
+    console.error("createPatientAccessRequest error:", err);
+    return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      error: err.message || "Server error",
+    });
+  }
+};
+
+export const getDoctorPatientAccessRequests = async (req, res) => {
+  try {
+    const data = await listDoctorPatientAccessRequestsService({ user: req.user });
+    return res.json(data);
+  } catch (err) {
+    console.error("getDoctorPatientAccessRequests error:", err);
+    return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      error: err.message || "Server error",
+    });
+  }
+};
+
+export const getMyPatientAccessRequests = async (req, res) => {
+  try {
+    const data = await listDecidablePatientAccessRequestsService({ user: req.user });
+    return res.json(data);
+  } catch (err) {
+    console.error("getMyPatientAccessRequests error:", err);
+    return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      error: err.message || "Server error",
+    });
+  }
+};
+
+export const approvePatientAccessRequest = async (req, res) => {
+  try {
+    const data = await approvePatientAccessRequestService({
+      user: req.user,
+      requestId: req.params.requestId,
+    });
+    return res.json(data);
+  } catch (err) {
+    console.error("approvePatientAccessRequest error:", err);
+    return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
+      error: err.message || "Server error",
+    });
+  }
+};
+
+export const rejectPatientAccessRequest = async (req, res) => {
+  try {
+    const data = await rejectPatientAccessRequestService({
+      user: req.user,
+      requestId: req.params.requestId,
+    });
+    return res.json(data);
+  } catch (err) {
+    console.error("rejectPatientAccessRequest error:", err);
+    return res.status(err.status || 500).json({
+      errorCode: err.errorCode,
       error: err.message || "Server error",
     });
   }

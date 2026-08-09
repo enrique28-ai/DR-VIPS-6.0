@@ -5,7 +5,6 @@ import Patient from "../../../models/Patient.js";
 import {
   getGlobalPatientPreviewService,
   getPatientByIdService,
-  importPatientService,
 } from "../../../services/patients/patientReadService.js";
 import { updatePatientService } from "../../../services/patients/patientWriteService.js";
 
@@ -292,55 +291,6 @@ test("updatePatientService allows doctor in owners", async () => {
       context: "query",
     });
     assert.deepEqual(updateCalls[0].leanOptions, { virtuals: true });
-  } finally {
-    restorePatientMethods();
-  }
-});
-
-test("importPatientService adds doctor to owners without cloning", async () => {
-  restorePatientMethods();
-
-  const findByIdCalls = mockPatientFindById({ _id: "patient-id", createdBy: "doctor-b" });
-  const updateCalls = [];
-
-  Patient.create = async () => {
-    throw new Error("Patient.create should not be called for global import");
-  };
-  Patient.findByIdAndUpdate = (id, updateDoc, options) => {
-    updateCalls.push({ id, updateDoc, options });
-    return {
-      lean: async (leanOptions) => {
-        updateCalls[updateCalls.length - 1].leanOptions = leanOptions;
-        return makePatient({ owners: ["doctor-b", "doctor-a"] });
-      },
-    };
-  };
-
-  try {
-    const result = await importPatientService({
-      user: makeDoctorA(),
-      patientId: "patient-id",
-    });
-
-    assert.equal(result.message, "Patient imported successfully");
-    assert.deepEqual(result.patient.owners, ["doctor-b", "doctor-a"]);
-    assert.deepEqual(findByIdCalls, [
-      {
-        id: "patient-id",
-        select: "_id createdBy",
-        leanOptions: undefined,
-      },
-    ]);
-    assert.deepEqual(updateCalls, [
-      {
-        id: "patient-id",
-        updateDoc: {
-          $addToSet: { owners: { $each: ["doctor-a", "doctor-b"] } },
-        },
-        options: { new: true, timestamps: false },
-        leanOptions: { virtuals: true },
-      },
-    ]);
   } finally {
     restorePatientMethods();
   }
