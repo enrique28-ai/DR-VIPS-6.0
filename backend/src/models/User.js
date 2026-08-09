@@ -2,6 +2,29 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const PUBLIC_USER_FIELDS = [
+  "_id",
+  "email",
+  "name",
+  "avatar",
+  "role",
+  "isVerified",
+  "isProfessionalVerified",
+];
+
+export const serializePublicUser = (user) => {
+  if (!user) return null;
+
+  const source = typeof user.toObject === "function"
+    ? user.toObject({ virtuals: false, transform: false })
+    : user;
+
+  return PUBLIC_USER_FIELDS.reduce((publicUser, field) => {
+    if (source[field] !== undefined) publicUser[field] = source[field];
+    return publicUser;
+  }, {});
+};
+
 const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -15,20 +38,17 @@ const userSchema = new mongoose.Schema(
     isProfessionalVerified: { type: Boolean, default: false },
 
     // opcionales si usas verificación o reset por token:
-    verificationToken: String,
-    verificationTokenExpiresAt: Date,
-    resetPasswordToken: String,
-    resetPasswordExpiresAt: Date
+    verificationToken: { type: String, select: false },
+    verificationTokenExpiresAt: { type: Date, select: false },
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpiresAt: { type: Date, select: false }
   },
   {
     timestamps: true,       // createdAt / updatedAt
     versionKey: false,
     toJSON: {
-      virtuals: true,
-      transform: (_, ret) => {
-        delete ret.password;  // nunca exponer password
-        return ret;
-      }
+      virtuals: false,
+      transform: (_, ret) => serializePublicUser(ret)
     }
   }
 );
