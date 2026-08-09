@@ -472,11 +472,12 @@
     "minChars": "Escribe al menos 3 caracteres para buscar."
   },
   "global": {
-    "viewToImport": "Ver e Importar",
+    "viewToImport": "Ver y Solicitar Acceso",
     "previewMode": "Modo Vista Previa Global",
-    "previewDesc": "Este paciente existe en la base de datos global. Impórtalo a tu lista para ver su historial médico completo y editar detalles.",
-    "importBtn": "Importar a Mi Lista",
-    "importing": "Importando...",
+    "previewDesc": "Este paciente existe en la base de datos global. Solicita acceso al paciente o guardián antes de ver su historial médico o editar detalles.",
+    "importBtn": "Solicitar Acceso",
+    "importing": "Enviando Solicitud...",
+    "requestPending": "Solicitud Pendiente",
     "alreadyOwned": "Ya tienes a este paciente en tu lista.",
     "goToDetail": "Ir al Detalle del Paciente"
   },
@@ -496,8 +497,8 @@
       "conflictPhoneExists": "Ya existe un paciente con este teléfono.",
       "rejectHealthInfoSuccess": "Conservamos su información anterior.",
       "rejectHealthInfoFailed": "No podíamos rechazar esta información.",
-      "importSuccess": "Paciente importado correctamente.",
-      "importFailed": "Error al importar el paciente.",
+      "importSuccess": "Solicitud de acceso enviada.",
+      "importFailed": "No se pudo solicitar acceso.",
       "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar.",
       "guardianReassignSuccess": "Tutor reasignado correctamente.",
       "guardianReassignFailed": "No se pudo reasignar el tutor."

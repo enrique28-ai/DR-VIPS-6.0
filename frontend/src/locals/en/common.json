@@ -475,11 +475,12 @@
     "minChars": "Type at least 3 characters to search."
   },
   "global": {
-    "viewToImport": "View & Import",
+    "viewToImport": "View & Request Access",
     "previewMode": "Global Preview Mode",
-    "previewDesc": "This patient exists in the global database. Import them to your list to view medical history and edit details.",
-    "importBtn": "Import Patient to My List",
-    "importing": "Importing...",
+    "previewDesc": "This patient exists in the global database. Request access from the patient or guardian before viewing medical history or editing details.",
+    "importBtn": "Request Access",
+    "importing": "Sending Request...",
+    "requestPending": "Request Pending",
     "alreadyOwned": "You already have this patient in your list.",
     "goToDetail": "Go to Patient Detail"
   },
@@ -509,8 +510,8 @@
     "conflictPhoneExists": "A patient with this phone already exists.",
     "rejectHealthInfoSuccess": "We kept your previous information.",
     "rejectHealthInfoFailed": "We couldn't reject this information.",
-    "importSuccess": "Patient imported successfully.",
-    "importFailed": "Failed to import patient.",
+    "importSuccess": "Access request sent.",
+    "importFailed": "Failed to request access.",
     "noChanges": "No changes detected. Please modify at least one field before saving.",
     "guardianReassignSuccess": "Guardian reassigned successfully.",
     "guardianReassignFailed": "Failed to reassign guardian."

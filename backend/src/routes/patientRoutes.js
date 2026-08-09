@@ -11,9 +11,14 @@ import {
   getMyHealthInfo,
   approvePatientProfile,
  rejectPatientProfile,
- getGlobalPatientPreview,
- searchGlobalPatients,
- importPatient,
+  getGlobalPatientPreview,
+  searchGlobalPatients,
+  importPatient,
+  createPatientAccessRequest,
+  getDoctorPatientAccessRequests,
+  getMyPatientAccessRequests,
+  approvePatientAccessRequest,
+  rejectPatientAccessRequest,
  getMyHistory,
 getPatientHistory,
 getMyHistoryOne,
@@ -34,8 +39,13 @@ router.get("/",   protect, requireVerified, requireRole("doctor"), readLimiter, 
 router.get("/global-search", protect, requireVerified, requireRole("doctor"), readLimiter, searchGlobalPatients);
 router.get("/global/:id", protect, requireVerified, requireRole("doctor"), readLimiter, getGlobalPatientPreview);
 router.post("/import/:id", protect, requireVerified, requireRole("doctor"), writeLimiter, importPatient);
+router.get("/access-requests/mine", protect, requireVerified, requireRole("doctor"), readLimiter, getDoctorPatientAccessRequests);
+router.post("/access-requests/:patientId", protect, requireVerified, requireRole("doctor"), writeLimiter, createPatientAccessRequest);
 
 router.get("/me/health-info", protect, requireVerified, requireRole("patient"), readLimiter, getMyHealthInfo);
+router.get("/me/access-requests", protect, requireVerified, requireRole("patient"), readLimiter, getMyPatientAccessRequests);
+router.post("/me/access-requests/:requestId/approve", protect, requireVerified, requireRole("patient"), writeLimiter, approvePatientAccessRequest);
+router.post("/me/access-requests/:requestId/reject", protect, requireVerified, requireRole("patient"), writeLimiter, rejectPatientAccessRequest);
 router.get("/me/history", protect, requireVerified, requireRole("patient"), readLimiter, getMyHistory);
 router.get("/me/history/:historyId", protect, requireVerified, requireRole("patient"), readLimiter, getMyHistoryOne);
 

@@ -463,73 +463,22 @@ export function useGlobalPatient(id, options = {}) {
 }
 
 
-// 3) Importar paciente (me agrega a owners)
+// 3) Legacy /import now submits a patient access request.
 export function useImportPatient() {
-  const qc = useQueryClient();
-
   return useMutation({
     mutationFn: async (id) => (await api.post(`/patients/import/${id}`)).data,
 
-    // 👇 IMPORTANTE: aquí recibes el id importado como 2do parámetro (variables)
-    onSuccess: (data, importedId) => {
-      toast.success(i18n.t("patients.toasts.importSuccess") || "Patient imported");
-
-      const imported = data?.patient;
-
-      // Si por alguna razón el back no devolvió el paciente
-      if (!imported?._id) {
-        qc.invalidateQueries({ queryKey: ["patients"] });
-        qc.invalidateQueries({ queryKey: ["patients-global-search"], exact: false });
+    onSuccess: (data) => {
+      if (data?.accessRequest?.status !== "pending") {
+        toast.error(i18n.t("patients.toasts.importFailed") || "Failed to request access");
         return;
       }
 
-      // ✅ 1) Quitar inmediatamente al paciente de TODAS las caches de búsquedas globales
-      // Tus queryKeys son: ["patients-global-search", q]
-      qc.setQueriesData(
-        { queryKey: ["patients-global-search"], exact: false },
-        (old) => {
-          if (!Array.isArray(old)) return old;
-          return old.filter((p) => p?._id !== imported._id);
-        }
-      );
-
-      // ✅ 2) Invalidar búsquedas globales para confirmar con server (background)
-      qc.invalidateQueries({ queryKey: ["patients-global-search"], exact: false });
-
-      // ✅ 3) Marcar el preview global como "ya soy owner" (por si vuelves al detail global)
-      qc.setQueryData(["patient-global", importedId], (old) =>
-        old && typeof old === "object"
-          ? { ...old, amIOwner: true }
-          : { ...imported, amIOwner: true }
-      );
-
-      // ✅ 4) Cachear el detalle normal
-      qc.setQueryData(["patient", imported._id], imported);
-
-      // ✅ 5) Opcional pero recomendado: sembrar la lista default (page 1 sin filtros)
-      // para que se vea instantáneo al volver a /patients
-      const defaultKey = ["patients", buildPatientParams({ page: 1 })];
-      qc.setQueryData(defaultKey, (prev) => {
-        const prevItems = prev?.items ?? [];
-        if (prevItems.some((p) => p._id === imported._id)) return prev;
-
-        return {
-          ...(prev || { items: [], total: 0, page: 1, pages: 1 }),
-          items: [imported, ...prevItems],
-          total: (prev?.total ?? prevItems.length) + 1,
-          page: prev?.page ?? 1,
-          pages: prev?.pages ?? 1,
-        };
-      });
-
-      // ✅ 6) Revalidar mis pacientes (background)
-      setTimeout(() => {
-        qc.invalidateQueries({ queryKey: ["patients"] });
-      }, 150);
+      toast.success(i18n.t("patients.toasts.importSuccess") || "Access request sent");
     },
 
     onError: () => {
-      toast.error(i18n.t("patients.toasts.importFailed") || "Failed to import patient");
+      toast.error(i18n.t("patients.toasts.importFailed") || "Failed to request access");
     },
   });
 }
