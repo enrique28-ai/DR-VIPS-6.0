@@ -213,7 +213,38 @@
   "logout": "Logout",
   "myChildren": "My children",
   "home": "Home",
-  "mainNavigation": "Main navigation"
+  "mainNavigation": "Main navigation",
+  "accessRequests": "Access Requests"
+},
+
+"accessRequests": {
+  "title": "Access Requests",
+  "description": "Review requests from doctors who want access to a medical record you are authorized to manage.",
+  "pendingRequests": "Pending access requests",
+  "loading": "Loading access requests...",
+  "pending": "Pending",
+  "doctor": "Doctor",
+  "medicalRecord": "Medical record",
+  "approvalConsequence": "Approving gives {{doctor}} access to this medical record for {{patient}}.",
+  "requestedAt": "Requested",
+  "approve": "Approve",
+  "reject": "Reject",
+  "approving": "Approving...",
+  "rejecting": "Rejecting...",
+  "emptyTitle": "No pending access requests",
+  "emptyDescription": "You do not have any doctor access requests to review.",
+  "loadFailed": "Access requests could not be loaded",
+  "loadFailedDescription": "Try again to check for pending requests.",
+  "retry": "Try again",
+  "approveSuccess": "Access request approved.",
+  "approveFailed": "Access request could not be approved.",
+  "rejectSuccess": "Access request rejected.",
+  "rejectFailed": "Access request could not be rejected.",
+  "noLongerAvailable": "This access request is no longer available.",
+  "unknownDoctor": "Doctor unavailable",
+  "emailUnavailable": "Email unavailable",
+  "recordUnavailable": "Medical record unavailable",
+  "dateUnavailable": "Date unavailable"
 },
 
 "password": {

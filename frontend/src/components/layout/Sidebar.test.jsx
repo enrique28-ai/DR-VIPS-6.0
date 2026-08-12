@@ -12,6 +12,7 @@ vi.mock("react-i18next", () => ({
         "navbar.myHealthState": "My health state",
         "navbar.myHealthInfo": "My health info",
         "navbar.myChildren": "My children",
+        "navbar.accessRequests": "Access Requests",
         "navbar.profile": "Profile",
         "navbar.mainNavigation": "Main navigation",
         "navbar.logout": "Logout",
@@ -74,6 +75,7 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "My health state" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My health info" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My children" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Access Requests" })).not.toBeInTheDocument();
   });
 
   test("open=false renders no desktop Sidebar", () => {
@@ -90,6 +92,10 @@ describe("Sidebar", () => {
     expect(getLink("My health state")).toBeInTheDocument();
     expect(getLink("My health info")).toBeInTheDocument();
     expect(getLink("My children")).toBeInTheDocument();
+    expect(getLink("Access Requests")).toHaveAttribute(
+      "href",
+      "/docrecords/access-requests",
+    );
     expect(getLink("Calendar")).toBeInTheDocument();
     expect(getLink("Profile")).toBeInTheDocument();
 
@@ -142,6 +148,18 @@ describe("Sidebar", () => {
 
     const myChildren = getLink("My children");
     expect(myChildren).toHaveAttribute("aria-current", "page");
+  });
+
+  test('the exact access request route marks Access Requests active for patient', () => {
+    renderSidebar("patient", "/docrecords/access-requests");
+
+    expect(getLink("Access Requests")).toHaveAttribute("aria-current", "page");
+  });
+
+  test('a different nested path does not mark Access Requests active', () => {
+    renderSidebar("patient", "/docrecords/access-requests/history");
+
+    expect(getLink("Access Requests")).not.toHaveAttribute("aria-current", "page");
   });
 
   test("unsupported role renders no sidebar navigation", () => {

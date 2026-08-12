@@ -57,6 +57,14 @@ vi.mock("../../pages/docrecords/MyChildrenHome.jsx", () => ({
   default: () => <div data-testid="app-route-content">My children page</div>,
 }));
 
+vi.mock("../../pages/docrecords/PatientAccessRequestsPage.jsx", () => ({
+  default: () => <div data-testid="app-route-content">Access requests page</div>,
+}));
+
+vi.mock("../../pages/patientsrecord/PatientsPage.jsx", () => ({
+  default: () => <div data-testid="app-route-content">Patients page</div>,
+}));
+
 const patientUser = {
   name: "Patient Person",
   email: "patient@example.com",
@@ -247,6 +255,7 @@ describe("Authenticated navigation integration", () => {
       "My health state",
       "My health info",
       "My children",
+      "Access Requests",
       "Calendar",
       "Profile",
     ]);
@@ -388,6 +397,41 @@ describe("Authenticated navigation integration", () => {
     );
   });
 
+  test("the real App renders the access request inbox inside the patient-only route group", async () => {
+    setAuthenticatedUser(patientUser);
+    const { container } = render(
+      <MemoryRouter initialEntries={["/docrecords/access-requests"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("app-route-content")).toHaveTextContent(
+      "Access requests page",
+    );
+    const drawer = openDrawer();
+    expect(
+      within(getSidebarNavigation(container)).getByRole("link", {
+        name: "Access Requests",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(within(drawer).getByRole("link", { name: "Access Requests" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("the real App redirects a doctor away from the patient access request inbox", async () => {
+    setAuthenticatedUser(doctorUser);
+    render(
+      <MemoryRouter initialEntries={["/docrecords/access-requests"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("app-route-content")).toHaveTextContent("Patients page");
+    expect(screen.queryByText("Access requests page")).not.toBeInTheDocument();
+  });
+
   test("verified doctor Sidebar and drawer contain only doctor destinations and account footers", () => {
     setAuthenticatedUser(doctorUser);
     const { container } = renderNavigation();
@@ -414,6 +458,7 @@ describe("Authenticated navigation integration", () => {
       "My health state",
       "My health info",
       "My children",
+      "Access Requests",
     ]) {
       expect(
         within(sidebarNavigation).queryByRole("link", { name: label }),

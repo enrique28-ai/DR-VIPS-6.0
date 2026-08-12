@@ -43,6 +43,7 @@ import ChooseRole from "./pages/registration/ChooseRole.jsx";
 import MyHealthInfo from "./pages/docrecords/MyHealthInfo.jsx";
 
 import MyChildrenHome from "./pages/docrecords/MyChildrenHome.jsx";
+import PatientAccessRequestsPage from "./pages/docrecords/PatientAccessRequestsPage.jsx";
 import MyChildHealthInfo from "./pages/docrecords/MyChildHealthInfo.jsx";
 import MyChildHealthState from "./pages/docrecords/MyChildHealthState.jsx";
 import MyChildHealthStateDetail from "./pages/docrecords/MyChildHealthStateDetail.jsx";
@@ -194,6 +195,7 @@ export default function App() {
         <Route path="/docrecords/myhealthstate" element={<MyHealthState />} />
         <Route path="/docrecords/myhealthstate/:id" element={<MyHealthStateDetail />} />
         <Route path="/docrecords/myhealthinfo" element={<MyHealthInfo />} />
+        <Route path="/docrecords/access-requests" element={<PatientAccessRequestsPage />} />
         <Route path="/docrecords/mychildren" element={<MyChildrenHome />} />
         <Route path="/docrecords/mychildren/:childId/health-info" element={<MyChildHealthInfo />} />
         <Route path="/docrecords/mychildren/:childId/health-state" element={<MyChildHealthState />} />

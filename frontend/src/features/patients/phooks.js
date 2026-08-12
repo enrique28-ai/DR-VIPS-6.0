@@ -366,6 +366,62 @@ export function useMyHealthInfo() {
   });
 }
 
+const myPatientAccessRequestsKey = ["my-patient-access-requests"];
+
+export function useMyPatientAccessRequests() {
+  return useQuery({
+    queryKey: myPatientAccessRequestsKey,
+    queryFn: async () => {
+      try {
+        return (await api.get("/patients/me/access-requests")).data;
+      } catch (error) {
+        if (error?.response?.status !== 429) {
+          toast.error(i18n.t("accessRequests.loadFailed"));
+        }
+        throw error;
+      }
+    },
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
+function useDecidePatientAccessRequest(action) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId) =>
+      (await api.post(`/patients/me/access-requests/${requestId}/${action}`)).data,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: myPatientAccessRequestsKey });
+      toast.success(i18n.t(`accessRequests.${action}Success`));
+    },
+    onError: async (error) => {
+      const status = error?.response?.status;
+
+      if (status === 404 || status === 409) {
+        await qc.invalidateQueries({ queryKey: myPatientAccessRequestsKey });
+        toast.error(i18n.t("accessRequests.noLongerAvailable"));
+        return;
+      }
+
+      if (status !== 429) {
+        toast.error(i18n.t(`accessRequests.${action}Failed`));
+      }
+    },
+  });
+}
+
+export function useApprovePatientAccessRequest() {
+  return useDecidePatientAccessRequest("approve");
+}
+
+export function useRejectPatientAccessRequest() {
+  return useDecidePatientAccessRequest("reject");
+}
+
 export function useApprovePatientProfile() {
   const qc = useQueryClient();
   return useMutation({

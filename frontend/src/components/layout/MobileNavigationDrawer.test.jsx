@@ -17,6 +17,7 @@ vi.mock("react-i18next", () => ({
         "navbar.myHealthState": "My health state",
         "navbar.myHealthInfo": "My health information",
         "navbar.myChildren": "My children",
+        "navbar.accessRequests": "Access Requests",
         "navbar.logout": "Logout",
       })[key] ?? key,
   }),
@@ -158,6 +159,9 @@ describe("MobileNavigationDrawer", () => {
     expect(
       screen.queryByRole("link", { name: "My children" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Access Requests" }),
+    ).not.toBeInTheDocument();
   });
 
   test("patient drawer renders patient navigation and no Patients link", () => {
@@ -176,6 +180,10 @@ describe("MobileNavigationDrawer", () => {
     expect(screen.getByRole("link", { name: "My children" })).toHaveAttribute(
       "href",
       "/docrecords/mychildren",
+    );
+    expect(screen.getByRole("link", { name: "Access Requests" })).toHaveAttribute(
+      "href",
+      "/docrecords/access-requests",
     );
     expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute(
       "href",
@@ -241,6 +249,18 @@ describe("MobileNavigationDrawer", () => {
     });
 
     expect(screen.getByRole("link", { name: "My children" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("marks Access Requests active only at the exact patient inbox route", () => {
+    renderDrawer({
+      role: "patient",
+      pathname: "/docrecords/access-requests",
+    });
+
+    expect(screen.getByRole("link", { name: "Access Requests" })).toHaveAttribute(
       "aria-current",
       "page",
     );
