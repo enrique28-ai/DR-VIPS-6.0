@@ -6,6 +6,7 @@ import {
   UsersRound,
   CalendarDays,
   UserRound,
+  ShieldCheck,
 } from "lucide-react";
 
 const isActive = (pathname, rule) => {
@@ -73,6 +74,12 @@ export const patientNav = [
     to: "/docrecords/mychildren",
     icon: UsersRound,
     active: { startsWith: "/docrecords/mychildren" },
+  },
+  {
+    labelKey: "navbar.accessRequests",
+    to: "/docrecords/access-requests",
+    icon: ShieldCheck,
+    active: { exact: "/docrecords/access-requests" },
   },
   {
     labelKey: "calendar.menu",
