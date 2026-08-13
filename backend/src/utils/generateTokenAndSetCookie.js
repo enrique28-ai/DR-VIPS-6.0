@@ -1,7 +1,15 @@
 import jwt from "jsonwebtoken";
 
-export const generateTokenAndSetCookie = (res, userId) => {
-  const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
+export const generateTokenAndSetCookie = (res, userId, sessionVersion) => {
+  if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 0) {
+    throw new TypeError("Invalid sessionVersion for authentication token");
+  }
+
+  const token = jwt.sign(
+    { userId, sessionVersion },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" },
+  );
 
   const isProd = process.env.NODE_ENV === "production";
 

@@ -163,7 +163,7 @@ export const register = async (req, res) => {
     });
 
     // Set cookie (autologin). Si prefieres exigir verificación antes, quítalo.
-    generateTokenAndSetCookie(res, user._id);
+    generateTokenAndSetCookie(res, user._id, user.sessionVersion ?? 0);
 
     // RESPONDE primero (no bloquees por SMTP)
     res.status(201).json({
@@ -184,7 +184,7 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    const user = await User.findOne({ email }).select("+password");
+    const user = await User.findOne({ email }).select("+password +sessionVersion");
 
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
@@ -199,7 +199,7 @@ export const login = async (req, res) => {
    return res.status(403).json({ error: "Professional verification required" });
  }
 
-    generateTokenAndSetCookie(res, user._id);
+    generateTokenAndSetCookie(res, user._id, user.sessionVersion ?? 0);
 
     const safeUser = await User.findById(user._id);
     return res.json({ user: serializePublicUser(safeUser) });
@@ -344,7 +344,7 @@ export const resetPassword = async (req, res) => {
       resetPasswordExpiresAt: { $gt: new Date() }
     }).select(
       "+password +resetPasswordToken +resetPasswordExpiresAt " +
-      "+verificationToken +verificationTokenExpiresAt"
+      "+verificationToken +verificationTokenExpiresAt +sessionVersion"
     );
 
     if (!user) return res.status(400).json({ error: "Invalid or expired reset code" });
@@ -352,6 +352,7 @@ export const resetPassword = async (req, res) => {
     user.password = password;               // se hashea en pre('save') del modelo
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiresAt = undefined;
+    user.sessionVersion = (user.sessionVersion ?? 0) + 1;
 
     // B2: recibir el código prueba control del inbox → tratar como verificación de email
     if (!user.isVerified) {
@@ -505,7 +506,7 @@ export const googleCallback = async (req, res) => {
 
     
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email }).select("+sessionVersion");
     if (user) {
       // Login directo con el rol ya guardado
       if (!user.googleId) {
@@ -522,7 +523,7 @@ export const googleCallback = async (req, res) => {
       if (avatar && (!user.avatar || user.avatar.includes("googleusercontent"))) user.avatar = avatar;
       user.isVerified = true;
       await user.save();
-      generateTokenAndSetCookie(res, user._id);
+      generateTokenAndSetCookie(res, user._id, user.sessionVersion ?? 0);
       res.clearCookie("g_state");
       return res.redirect(backTo);
     }
@@ -591,7 +592,7 @@ export const googleCallback = async (req, res) => {
        role,
      });
      res.clearCookie(COOKIE_PENDING, { path: "/" });
-     generateTokenAndSetCookie(res, user._id);
+     generateTokenAndSetCookie(res, user._id, user.sessionVersion ?? 0);
      return res.json({
        ok: true,
        user: serializePublicUser(user)

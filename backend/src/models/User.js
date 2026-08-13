@@ -36,6 +36,16 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["doctor", "patient"], default: "doctor" },
     lastHealthDecisionAt: { type: Date },
     isProfessionalVerified: { type: Boolean, default: false },
+    sessionVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+      select: false,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "sessionVersion must be a non-negative safe integer",
+      },
+    },
 
     // opcionales si usas verificación o reset por token:
     verificationToken: { type: String, select: false },
