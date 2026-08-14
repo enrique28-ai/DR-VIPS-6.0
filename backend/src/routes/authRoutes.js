@@ -13,6 +13,7 @@ import { verifyCaptcha } from "../middleware/captcha.js";
 import multer from "multer";
 import {
   authLimiter,
+  avatarLimiter,
   emailActionLimiter,
   verificationLimiter,
 } from "../middleware/rateLimit.js";
@@ -66,7 +67,7 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
 });
 
-router.put("/profile/avatar", protect, upload.single("avatar"), updateAvatar);
-router.post("/profile/avatar-url", protect, importAvatarFromUrl);
+router.put("/profile/avatar", protect, avatarLimiter, upload.single("avatar"), updateAvatar);
+router.post("/profile/avatar-url", protect, avatarLimiter, importAvatarFromUrl);
 
 export default router;
