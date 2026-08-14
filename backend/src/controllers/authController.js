@@ -3,6 +3,7 @@ import User, { serializePublicUser } from "../models/User.js";
 import ProfessionalAllowlist from "../models/ProfessionalAllowlist.js";
 import { google } from "googleapis";
 import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
+import { isStrongPassword } from "../utils/passwordPolicy.js";
 import {
   sendVerificationEmail,
   sendWelcomeEmail,
@@ -132,8 +133,15 @@ export const register = async (req, res) => {
   const lang = getReqLang(req);
   try {
     const { name, email, password, role } = req.body || {};
-    if (!name?.trim() || !email?.trim() || !password?.trim()) {
+    const passwordMissing = password == null || password === "";
+    if (!name?.trim() || !email?.trim() || passwordMissing) {
       return res.status(400).json({ error: "Name, email and password are required" });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        errorCode: "WEAK_PASSWORD",
+        error: "Password does not meet security requirements",
+      });
     }
 
     const targetRole = (role === "patient") ? "patient" : "doctor";
@@ -336,6 +344,12 @@ export const resetPassword = async (req, res) => {
     const isHex64 = /^[a-f0-9]{64}$/i.test(tokenStr);
     if (!isHex64) {
       return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        errorCode: "WEAK_PASSWORD",
+        error: "Password does not meet security requirements",
+      });
     }
 
     const hashed = crypto.createHash("sha256").update(tokenStr).digest("hex");
