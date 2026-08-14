@@ -18,9 +18,24 @@ export const protect = async (req, res, next) => {
     const userId = decoded?.userId;
     if (!userId) return res.status(401).json({ error: "Invalid token" });
 
-    const user = await User.findById(userId);
+    const hasSessionVersion = Object.hasOwn(decoded, "sessionVersion");
+    const tokenSessionVersion = hasSessionVersion ? decoded.sessionVersion : 0;
+    if (!Number.isSafeInteger(tokenSessionVersion) || tokenSessionVersion < 0) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    const user = await User.findById(userId).select("+sessionVersion");
     if (!user){
        return res.status(401).json({ error: "User not found" });
+    }
+
+    const currentSessionVersion = user.sessionVersion ?? 0;
+    if (
+      !Number.isSafeInteger(currentSessionVersion) ||
+      currentSessionVersion < 0 ||
+      tokenSessionVersion !== currentSessionVersion
+    ) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
 
     req.user = user;
