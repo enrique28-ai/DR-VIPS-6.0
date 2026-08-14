@@ -243,7 +243,7 @@ test("register returns a sanitized user and stores only the SHA-256 verification
     body: {
       name: "Patient User",
       email: "patient@example.com",
-      password: "test-password-only",
+      password: "Valid1!",
       role: "patient",
     },
   });
@@ -262,10 +262,52 @@ test("register returns a sanitized user and stores only the SHA-256 verification
   assert.equal(decodeAuthCookie(res).sessionVersion, 0);
 });
 
-test("login returns the public User allowlist even when the authenticated document has secrets", async () => {
+test("register rejects a weak password before database, cookie, or email side effects", async () => {
+  restoreMocks();
+  const messages = captureMail();
+  let findCalls = 0;
+  let createCalls = 0;
+  User.findOne = async () => {
+    findCalls += 1;
+    return null;
+  };
+  User.create = async () => {
+    createCalls += 1;
+    return makeUser();
+  };
+
+  const res = makeRes();
+  await auth.register(
+    makeReq({
+      body: {
+        name: "Patient User",
+        email: "patient@example.com",
+        password: "      ",
+        role: "patient",
+      },
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.body, {
+    errorCode: "WEAK_PASSWORD",
+    error: "Password does not meet security requirements",
+  });
+  assert.equal(findCalls, 0);
+  assert.equal(createCalls, 0);
+  assert.equal(res.cookies.length, 0);
+  assert.equal(messages.length, 0);
+});
+
+test("login permits a historically weak password and returns the public User allowlist", async () => {
   restoreMocks();
   const user = makeUser({ googleId: undefined, isVerified: true });
-  user.comparePassword = async () => true;
+  let comparedPassword;
+  user.comparePassword = async (password) => {
+    comparedPassword = password;
+    return true;
+  };
   let selected = "";
   User.findOne = () => queryFor(user, (projection) => { selected = projection; });
   User.findById = () => queryFor(user);
@@ -274,6 +316,7 @@ test("login returns the public User allowlist even when the authenticated docume
   await auth.login(makeReq({ body: { email: user.email, password: "test-password-only" } }), res);
 
   assert.equal(res.statusCode, 200);
+  assert.equal(comparedPassword, "test-password-only");
   assert.match(selected, /sessionVersion/);
   assertPublicUser(res.body.user);
   assert.equal(decodeAuthCookie(res).sessionVersion, 0);
@@ -435,7 +478,7 @@ test("reset password explicitly selects the hidden token, consumes it, and expos
 
   const res = makeRes();
   await auth.resetPassword(
-    makeReq({ params: { token: rawResetToken }, body: { password: "replacement-password" } }),
+    makeReq({ params: { token: rawResetToken }, body: { password: "Replacement1!" } }),
     res,
   );
 
@@ -465,15 +508,57 @@ test("invalid or expired reset password attempts do not increment sessionVersion
     malformedRes,
   );
   assert.equal(malformedRes.statusCode, 400);
+  assert.deepEqual(malformedRes.body, { error: "Invalid or expired reset token" });
   assert.equal(findCalls, 0);
 
   const expiredRes = makeRes();
   await auth.resetPassword(
-    makeReq({ params: { token: "b".repeat(64) }, body: { password: "replacement" } }),
+    makeReq({ params: { token: "b".repeat(64) }, body: { password: "Replacement1!" } }),
     expiredRes,
   );
   assert.equal(expiredRes.statusCode, 400);
   assert.equal(findCalls, 1);
+});
+
+test("reset password rejects a weak password before lookup, save, token consumption, or email", async () => {
+  restoreMocks();
+  const messages = captureMail();
+  const rawResetToken = "d".repeat(64);
+  const originalHash = sha256(rawResetToken);
+  const originalExpiry = new Date(Date.now() + 60_000);
+  const user = makeUser({
+    resetPasswordToken: originalHash,
+    resetPasswordExpiresAt: originalExpiry,
+    sessionVersion: 5,
+  });
+  let findCalls = 0;
+  let saveCalls = 0;
+  User.findOne = () => {
+    findCalls += 1;
+    return queryFor(user);
+  };
+  user.save = async () => {
+    saveCalls += 1;
+    return user;
+  };
+
+  const res = makeRes();
+  await auth.resetPassword(
+    makeReq({ params: { token: rawResetToken }, body: { password: "weak-password" } }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.body, {
+    errorCode: "WEAK_PASSWORD",
+    error: "Password does not meet security requirements",
+  });
+  assert.equal(findCalls, 0);
+  assert.equal(saveCalls, 0);
+  assert.equal(user.resetPasswordToken, originalHash);
+  assert.equal(user.resetPasswordExpiresAt, originalExpiry);
+  assert.equal(user.sessionVersion, 5);
+  assert.equal(messages.length, 0);
 });
 
 test("password login after reset issues the current sessionVersion", async () => {
@@ -496,7 +581,7 @@ test("password login after reset issues the current sessionVersion", async () =>
 
   const resetRes = makeRes();
   await auth.resetPassword(
-    makeReq({ params: { token: rawResetToken }, body: { password: "replacement" } }),
+    makeReq({ params: { token: rawResetToken }, body: { password: "Replacement1!" } }),
     resetRes,
   );
 
@@ -504,7 +589,7 @@ test("password login after reset issues the current sessionVersion", async () =>
   assert.equal(user.sessionVersion, 8);
 
   const loginRes = makeRes();
-  await auth.login(makeReq({ body: { email: user.email, password: "replacement" } }), loginRes);
+  await auth.login(makeReq({ body: { email: user.email, password: "Replacement1!" } }), loginRes);
 
   assert.equal(loginRes.statusCode, 200);
   assert.match(loginSelected, /sessionVersion/);
