@@ -16,7 +16,7 @@
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",
     "bcryptjs": "^3.0.2",
-    "cloudinary": "^2.8.0",
+    "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "country-list": "^2.4.1",
