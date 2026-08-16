@@ -35,10 +35,36 @@ import {
   reassignMinorGuardianService,
   updatePatientService,
 } from "../services/patients/patientWriteService.js";
+
+const handlePatientServiceError = ({
+  err,
+  res,
+  next,
+  fallbackMessage,
+  includeErrorCode = false,
+  includePatientId = false,
+}) => {
+  const status = err?.status;
+  if (!Number.isInteger(status) || status < 400 || status > 499) {
+    return next(err);
+  }
+
+  const body = {};
+  if (includeErrorCode && err.errorCode !== undefined) {
+    body.errorCode = err.errorCode;
+  }
+  if (includePatientId && err.patientId !== undefined) {
+    body.patientId = err.patientId;
+  }
+  body.error = err.message || fallbackMessage;
+
+  return res.status(status).json(body);
+};
+
 /**
  * Crear paciente
  */
-export const createPatient = async (req, res) => {
+export const createPatient = async (req, res, next) => {
   try {
     const data = await createPatientService({
       user: req.user,
@@ -64,11 +90,13 @@ export const createPatient = async (req, res) => {
       });
     }
 
-    console.error("createPatient error:", err);
-  return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      patientId: err.patientId,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
+      includePatientId: true,
     });
   }
 };
@@ -77,7 +105,7 @@ export const createPatient = async (req, res) => {
  * Listar mis pacientes (búsqueda + filtros + paginación)
  * GET /api/patients?category=0-12|13-17|18-59|60+&q=&page=&limit=
  */
-export const getMyPatients = async (req, res) => {
+export const getMyPatients = async (req, res, next) => {
   try {
     const data = await getMyPatientsService({
       user: req.user,
@@ -85,9 +113,11 @@ export const getMyPatients = async (req, res) => {
     });
      return res.json(data);
   } catch (err) {
-    console.error("getMyPatients error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
     });
   }
 };
@@ -96,7 +126,7 @@ export const getMyPatients = async (req, res) => {
  * Búsqueda Global de Pacientes (excluye los que ya tienes)
  * GET /api/patients/global-search?q=...
  */
-export const searchGlobalPatients = async (req, res) => {
+export const searchGlobalPatients = async (req, res, next) => {
   try {
     const data = await searchGlobalPatientsService({
       user: req.user,
@@ -104,9 +134,11 @@ export const searchGlobalPatients = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("searchGlobalPatients error:", err);
-     return res.status(err.status || 500).json({
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
     });
   }
 };
@@ -115,7 +147,7 @@ export const searchGlobalPatients = async (req, res) => {
  * Preview (Read-only) para importar
  * GET /api/patients/global/:id
  */
-export const getGlobalPatientPreview = async (req, res) => {
+export const getGlobalPatientPreview = async (req, res, next) => {
   try {
     const data = await getGlobalPatientPreviewService({
       user: req.user,
@@ -123,15 +155,17 @@ export const getGlobalPatientPreview = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getGlobalPatientPreview error:", err);
-     return res.status(err.status || 500).json({
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
     });
   }
 };
 
 
-export const importPatient = async (req, res) => {
+export const importPatient = async (req, res, next) => {
   try {
     const data = await createPatientAccessRequestService({
       user: req.user,
@@ -139,15 +173,17 @@ export const importPatient = async (req, res) => {
     });
     return res.status(202).json(data);
   } catch (err) {
-    console.error("importPatient error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
     });
   }
 };
 
-export const createPatientAccessRequest = async (req, res) => {
+export const createPatientAccessRequest = async (req, res, next) => {
   try {
     const data = await createPatientAccessRequestService({
       user: req.user,
@@ -155,41 +191,47 @@ export const createPatientAccessRequest = async (req, res) => {
     });
     return res.status(202).json(data);
   } catch (err) {
-    console.error("createPatientAccessRequest error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
     });
   }
 };
 
-export const getDoctorPatientAccessRequests = async (req, res) => {
+export const getDoctorPatientAccessRequests = async (req, res, next) => {
   try {
     const data = await listDoctorPatientAccessRequestsService({ user: req.user });
     return res.json(data);
   } catch (err) {
-    console.error("getDoctorPatientAccessRequests error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
     });
   }
 };
 
-export const getMyPatientAccessRequests = async (req, res) => {
+export const getMyPatientAccessRequests = async (req, res, next) => {
   try {
     const data = await listDecidablePatientAccessRequestsService({ user: req.user });
     return res.json(data);
   } catch (err) {
-    console.error("getMyPatientAccessRequests error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
     });
   }
 };
 
-export const approvePatientAccessRequest = async (req, res) => {
+export const approvePatientAccessRequest = async (req, res, next) => {
   try {
     const data = await approvePatientAccessRequestService({
       user: req.user,
@@ -197,15 +239,17 @@ export const approvePatientAccessRequest = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("approvePatientAccessRequest error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
     });
   }
 };
 
-export const rejectPatientAccessRequest = async (req, res) => {
+export const rejectPatientAccessRequest = async (req, res, next) => {
   try {
     const data = await rejectPatientAccessRequestService({
       user: req.user,
@@ -213,10 +257,12 @@ export const rejectPatientAccessRequest = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("rejectPatientAccessRequest error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
     });
   }
 };
@@ -226,7 +272,7 @@ export const rejectPatientAccessRequest = async (req, res) => {
 /**
  * Obtener paciente por id
  */
-export const getPatientById = async (req, res) => {
+export const getPatientById = async (req, res, next) => {
   try {
     const data = await getPatientByIdService({
       user: req.user,
@@ -235,9 +281,11 @@ export const getPatientById = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getPatientById error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
     });
   }
 };
@@ -245,7 +293,7 @@ export const getPatientById = async (req, res) => {
 /**
  * Actualizar paciente
  */
-export const updatePatient = async (req, res) => {
+export const updatePatient = async (req, res, next) => {
   try {
     const data = await updatePatientService({
       user: req.user,
@@ -272,16 +320,18 @@ export const updatePatient = async (req, res) => {
       });
     }
 
-    console.error("updatePatient error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      patientId: err.patientId,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
+      includePatientId: true,
     });
   }
 };
 
-export const reassignPatientGuardian = async (req, res) => {
+export const reassignPatientGuardian = async (req, res, next) => {
   try {
     const data = await reassignMinorGuardianService({
       user: req.user,
@@ -290,11 +340,13 @@ export const reassignPatientGuardian = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("reassignPatientGuardian error:", err);
-    return res.status(err.status || 500).json({
-      errorCode: err.errorCode,
-      patientId: err.patientId,
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
+      includeErrorCode: true,
+      includePatientId: true,
     });
   }
 };
@@ -302,7 +354,7 @@ export const reassignPatientGuardian = async (req, res) => {
 
 
 // === GET /api/patients/me/health-info ===
-export const getMyHealthInfo = async (req, res) => {
+export const getMyHealthInfo = async (req, res, next) => {
   try {
     const data = await getMyHealthInfoService({
       user: req.user,
@@ -310,9 +362,11 @@ export const getMyHealthInfo = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getMyHealthInfo error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
@@ -322,7 +376,7 @@ export const getMyHealthInfo = async (req, res) => {
  * Paciente APRUEBA la versión de un doctor.
  * POST /api/patients/me/health-info/approve/:id
  */
-export const approvePatientProfile = async (req, res) => {
+export const approvePatientProfile = async (req, res, next) => {
   try {
    const data = await approvePatientProfileService({
       user: req.user,
@@ -330,15 +384,17 @@ export const approvePatientProfile = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("approvePatientProfile error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
 
 
-export const rejectPatientProfile = async (req, res) => {
+export const rejectPatientProfile = async (req, res, next) => {
   try {
    const data = await rejectPatientProfileService({
       user: req.user,
@@ -346,9 +402,11 @@ export const rejectPatientProfile = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("rejectPatientProfile error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
@@ -358,15 +416,17 @@ export const rejectPatientProfile = async (req, res) => {
 /**
  * GET /api/patients/me/history  (paciente)
  */
-export const getMyHistory = async (req, res) => {
+export const getMyHistory = async (req, res, next) => {
   try {
     const data = await getMyHistoryService({ user: req.user });
     return res.json(data);
 
   } catch (err) {
-    console.error("getMyHistory error:", err);
-     return res.status(err.status || 500).json({
-      error: err.message || "Server error fetching history",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error fetching history",
     });
   }
 };
@@ -374,7 +434,7 @@ export const getMyHistory = async (req, res) => {
 /**
  * GET /api/patients/:id/history  (doctor)
  */
-export const getPatientHistory = async (req, res) => {
+export const getPatientHistory = async (req, res, next) => {
   try {
     const data = await getPatientHistoryService({
       user: req.user,
@@ -383,15 +443,17 @@ export const getPatientHistory = async (req, res) => {
     return res.json(data);
 
   } catch (err) {
-    console.error("getPatientHistory error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Server error fetching history",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error fetching history",
     });
   }
 };
 
 // GET /api/patients/:id/history/:historyId?lang=xx  (doctor)
-export const getPatientHistoryOne = async (req, res) => {
+export const getPatientHistoryOne = async (req, res, next) => {
   try {
     const data = await getPatientHistoryOneService({
       user: req.user,
@@ -401,15 +463,17 @@ export const getPatientHistoryOne = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getPatientHistoryOne error:", err);
-     return res.status(err.status || 500).json({
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
     });
   }
 };
 
 // GET /api/patients/me/history/:historyId?lang=xx  (patient)
-export const getMyHistoryOne = async (req, res) => {
+export const getMyHistoryOne = async (req, res, next) => {
   try {
     const data = await getMyHistoryOneService({
       user: req.user,
@@ -418,14 +482,16 @@ export const getMyHistoryOne = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getMyHistoryOne error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Server error",
     });
   }
 };
 
-export const getMyChildrenHealthInfo = async (req, res) => {
+export const getMyChildrenHealthInfo = async (req, res, next) => {
   try {
    const data = await getMyChildrenHealthInfoService({
       user: req.user,
@@ -433,14 +499,16 @@ export const getMyChildrenHealthInfo = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getMyChildrenHealthInfo error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
 
-export const approveChildProfile = async (req, res) => {
+export const approveChildProfile = async (req, res, next) => {
   try {
     const data = await approveChildProfileService({
       user: req.user,
@@ -448,14 +516,16 @@ export const approveChildProfile = async (req, res) => {
     });
      return res.json(data);
   } catch (err) {
-    console.error("approveChildProfile error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
 
-export const rejectChildProfile = async (req, res) => {
+export const rejectChildProfile = async (req, res, next) => {
   try {
     const data = await rejectChildProfileService({
       user: req.user,
@@ -463,14 +533,16 @@ export const rejectChildProfile = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("rejectChildProfile error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
 
-export const getChildHistory = async (req, res) => {
+export const getChildHistory = async (req, res, next) => {
   try {
     const data = await getChildHistoryService({
       user: req.user,
@@ -478,14 +550,16 @@ export const getChildHistory = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getChildHistory error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
 
-export const getChildHistoryOne = async (req, res) => {
+export const getChildHistoryOne = async (req, res, next) => {
   try {
     const data = await getChildHistoryOneService({
       user: req.user,
@@ -495,9 +569,11 @@ export const getChildHistoryOne = async (req, res) => {
     });
     return res.json(data);
   } catch (err) {
-    console.error("getChildHistoryOne error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+    return handlePatientServiceError({
+      err,
+      res,
+      next,
+      fallbackMessage: "Internal server error",
     });
   }
 };
