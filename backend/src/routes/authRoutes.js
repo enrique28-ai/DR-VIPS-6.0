@@ -64,7 +64,13 @@ const fileFilter = (_req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB
+    files: 1,
+    fields: 0,
+    parts: 1,
+    fieldNestingDepth: 1,
+  },
 });
 
 router.put("/profile/avatar", protect, avatarLimiter, upload.single("avatar"), updateAvatar);
