@@ -199,11 +199,11 @@ async function expectReassignmentReject({ responses, body, expectedCode, expecte
   }
 }
 
-test("reassignMinorGuardianService reassigns a living minor from deceased guardian to valid living approved guardian", async () => {
+test("reassignMinorGuardianService reassigns a legacy living minor whose parentEmail comes from minorKey", async () => {
   restoreModelMethods();
 
   const findOneCalls = mockPatientFindOneSequence([
-    makeMinor(),
+    makeMinor({ parentEmail: "" }),
     makeCurrentGuardian(),
     makeNewGuardian(),
   ]);
@@ -245,9 +245,15 @@ test("reassignMinorGuardianService reassigns a living minor from deceased guardi
     ]);
 
     assert.equal(updateCalls.length, 1);
-    assert.deepEqual(updateCalls[0].query, {
+    assert.equal(updateCalls[0].query.$and[0].isDeceased.$ne, true);
+    assert.equal(updateCalls[0].query.$and[0].$or[0].birthDate.$gt instanceof Date, true);
+    assert.deepEqual(updateCalls[0].query.$and[0].$or.slice(1), [
+      { birthDate: { $exists: false }, age: { $gte: 0, $lt: 18 } },
+      { birthDate: null, age: { $gte: 0, $lt: 18 } },
+    ]);
+    assert.deepEqual(updateCalls[0].query.$and[1], {
       $or: [
-        { minorKey: OLD_MINOR_KEY },
+        { parentEmail: OLD_PARENT_EMAIL, minorKey: OLD_MINOR_KEY },
         { _id: "minor-patient-id" },
         { parentEmail: OLD_PARENT_EMAIL, fullname: MINOR_NAME },
       ],
@@ -360,14 +366,12 @@ test("reassignMinorGuardianService rejects unchanged normalized guardian email",
   });
 });
 
-test("reassignMinorGuardianService rejects patients that are not living minors or guardian-linked", async () => {
+test("reassignMinorGuardianService rejects an adult with stale guardian metadata", async () => {
   await expectReassignmentReject({
     responses: [
       makeMinor({
         age: 38,
         birthDate: new Date("1988-01-01T12:00:00.000Z"),
-        parentEmail: "",
-        minorKey: "",
       }),
     ],
     expectedCode: "GUARDIAN_REASSIGNMENT_NOT_MINOR",

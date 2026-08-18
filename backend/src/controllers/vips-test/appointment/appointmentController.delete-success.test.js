@@ -18,7 +18,7 @@ const originalUserMethods = {
   findOne: User.findOne,
 };
 
-const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
 
 after(() => {
   restoreModelMethods();

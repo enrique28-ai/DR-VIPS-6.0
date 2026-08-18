@@ -21,7 +21,7 @@ const API_NO_STORE_HEADERS = {
 };
 
 const PATIENT_POPULATE_SELECT =
-  "email parentEmail minorKey age fullname name isDeceased";
+  "email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
 
 function createResponse() {
   const state = {

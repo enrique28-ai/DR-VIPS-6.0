@@ -19,6 +19,8 @@ import {
   minorKeyOf,
   hasPendingGuardianDecisionForMinorKey,
   computeDynamicAge,
+  isCurrentMinorPatient,
+  minorQueryByBirthDateOrLegacy,
   mapAgeToBand,
   applyDynamicAgeToPatient,
   isYmd,
@@ -421,18 +423,6 @@ const applyUnsetToObject = (doc, unset) => {
   return next;
 };
 
-const isCurrentAdultWithoutGuardian = (current) => {
-  const currentAgeDyn = computeDynamicAge(current);
-  const currentlyMinor = Number.isFinite(currentAgeDyn) && currentAgeDyn < 18;
-  return !currentlyMinor && !current.parentEmail && !current.minorKey;
-};
-
-const isCurrentMinorOrGuardianLinked = (current) => {
-  const currentAgeDyn = computeDynamicAge(current);
-  const currentlyMinor = Number.isFinite(currentAgeDyn) && currentAgeDyn < 18;
-  return currentlyMinor || !!current.parentEmail || !!current.minorKey;
-};
-
 const parentEmailFromMinorKey = (minorKey) => {
   const mk = normLower(minorKey);
   const separator = mk.indexOf("::");
@@ -667,7 +657,7 @@ export const createPatientService = async ({ user, body }) => {
     }
 
     const parentDoc = await Patient.findOne({ email: finalParentEmail })
-      .select("_id age children approvedAt approvedSnapshot")
+      .select("_id age birthDate dateOfDeath isDeceased children approvedAt approvedSnapshot")
       .lean();
 
     if (!parentDoc) {
@@ -677,7 +667,8 @@ export const createPatientService = async ({ user, body }) => {
       throw err;
     }
 
-    if (!(Number(parentDoc.age) >= 18)) {
+    const parentAge = computeDynamicAge(parentDoc);
+    if (!(Number.isFinite(parentAge) && parentAge >= 18)) {
       const err = new Error("Access denied: parent record must be an adult.");
       err.status = 403;
       err.errorCode = "PARENT_NOT_ADULT";
@@ -897,8 +888,16 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     throw err;
   }
 
-  const isCurrentAdult = isCurrentAdultWithoutGuardian(current);
-  const isCurrentMinorLinked = isCurrentMinorOrGuardianLinked(current);
+  const currentAge = computeDynamicAge(current);
+  if (!Number.isFinite(currentAge)) {
+    const err = new Error("Invalid age");
+    err.status = 400;
+    err.errorCode = "INVALID_AGE";
+    throw err;
+  }
+
+  const isCurrentMinorLinked = currentAge < 18;
+  const isCurrentAdult = currentAge >= 18;
   const update = { lastEditedBy: user._id };
   const unset = {};
 
@@ -1054,7 +1053,7 @@ export const updatePatientService = async ({ user, patientId, body }) => {
     }
 
     const parentDoc = await Patient.findOne({ email: parentEmailEffectiveForMinor })
-      .select("_id age children approvedAt approvedSnapshot isDeceased")
+      .select("_id age birthDate dateOfDeath isDeceased children approvedAt approvedSnapshot")
       .lean();
 
     if (!parentDoc) {
@@ -1064,7 +1063,8 @@ export const updatePatientService = async ({ user, patientId, body }) => {
       throw err;
     }
 
-    if (!(Number(parentDoc.age) >= 18)) {
+    const parentAge = computeDynamicAge(parentDoc);
+    if (!(Number.isFinite(parentAge) && parentAge >= 18)) {
       const err = new Error("Access denied: parent record must be an adult.");
       err.status = 403;
       err.errorCode = "PARENT_NOT_ADULT";
@@ -1748,13 +1748,9 @@ export const reassignMinorGuardianService = async ({ user, patientId, body }) =>
     throw err;
   }
 
-  const targetAge = computeDynamicAge(current);
-  const isTargetMinorOrLinked =
-    (Number.isFinite(targetAge) && targetAge < 18) ||
-    !!current.parentEmail ||
-    !!current.minorKey;
+  const referenceDate = new Date();
 
-  if (current.isDeceased === true || !isTargetMinorOrLinked) {
+  if (current.isDeceased === true || !isCurrentMinorPatient(current, referenceDate)) {
     throw guardianReassignmentError(
       "GUARDIAN_REASSIGNMENT_NOT_MINOR",
       "Guardian reassignment is only available for living minors.",
@@ -1873,10 +1869,15 @@ export const reassignMinorGuardianService = async ({ user, patientId, body }) =>
   delete approvedSnapshot.unset.minorKey;
 
   const groupQuery = {
-    $or: [
-      { minorKey: oldMinorKey },
-      { _id: current._id },
-      { parentEmail: oldParentEmail, fullname: current.fullname },
+    $and: [
+      minorQueryByBirthDateOrLegacy(referenceDate),
+      {
+        $or: [
+          { parentEmail: oldParentEmail, minorKey: oldMinorKey },
+          { _id: current._id },
+          { parentEmail: oldParentEmail, fullname: current.fullname },
+        ],
+      },
     ],
   };
   const update = {

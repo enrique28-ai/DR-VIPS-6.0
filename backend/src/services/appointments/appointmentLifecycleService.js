@@ -1,6 +1,10 @@
 import Appointment from "../../models/Appointment.js";
 import Patient from "../../models/Patient.js";
 import {
+  isCurrentMinorPatient,
+  minorQueryByBirthDateOrLegacy,
+} from "../../controllers/helpers/patienthelpers.js";
+import {
   ACTIVE_APPOINTMENT_STATUSES,
   CANCELLED_DUE_TO_DEATH_STATUS,
   CANCELLED_DUE_TO_GUARDIAN_UNAVAILABLE_STATUS,
@@ -44,10 +48,14 @@ export const cancelFutureActiveChildAppointmentsDueToGuardianUnavailable = async
   const children = await Patient.find({
     parentEmail,
     isDeceased: { $ne: true },
+    ...minorQueryByBirthDateOrLegacy(now),
   })
-    .select("_id")
+    .select("_id birthDate age dateOfDeath isDeceased")
     .lean();
-  const childIds = children.map((child) => child._id).filter(Boolean);
+  const childIds = children
+    .filter((child) => isCurrentMinorPatient(child, now))
+    .map((child) => child._id)
+    .filter(Boolean);
 
   if (!childIds.length) {
     return { acknowledged: true, matchedCount: 0, modifiedCount: 0 };

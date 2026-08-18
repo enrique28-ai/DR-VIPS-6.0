@@ -1,7 +1,11 @@
 import mongoose from "mongoose";
 import Patient from "../../models/Patient.js";
 import PatientAccessRequest from "../../models/PatientAccessRequest.js";
-import { computeDynamicAge, normLower } from "../../controllers/helpers/patienthelpers.js";
+import {
+  computeDynamicAge,
+  isCurrentMinorPatient,
+  normLower,
+} from "../../controllers/helpers/patienthelpers.js";
 
 const accessRequestError = (message, status, errorCode) => {
   const err = new Error(message);
@@ -28,7 +32,10 @@ const currentDecisionRelation = (patient, user) => {
 
   if (!email || !Number.isFinite(age)) return null;
   if (age >= 18 && normLower(patient?.email) === email) return "patient";
-  if (age < 18 && normLower(patient?.parentEmail) === email) return "guardian";
+  if (
+    isCurrentMinorPatient(patient) &&
+    normLower(patient?.parentEmail) === email
+  ) return "guardian";
   return null;
 };
 

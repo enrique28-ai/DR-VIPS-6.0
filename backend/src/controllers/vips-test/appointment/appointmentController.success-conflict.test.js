@@ -33,8 +33,8 @@ const originalUserMethods = {
 const originalTransaction = mongoose.connection.transaction;
 const TEST_SESSION = Object.freeze({ id: "appointment-create-test-session" });
 
-const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
-const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
+const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
 const APPOINTMENT_GUARDIAN_SELECT = "_id isDeceased";
 
 after(() => {
@@ -665,9 +665,12 @@ test("createAppointment sends patient notification when patient user exists", as
 test("createAppointment sends parent notification when minor has parentEmail and no email", async () => {
   restoreModelMethods();
 
+  const minorBirthDate = new Date();
+  minorBirthDate.setFullYear(minorBirthDate.getFullYear() - 10);
   mockPatientFindOne(makePatient({
     email: "",
     parentEmail: " Parent@Example.com ",
+    birthDate: minorBirthDate,
     fullname: "Minor Patient",
   }));
   mockAppointmentFindOne(null);
@@ -695,6 +698,38 @@ test("createAppointment sends parent notification when minor has parentEmail and
     assert.equal(notificationCalls[0].code, "APPT_NEW_appointment-id");
     assert.equal(notificationCalls[0].relatedAppointment, "appointment-id");
     assert.equal(notificationCalls[0].meta.role, "patient");
+  } finally {
+    restoreModelMethods();
+  }
+});
+
+test("createAppointment does not notify a former guardian for an adult without email", async () => {
+  restoreModelMethods();
+
+  const adultBirthDate = new Date();
+  adultBirthDate.setFullYear(adultBirthDate.getFullYear() - 20);
+  mockPatientFindOne(makePatient({
+    email: "",
+    parentEmail: "former-guardian@example.com",
+    birthDate: adultBirthDate,
+    age: 17,
+  }));
+  mockAppointmentFindOne(null);
+  const appt = makeAppointment({ patient: "patient-id" });
+  mockAppointmentCreate(appt);
+  User.findOne = () => {
+    throw new Error("User.findOne should not be called for a former guardian");
+  };
+  guardNotificationCreate();
+
+  const req = makeReq({ body: makeCreateBody() });
+  const res = makeRes();
+
+  try {
+    await createAppointment(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body, appt);
   } finally {
     restoreModelMethods();
   }

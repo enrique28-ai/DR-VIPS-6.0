@@ -74,7 +74,7 @@ test("acceptAppointment forwards the same findById populate error without respon
   assert.deepEqual(populateCall, {
     id: "appointment-find-error",
     path: "patient",
-    select: "email parentEmail minorKey age fullname name isDeceased",
+    select: "email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased",
   });
   assertNoLocalResponse(state);
   assert.deepEqual(nextErrors, [expectedError]);
