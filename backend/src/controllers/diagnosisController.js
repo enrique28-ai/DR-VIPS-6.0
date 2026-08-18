@@ -4,6 +4,10 @@ import Diagnosis from "../models/Diagnosis.js";
 import Patient from "../models/Patient.js";
 import DiagnosisHistory from "../models/DiagnosisHistory.js";
 import { translateDiagnosisDoc, translateDiagnosisTitles } from "../utils/deeplTranslate.js";
+import {
+  isCurrentMinorPatient,
+  minorQueryByBirthDateOrLegacy,
+} from "./helpers/patienthelpers.js";
 
 const DIAGNOSIS_PATIENT_DECEASED = "DIAGNOSIS_PATIENT_DECEASED";
 const DIAGNOSIS_PATIENT_DECEASED_ERROR =
@@ -609,7 +613,7 @@ async function resolveMinorGroupPatientIdsOrThrow(childId, parentEmail) {
 
   // 1) verificar que ese childId exista y sea hijo de ese parentEmail
   const base = await Patient.findOne({ _id: childId, parentEmail: pe })
-    .select("_id fullname parentEmail minorKey age isDeceased")
+    .select("_id fullname parentEmail minorKey birthDate age dateOfDeath isDeceased")
     .lean();
 
   if (!base) {
@@ -620,7 +624,7 @@ async function resolveMinorGroupPatientIdsOrThrow(childId, parentEmail) {
   }
 
   // 2) si ya no es menor, el padre pierde acceso
-  if (!(Number(base.age) < 18)) {
+  if (!isCurrentMinorPatient(base)) {
     const err = new Error("CHILD_NOT_MINOR");
     err.statusCode = 403;
     err.errorCode = "CHILD_NOT_MINOR";
@@ -640,7 +644,7 @@ async function resolveMinorGroupPatientIdsOrThrow(childId, parentEmail) {
   const pats = await Patient.find({
     parentEmail: pe,
     minorKey: mk,
-    age: { $lt: 18 },
+    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
     isDeceased: false,
   })
     .select("_id")

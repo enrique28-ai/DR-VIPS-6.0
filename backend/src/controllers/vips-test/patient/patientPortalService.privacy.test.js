@@ -466,11 +466,11 @@ test("getMyChildrenHealthInfoService queries only by normalized parentEmail plus
     assert.ok(findCalls[0].query.$or[0].birthDate.$gt instanceof Date);
     assert.deepEqual(findCalls[0].query.$or[1], {
       birthDate: { $exists: false },
-      age: { $lt: 18 },
+      age: { $gte: 0, $lt: 18 },
     });
     assert.deepEqual(findCalls[0].query.$or[2], {
       birthDate: null,
-      age: { $lt: 18 },
+      age: { $gte: 0, $lt: 18 },
     });
     assert.deepEqual(findCalls[0].sort, { updatedAt: -1 });
     assert.deepEqual(findCalls[0].populate, {

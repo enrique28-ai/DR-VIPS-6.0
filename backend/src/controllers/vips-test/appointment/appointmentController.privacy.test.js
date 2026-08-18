@@ -33,8 +33,8 @@ const originalTransaction = mongoose.connection.transaction;
 const TEST_SESSION = Object.freeze({ id: "appointment-create-privacy-session" });
 let transactionCalls = 0;
 
-const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
-const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
+const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
 const APPOINTMENT_PATIENT_LIST_POPULATE_SELECT = "fullname email parentEmail minorKey age name isDeceased";
 const APPOINTMENT_GUARDIAN_SELECT = "_id isDeceased";
 
@@ -371,17 +371,17 @@ test("getAppointments includes child appointments for parent by parentEmail", as
         select: APPOINTMENT_GUARDIAN_SELECT,
       },
     ]);
-    assert.deepEqual(patientFindCalls, [
-      {
-        query: {
-          isDeceased: { $ne: true },
-          $or: [
-            { email: "parent@example.com" },
-            { parentEmail: "parent@example.com" },
-          ],
-        },
-        select: "_id",
-      },
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(patientFindCalls[0].select, "_id");
+    assert.deepEqual(patientFindCalls[0].query.isDeceased, { $ne: true });
+    assert.deepEqual(patientFindCalls[0].query.$or[0], {
+      email: "parent@example.com",
+    });
+    assert.equal(patientFindCalls[0].query.$or[1].parentEmail, "parent@example.com");
+    assert.ok(patientFindCalls[0].query.$or[1].$or[0].birthDate.$gt instanceof Date);
+    assert.deepEqual(patientFindCalls[0].query.$or[1].$or.slice(1), [
+      { birthDate: { $exists: false }, age: { $gte: 0, $lt: 18 } },
+      { birthDate: null, age: { $gte: 0, $lt: 18 } },
     ]);
     assert.deepEqual(appointmentFindCalls, [
       {
@@ -448,17 +448,17 @@ test("getAppointments excludes deceased child appointments for parent tutor", as
         select: APPOINTMENT_GUARDIAN_SELECT,
       },
     ]);
-    assert.deepEqual(patientFindCalls, [
-      {
-        query: {
-          isDeceased: { $ne: true },
-          $or: [
-            { email: "parent@example.com" },
-            { parentEmail: "parent@example.com" },
-          ],
-        },
-        select: "_id",
-      },
+    assert.equal(patientFindCalls.length, 1);
+    assert.equal(patientFindCalls[0].select, "_id");
+    assert.deepEqual(patientFindCalls[0].query.isDeceased, { $ne: true });
+    assert.deepEqual(patientFindCalls[0].query.$or[0], {
+      email: "parent@example.com",
+    });
+    assert.equal(patientFindCalls[0].query.$or[1].parentEmail, "parent@example.com");
+    assert.ok(patientFindCalls[0].query.$or[1].$or[0].birthDate.$gt instanceof Date);
+    assert.deepEqual(patientFindCalls[0].query.$or[1].$or.slice(1), [
+      { birthDate: { $exists: false }, age: { $gte: 0, $lt: 18 } },
+      { birthDate: null, age: { $gte: 0, $lt: 18 } },
     ]);
     assert.deepEqual(appointmentFindCalls, [
       {
@@ -973,6 +973,7 @@ test("acceptAppointment allows parent tutor for child appointment", async () => 
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
     },
     status: "pending",
@@ -1043,6 +1044,7 @@ test("acceptAppointment blocks deceased guardian from managing child appointment
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
       isDeceased: false,
     },
@@ -1174,6 +1176,7 @@ test("deleteAppointment blocks parent tutor from deleting deceased child appoint
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
       isDeceased: true,
     },
@@ -1199,11 +1202,8 @@ test("deleteAppointment blocks parent tutor from deleting deceased child appoint
   try {
     await deleteAppointment(req, res);
 
-    assert.equal(res.statusCode, 409);
-    assert.deepEqual(res.body, {
-      error: "Cannot manage appointments for a deceased patient.",
-      errorCode: "APPOINTMENT_PATIENT_DECEASED",
-    });
+    assert.equal(res.statusCode, 403);
+    assert.deepEqual(res.body, { error: "Unauthorized" });
     assert.equal(deleteCalled, false);
   } finally {
     restoreModelMethods();
@@ -1267,6 +1267,7 @@ test("deleteAppointment allows doctor owner to delete minor appointment when gua
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
       isDeceased: false,
     },
@@ -1313,6 +1314,7 @@ test("deleteAppointment blocks deceased guardian from managing child appointment
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
       isDeceased: false,
     },
@@ -1370,6 +1372,7 @@ test("deleteAppointment allows parent tutor to decline child appointment", async
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
     },
     status: "pending",
@@ -1428,6 +1431,7 @@ test("deleteAppointment allows parent tutor to cancel accepted child appointment
     patient: {
       email: "",
       parentEmail: "Parent@Example.com ",
+      age: 17,
       fullname: "Minor Patient",
     },
     status: "accepted",

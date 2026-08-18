@@ -39,7 +39,8 @@ const originalAppointmentMethods = {
   updateMany: Appointment.updateMany,
 };
 
-const UPDATE_PARENT_PROJECTION = "_id age children approvedAt approvedSnapshot isDeceased";
+const UPDATE_PARENT_PROJECTION =
+  "_id age birthDate dateOfDeath isDeceased children approvedAt approvedSnapshot";
 
 after(() => {
   dnsPromises.resolveMx = originalResolveMx;
@@ -94,6 +95,7 @@ function makeApprovedAdultParent(overrides = {}) {
   return {
     _id: "parent-patient-id",
     age: 38,
+    birthDate: new Date("1988-01-01T12:00:00.000Z"),
     approvedAt: new Date("2026-01-01T12:00:00.000Z"),
     approvedSnapshot: {
       children: [{ name: "Minor Patient" }],
@@ -145,7 +147,7 @@ function mockParentFindOne(parentDoc) {
     calls.push(query);
     return {
       select: (projection) => {
-        assert.equal(projection, "_id age children approvedAt approvedSnapshot");
+        assert.equal(projection, UPDATE_PARENT_PROJECTION);
         return {
           lean: async () => parentDoc,
         };
@@ -292,7 +294,12 @@ test("createPatientService rejects minors when parent is not adult", async () =>
   restorePatientMethods();
   rejectCreate();
 
-  const findOneCalls = mockParentFindOne(makeApprovedAdultParent({ age: 17 }));
+  const findOneCalls = mockParentFindOne(
+    makeApprovedAdultParent({
+      age: 38,
+      birthDate: new Date(`${minorBirthDate()}T12:00:00.000Z`),
+    })
+  );
 
   try {
     await assert.rejects(
@@ -378,7 +385,9 @@ test("createPatientService rejects minors not listed in parent's children", asyn
 test("createPatientService creates a minor with parentEmail without saving it as minor email", async () => {
   restorePatientMethods();
 
-  const parentFindOneCalls = mockParentFindOne(makeApprovedAdultParent());
+  const parentFindOneCalls = mockParentFindOne(
+    makeApprovedAdultParent({ age: 17 })
+  );
   const parentFindOne = Patient.findOne;
   const guardianDecisionCalls = [];
   const createCalls = [];
@@ -569,6 +578,7 @@ test("updatePatientService lets doctors propose minor fullname rename without ch
 
   const current = makeMinorPatient();
   const parent = makeApprovedAdultParent({
+    age: 17,
     approvedSnapshot: {
       set: {
         children: [{ name: "Minor Patient" }, { name: "Sibling Child" }],

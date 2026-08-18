@@ -559,7 +559,20 @@ test("listDecidablePatientAccessRequestsService returns only the adult and curre
     birthDate: new Date("2000-01-01T12:00:00.000Z"),
     age: 17,
   });
-  const patientFindCalls = mockPatientFind([adult, child, formerMinorNowAdult]);
+  const deceasedChild = makeChildPatient({
+    _id: new mongoose.Types.ObjectId(),
+    fullname: "Deceased Minor",
+    birthDate: new Date("2010-01-01T12:00:00.000Z"),
+    dateOfDeath: new Date("2020-01-01T12:00:00.000Z"),
+    isDeceased: true,
+    age: 10,
+  });
+  const patientFindCalls = mockPatientFind([
+    adult,
+    child,
+    formerMinorNowAdult,
+    deceasedChild,
+  ]);
   const requestFindCalls = mockAccessRequestFind([
     makeAccessRequest({
       patient: ADULT_PATIENT_ID,
@@ -853,6 +866,43 @@ for (const [description, patient, user] of [
         () =>
           approvePatientAccessRequestService({
             user,
+            requestId: REQUEST_ID,
+          }),
+        (err) => assertAccessError(err, 404, "ACCESS_REQUEST_NOT_FOUND")
+      );
+      assert.equal(transaction.commits, 0);
+      assert.equal(transaction.aborts, 1);
+    } finally {
+      restoreModelMethods();
+    }
+  });
+}
+
+for (const [decisionName, decide] of [
+  ["approve", approvePatientAccessRequestService],
+  ["reject", rejectPatientAccessRequestService],
+]) {
+  test(`${decisionName} denies a guardian decision for a deceased former minor`, async () => {
+    restoreModelMethods();
+    const transaction = mockTransaction();
+    const deceasedChild = makeChildPatient({
+      birthDate: new Date("2010-01-01T12:00:00.000Z"),
+      dateOfDeath: new Date("2020-01-01T12:00:00.000Z"),
+      isDeceased: true,
+      age: 10,
+    });
+    mockAccessRequestFindById(makeAccessRequest({ patient: deceasedChild._id }));
+    mockPatientFindByIdSequence([deceasedChild]);
+    PatientAccessRequest.findOneAndUpdate = async () => {
+      throw new Error("A deceased patient's former guardian must not decide the request");
+    };
+    guardPatientOwnershipWrites();
+
+    try {
+      await assert.rejects(
+        () =>
+          decide({
+            user: makePatientUser({ email: deceasedChild.parentEmail }),
             requestId: REQUEST_ID,
           }),
         (err) => assertAccessError(err, 404, "ACCESS_REQUEST_NOT_FOUND")

@@ -1803,8 +1803,9 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
   const userDecisionCalls = [];
   const appointmentArchiveCalls = mockAppointmentDeathArchive();
   const guardianChildFindCalls = mockGuardianChildFind([
-    { _id: "minor-child-id" },
-    { _id: "second-minor-child-id" },
+    { _id: "minor-child-id", birthDate: new Date("2015-01-01") },
+    { _id: "second-minor-child-id", birthDate: new Date("2016-01-01") },
+    { _id: "former-minor-adult-id", birthDate: new Date("1990-01-01") },
   ]);
 
   guardPendingPortalUserLookup();
@@ -1923,13 +1924,25 @@ test("updatePatientService immediately approves adult alive-to-deceased changes 
         options: { new: false },
       },
     ]);
+    const minorReferenceEnd = new Date(updateCalls[0].updateDoc.$set.approvedAt);
+    minorReferenceEnd.setHours(23, 59, 59, 999);
+    const minorCutoff = new Date(minorReferenceEnd);
+    minorCutoff.setFullYear(minorCutoff.getFullYear() - 18);
     assert.deepEqual(guardianChildFindCalls, [
       {
         query: {
           parentEmail: current.email,
           isDeceased: { $ne: true },
+          $or: [
+            { birthDate: { $gt: minorCutoff, $lte: minorReferenceEnd } },
+            {
+              birthDate: { $exists: false },
+              age: { $gte: 0, $lt: 18 },
+            },
+            { birthDate: null, age: { $gte: 0, $lt: 18 } },
+          ],
         },
-        select: "_id",
+        select: "_id birthDate age dateOfDeath isDeceased",
       },
     ]);
     assert.deepEqual(appointmentArchiveCalls, [
@@ -2359,11 +2372,71 @@ test("updatePatientService returns mixed-edit error before normal adult field va
   }
 });
 
+test("updatePatientService rejects stored invalid or future birth dates before writes", async (t) => {
+  const cases = [
+    ["invalid birthDate", { birthDate: "invalid-date" }],
+    ["future birthDate", { birthDate: new Date("2999-01-01T12:00:00.000Z") }],
+    [
+      "future birthDate with future dateOfDeath",
+      {
+        birthDate: new Date("2999-01-01T12:00:00.000Z"),
+        dateOfDeath: new Date("3000-01-01T12:00:00.000Z"),
+        isDeceased: true,
+      },
+    ],
+  ];
+
+  for (const [name, overrides] of cases) {
+    await t.test(name, async () => {
+      restorePatientMethods();
+      const current = makeAdultPatient({ ...overrides, age: 17 });
+      mockPatientFindOneSequence([{ kind: "lean", value: current }]);
+
+      Patient.find = () => {
+        throw new Error("Patient.find should not be called for invalid stored age");
+      };
+      Patient.findOneAndUpdate = () => {
+        throw new Error("Patient.findOneAndUpdate should not be called for invalid stored age");
+      };
+      PatientHistory.create = async () => {
+        throw new Error("PatientHistory.create should not be called for invalid stored age");
+      };
+      User.findOne = () => {
+        throw new Error("User.findOne should not be called for invalid stored age");
+      };
+      User.findOneAndUpdate = () => {
+        throw new Error("User.findOneAndUpdate should not be called for invalid stored age");
+      };
+
+      try {
+        await assert.rejects(
+          () =>
+            updatePatientService({
+              user: { _id: "doctor-id" },
+              patientId: current._id,
+              body: { city: "Los Angeles" },
+            }),
+          (err) => {
+            assert.equal(err.status, 400);
+            assert.equal(err.errorCode, "INVALID_AGE");
+            assert.equal(err.message, "Invalid age");
+            return true;
+          }
+        );
+      } finally {
+        restorePatientMethods();
+      }
+    });
+  }
+});
+
 test("updatePatientService keeps normal adult non-death edits pending for patient approval", async () => {
   restorePatientMethods();
 
   const user = { _id: "doctor-id" };
   const current = makeAdultPatient({
+    parentEmail: "former-guardian@example.com",
+    minorKey: "former-guardian@example.com::adult patient",
     updatedAt: new Date("2026-01-02T12:00:00.000Z"),
     approvedAt: new Date("2026-01-02T12:00:00.000Z"),
   });
@@ -2396,6 +2469,10 @@ test("updatePatientService keeps normal adult non-death edits pending for patien
     assert.equal(userFindCalls.length, 1);
     assert.equal(updateCalls.length, 1);
     assert.equal(updateCalls[0].updateDoc.$set.city, "Los Angeles");
+    assert.deepEqual(updateCalls[0].updateDoc.$unset, {
+      parentEmail: 1,
+      minorKey: 1,
+    });
     assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedAt"), false);
     assert.equal(Object.hasOwn(updateCalls[0].updateDoc.$set, "approvedSnapshot"), false);
     assert.deepEqual(updateCalls[0].options, {

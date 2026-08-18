@@ -150,14 +150,42 @@ export function mapAgeToBand(age) {
 }
 
 // ✅ edad viva (cumpleaños) + freeze si deceased
-export function computeDynamicAge(p) {
-  if (p?.birthDate) {
-    const ref = (p?.isDeceased && p?.dateOfDeath) ? new Date(p.dateOfDeath) : new Date();
-    const a = calculateAge(p.birthDate, ref);
-    if (Number.isFinite(a)) return a;
+export function computeDynamicAge(p, referenceDate = new Date()) {
+  const hasBirthDate = p?.birthDate !== undefined && p?.birthDate !== null;
+  if (hasBirthDate) {
+    const birthDate = new Date(p.birthDate);
+    const currentRef = new Date(referenceDate);
+    if (Number.isNaN(birthDate.getTime()) || Number.isNaN(currentRef.getTime())) {
+      return undefined;
+    }
+
+    const endOfCurrentReferenceDay = new Date(currentRef);
+    endOfCurrentReferenceDay.setHours(23, 59, 59, 999);
+    if (birthDate > endOfCurrentReferenceDay) return undefined;
+
+    const ageRef = (p?.isDeceased && p?.dateOfDeath)
+      ? new Date(p.dateOfDeath)
+      : currentRef;
+    if (Number.isNaN(ageRef.getTime())) return undefined;
+
+    const endOfAgeReferenceDay = new Date(ageRef);
+    endOfAgeReferenceDay.setHours(23, 59, 59, 999);
+    if (birthDate > endOfAgeReferenceDay) return undefined;
+
+    return calculateAge(birthDate, ageRef);
   }
-  const legacy = Number(p?.age);
-  return Number.isFinite(legacy) ? legacy : undefined;
+  const legacy = p?.age;
+  return (
+    typeof legacy === "number" &&
+    Number.isFinite(legacy) &&
+    legacy >= 0
+  ) ? legacy : undefined;
+}
+
+export function isCurrentMinorPatient(p, referenceDate = new Date()) {
+  if (!p || p.isDeceased === true) return false;
+  const age = computeDynamicAge(p, referenceDate);
+  return Number.isFinite(age) && age < 18;
 }
 
 export function applyDynamicAgeToPatient(p) {
@@ -203,17 +231,28 @@ export function ageCategoryToBirthDateQuery(categoryKey, refDate = new Date()) {
 
 export function minorQueryByBirthDateOrLegacy(refDate = new Date(), options = {}) {
   const { includeDeceased = false } = options;
-  const cutoff18 = new Date(refDate);
+  const latestBirthDate = new Date(refDate);
+  latestBirthDate.setHours(23, 59, 59, 999);
+  const cutoff18 = new Date(latestBirthDate);
+  const cutoffDay = cutoff18.getDate();
+  cutoff18.setDate(1);
   cutoff18.setFullYear(cutoff18.getFullYear() - 18);
+  const lastDayOfCutoffMonth = new Date(
+    cutoff18.getFullYear(),
+    cutoff18.getMonth() + 1,
+    0
+  ).getDate();
+  cutoff18.setDate(Math.min(cutoffDay, lastDayOfCutoffMonth));
+  const legacyAgeRange = { $gte: 0, $lt: 18 };
 
   const query = {
     $or: [
-      // ✅ nuevos: con birthDate -> minor si nació después del cutoff
-      { birthDate: { $gt: cutoff18 } },
+      // ✅ nuevos: birthDate válida dentro del rango actual de minoría
+      { birthDate: { $gt: cutoff18, $lte: latestBirthDate } },
 
       // ✅ legacy: sin birthDate -> usamos age guardada
-      { birthDate: { $exists: false }, age: { $lt: 18 } },
-      { birthDate: null, age: { $lt: 18 } },
+      { birthDate: { $exists: false }, age: legacyAgeRange },
+      { birthDate: null, age: legacyAgeRange },
     ],
   };
   if (!includeDeceased) {

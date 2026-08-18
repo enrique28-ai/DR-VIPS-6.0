@@ -4,6 +4,10 @@ import Patient from "../models/Patient.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
 import { ACTIVE_APPOINTMENT_STATUSES } from "../services/appointments/appointmentLifecycleService.js";
+import {
+  isCurrentMinorPatient,
+  minorQueryByBirthDateOrLegacy,
+} from "./helpers/patienthelpers.js";
 
 const normEmail = (v) => (v || "").toLowerCase().trim();
 
@@ -33,7 +37,10 @@ const patientUserMatchesAppointmentPatient = (patient, email) => {
   const normalizedEmail = normEmail(email);
   return Boolean(normalizedEmail) && (
     normEmail(patient?.email) === normalizedEmail ||
-    normEmail(patient?.parentEmail) === normalizedEmail
+    (
+      isCurrentMinorPatient(patient) &&
+      normEmail(patient?.parentEmail) === normalizedEmail
+    )
   );
 };
 
@@ -44,8 +51,10 @@ const deceasedAppointmentErrorBody = (error = DECEASED_APPOINTMENT_ERROR) => ({
   errorCode: DECEASED_APPOINTMENT_ERROR_CODE,
 });
 const appointmentPatientIsDeceased = (appt) => appt?.patient?.isDeceased === true;
-const APPOINTMENT_PATIENT_SELECT = "_id email parentEmail minorKey age fullname name isDeceased";
-const APPOINTMENT_PATIENT_POPULATE_SELECT = "email parentEmail minorKey age fullname name isDeceased";
+const APPOINTMENT_PATIENT_SELECT =
+  "_id email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
+const APPOINTMENT_PATIENT_POPULATE_SELECT =
+  "email parentEmail minorKey birthDate age dateOfDeath fullname name isDeceased";
 const GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR =
   "The guardian is unavailable. Assign a new guardian before scheduling appointments for this minor.";
 const GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR_CODE = "APPOINTMENT_GUARDIAN_UNAVAILABLE";
@@ -56,12 +65,7 @@ const guardianUnavailableAppointmentErrorBody = (
   errorCode: GUARDIAN_UNAVAILABLE_APPOINTMENT_ERROR_CODE,
 });
 const appointmentPatientUsesGuardian = (patient) => {
-  const age = Number(patient?.age);
-  return Boolean(
-    normEmail(patient?.parentEmail) ||
-      patient?.minorKey ||
-      (Number.isFinite(age) && age < 18)
-  );
+  return isCurrentMinorPatient(patient);
 };
 const getAppointmentGuardian = async (patient, session) => {
   if (!appointmentPatientUsesGuardian(patient)) {
@@ -169,7 +173,9 @@ export const createAppointment = async (req, res, next) => {
       );
 
       // 🔔 NOTIF al paciente (si existe cuenta User para ese email)
-      const pEmail = normEmail(patient.email) || normEmail(patient.parentEmail);
+      const pEmail = normEmail(patient.email) || (
+        isCurrentMinorPatient(patient) ? normEmail(patient.parentEmail) : ""
+      );
       if (pEmail) {
         const patientUser = await User.findOne({ email: pEmail })
           .select("_id")
@@ -216,13 +222,16 @@ export const getAppointments = async (req, res, next) => {
       const guardianProfile = await Patient.findOne({ email }).select("_id isDeceased");
       const profileConditions = [{ email }];
       if (guardianProfile && guardianProfile.isDeceased !== true) {
-        profileConditions.push({ parentEmail: email });
+        profileConditions.push({
+          parentEmail: email,
+          ...minorQueryByBirthDateOrLegacy(new Date()),
+        });
       }
       const myProfiles = await Patient.find({
         isDeceased: { $ne: true },
         $or: profileConditions,
       }).select("_id");
-      const ids = myProfiles.map((p) => p._id);
+      const ids = myProfiles.map((patient) => patient._id);
       query = { patient: { $in: ids } };
     }
 
@@ -293,6 +302,10 @@ export const acceptAppointment = async (req, res, next) => {
       relatedAppointment: appt._id,
       meta: { role: "doctor" },
     });
+    if (appt.patient) {
+      appt.patient.birthDate = undefined;
+      appt.patient.dateOfDeath = undefined;
+    }
     return res.json(appt);
   } catch (error) {
     return next(error);

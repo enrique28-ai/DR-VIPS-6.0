@@ -252,6 +252,21 @@ function mockPatientHistoryCreate() {
   return calls;
 }
 
+function assertCurrentMinorQuery(query, expectedFields) {
+  const cutoff = query.$or[0].birthDate.$gt;
+  assert.equal(cutoff instanceof Date, true);
+  assert.equal(new Date("1990-01-01T12:00:00.000Z") > cutoff, false);
+  assert.equal(new Date("2016-01-01T12:00:00.000Z") > cutoff, true);
+  assert.deepEqual(query.$or.slice(1), [
+    { birthDate: { $exists: false }, age: { $gte: 0, $lt: 18 } },
+    { birthDate: null, age: { $gte: 0, $lt: 18 } },
+  ]);
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(query).filter(([key]) => key !== "$or")),
+    expectedFields
+  );
+}
+
 function mockAppointmentDeathArchive() {
   const calls = [];
 
@@ -588,9 +603,8 @@ test("approveChildProfileService updates minor fullname and minorKey on parent a
     assert.equal(findOneCalls[0]._id, "child-profile-id");
     assert.equal(findOneCalls[0].parentEmail, "parent@example.com");
     assert.equal(updateManyCalls.length, 1);
-    assert.deepEqual(updateManyCalls[0].query, {
+    assertCurrentMinorQuery(updateManyCalls[0].query, {
       parentEmail: "parent@example.com",
-      age: { $lt: 18 },
       minorKey: "parent@example.com::minor patient",
     });
     assert.equal(updateManyCalls[0].updateDoc.$set.fullname, "Corrected Minor");
@@ -752,7 +766,7 @@ test("rejectChildProfileService restores previous approved fullname and old mino
   });
 
   mockPatientFindOne(target);
-  mockFlexiblePatientFindSequence([
+  const findCalls = mockFlexiblePatientFindSequence([
     { kind: "sortLean", value: [target] },
     {
       kind: "sortPopulateLean",
@@ -778,11 +792,14 @@ test("rejectChildProfileService restores previous approved fullname and old mino
 
     assert.equal(result.ok, true);
     assert.equal(result.pendingDecision, false);
-    assert.equal(updateManyCalls.length, 1);
-    assert.deepEqual(updateManyCalls[0].query, {
+    assertCurrentMinorQuery(findCalls[0].query, {
       parentEmail: "parent@example.com",
       minorKey: "parent@example.com::minor patient",
-      age: { $lt: 18 },
+    });
+    assert.equal(updateManyCalls.length, 1);
+    assertCurrentMinorQuery(updateManyCalls[0].query, {
+      parentEmail: "parent@example.com",
+      minorKey: "parent@example.com::minor patient",
     });
     assert.equal(updateManyCalls[0].updateDoc.$set.fullname, "Minor Patient");
     assert.equal(updateManyCalls[0].updateDoc.$set.minorKey, "parent@example.com::minor patient");

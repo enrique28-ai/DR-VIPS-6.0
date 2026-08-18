@@ -403,11 +403,12 @@ export const approveChildProfileService = async ({ user, profileId }) => {
   }
 
   const parentEmail = normLower(user.email);
+  const referenceDate = new Date();
 
   const doc = await Patient.findOne({
     _id: profileId,
     parentEmail,
-    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
+    ...minorQueryByBirthDateOrLegacy(referenceDate, { includeDeceased: true }),
   }).lean();
 
   if (!doc) {
@@ -473,7 +474,11 @@ export const approveChildProfileService = async ({ user, profileId }) => {
   }
 
   await Patient.updateMany(
-    { parentEmail, age: { $lt: 18 }, minorKey: oldKey },
+    {
+      parentEmail,
+      minorKey: oldKey,
+      ...minorQueryByBirthDateOrLegacy(referenceDate, { includeDeceased: true }),
+    },
     updateDoc,
     { timestamps: false }
   );
@@ -512,11 +517,12 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
   }
 
   const parentEmail = normLower(user.email);
+  const referenceDate = new Date();
 
   const target = await Patient.findOne({
     _id: profileId,
     parentEmail,
-    ...minorQueryByBirthDateOrLegacy(new Date(), { includeDeceased: true }),
+    ...minorQueryByBirthDateOrLegacy(referenceDate, { includeDeceased: true }),
   }).lean();
 
   if (!target) {
@@ -537,7 +543,7 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
   const allPats = await Patient.find({
     parentEmail,
     minorKey: key,
-    age: { $lt: 18 },
+    ...minorQueryByBirthDateOrLegacy(referenceDate, { includeDeceased: true }),
   })
     .sort({ updatedAt: -1 })
     .lean();
@@ -581,7 +587,11 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
       }
 
       await Patient.updateMany(
-        { parentEmail, minorKey: key, age: { $lt: 18 } },
+        {
+          parentEmail,
+          minorKey: key,
+          ...minorQueryByBirthDateOrLegacy(referenceDate, { includeDeceased: true }),
+        },
         updateDoc,
         { timestamps: false }
       );
@@ -693,7 +703,11 @@ export const rejectChildProfileService = async ({ user, profileId }) => {
   }
 
   await Patient.updateMany(
-    { parentEmail, minorKey: key, age: { $lt: 18 } },
+    {
+      parentEmail,
+      minorKey: key,
+      ...minorQueryByBirthDateOrLegacy(referenceDate, { includeDeceased: true }),
+    },
     updateDoc,
     { timestamps: false }
   );
