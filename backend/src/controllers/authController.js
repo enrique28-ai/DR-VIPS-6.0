@@ -4,6 +4,7 @@ import ProfessionalAllowlist from "../models/ProfessionalAllowlist.js";
 import { google } from "googleapis";
 import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
 import { isStrongPassword } from "../utils/passwordPolicy.js";
+import { normalizeSingleMailbox } from "../utils/emailAddress.js";
 import {
   sendVerificationEmail,
   sendWelcomeEmail,
@@ -134,23 +135,28 @@ export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body || {};
     const passwordMissing = password == null || password === "";
-    if (!name?.trim() || !email?.trim() || passwordMissing) {
+    const emailMissing = typeof email !== "string" || !email.trim();
+    if (!name?.trim() || emailMissing || passwordMissing) {
       return res.status(400).json({ error: "Name, email and password are required" });
     }
+    const normalizedEmail = normalizeSingleMailbox(email);
     if (!isStrongPassword(password)) {
       return res.status(400).json({
         errorCode: "WEAK_PASSWORD",
         error: "Password does not meet security requirements",
       });
     }
+    if (!normalizedEmail) {
+      return res.status(400).json({ error: "Invalid email" });
+    }
 
     const targetRole = (role === "patient") ? "patient" : "doctor";
- if (targetRole === "doctor" && !(await isAllowedProfessional(email))) {
+ if (targetRole === "doctor" && !(await isAllowedProfessional(normalizedEmail))) {
    return res.status(403).json({ error: "Use your work email (allowed domain) or an approved email." });
  }
 
 
-    const exists = await User.findOne({ email });
+    const exists = await User.findOne({ email: normalizedEmail });
     if (exists){
       if (exists.googleId) {
         return res.status(409).json({ errorCode: "USE_GOOGLE" });
@@ -162,7 +168,7 @@ export const register = async (req, res) => {
     const verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     const user = await User.create({
-      name, email, password,
+      name, email: normalizedEmail, password,
       verificationToken: hashVerificationCode(verificationCode),
       verificationTokenExpiresAt,
       isVerified: false,

@@ -1,6 +1,17 @@
 import { getEmailSubjects, getEmailTemplates } from "./emailTemplates.js";
 import { transporter, fromAddress } from "./gmail.js";
 
+const escapeHtml = (value) => String(value ?? "").replace(
+  /[&<>"']/g,
+  (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character],
+);
+
 export const sendVerificationEmail = async (email, verificationToken, lang = "en") => {
   try {
     const subjects = getEmailSubjects(lang);
@@ -26,7 +37,7 @@ export const sendWelcomeEmail = async (email, name, lang = "en") => {
       from: fromAddress,
       to: email,
       subject: subjects.welcome,
-      html: WELCOME_EMAIL_TEMPLATE.replace("{name}", name),
+      html: WELCOME_EMAIL_TEMPLATE.replace("{name}", escapeHtml(name)),
     });
   } catch (error) {
     throw new Error(`Error sending welcome email: ${error?.message || error}`);

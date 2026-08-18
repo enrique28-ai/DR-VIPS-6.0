@@ -232,8 +232,12 @@ test("register returns a sanitized user and stores only the SHA-256 verification
   restoreMocks();
   const messages = captureMail();
   let createPayload;
+  let findQuery;
 
-  User.findOne = async () => null;
+  User.findOne = async (query) => {
+    findQuery = query;
+    return null;
+  };
   User.create = async (payload) => {
     createPayload = payload;
     return makeUser(payload);
@@ -242,7 +246,7 @@ test("register returns a sanitized user and stores only the SHA-256 verification
   const req = makeReq({
     body: {
       name: "Patient User",
-      email: "patient@example.com",
+      email: "  Patient@Example.COM  ",
       password: "Valid1!",
       role: "patient",
     },
@@ -253,6 +257,9 @@ test("register returns a sanitized user and stores only the SHA-256 verification
 
   assert.equal(res.statusCode, 201);
   assertPublicUser(res.body.user);
+  assert.deepEqual(findQuery, { email: "patient@example.com" });
+  assert.equal(createPayload.email, "patient@example.com");
+  assert.equal(messages[0].to, "patient@example.com");
   assert.match(createPayload.verificationToken, /^[a-f0-9]{64}$/);
   assert.equal(messages.length, 1);
   const rawCode = extractSixDigitCode(messages[0].html);
@@ -260,6 +267,54 @@ test("register returns a sanitized user and stores only the SHA-256 verification
   assert.notEqual(createPayload.verificationToken, rawCode);
   assert.equal(JSON.stringify(res.body).includes(rawCode), false);
   assert.equal(decodeAuthCookie(res).sessionVersion, 0);
+});
+
+test("register rejects unsafe or malformed recipient input before side effects", async () => {
+  const unsafeEmails = [
+    "victim@example.com\r\nBcc: attacker@example.com",
+    "victim@example.com\rBcc: attacker@example.com",
+    "victim@example.com\nBcc: attacker@example.com",
+    "victim@example.com\0attacker@example.com",
+    "victim@example.com, attacker@example.com",
+    "victim@example.com; attacker@example.com",
+    "Victim <victim@example.com>",
+    "not-an-email",
+  ];
+
+  for (const email of unsafeEmails) {
+    restoreMocks();
+    const messages = captureMail();
+    let findCalls = 0;
+    let createCalls = 0;
+    User.findOne = async () => {
+      findCalls += 1;
+      return null;
+    };
+    User.create = async () => {
+      createCalls += 1;
+      return makeUser();
+    };
+
+    const res = makeRes();
+    await auth.register(
+      makeReq({
+        body: {
+          name: "Patient User",
+          email,
+          password: "Valid1!",
+          role: "patient",
+        },
+      }),
+      res,
+    );
+
+    assert.equal(res.statusCode, 400, email);
+    assert.deepEqual(res.body, { error: "Invalid email" }, email);
+    assert.equal(findCalls, 0, email);
+    assert.equal(createCalls, 0, email);
+    assert.equal(res.cookies.length, 0, email);
+    assert.equal(messages.length, 0, email);
+  }
 });
 
 test("register rejects a weak password before database, cookie, or email side effects", async () => {

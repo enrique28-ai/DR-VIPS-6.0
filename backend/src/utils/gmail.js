@@ -1,6 +1,7 @@
 // utils/gmail.js  (reemplazo completo)
 import { google } from "googleapis";
 import dotenv from "dotenv";
+import { normalizeSingleMailbox } from "./emailAddress.js";
 dotenv.config();
 
 const encodeHeaderWord = (str = "") => {
@@ -40,10 +41,13 @@ export const fromAddress = `"${process.env.GMAIL_FROM_NAME || "DR-VIPS"}" <${pro
 // "transporter" compatible con transporter.sendMail({...})
 export const transporter = {
   async sendMail({ from = fromAddress, to, subject, html, text }) {
+    const recipient = normalizeSingleMailbox(to);
+    if (!recipient) throw new Error("Invalid email recipient");
+
     const body = html ?? (text ? `<pre>${text}</pre>` : "");
     const lines = [
   `From: ${encodeFromHeader(from)}`,
-  `To: ${to}`,
+  `To: ${recipient}`,
   `Subject: ${encodeHeaderWord(subject)}`,
   "MIME-Version: 1.0",
   'Content-Type: text/html; charset="UTF-8"',
