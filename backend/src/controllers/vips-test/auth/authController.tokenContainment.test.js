@@ -34,6 +34,7 @@ const originalUserMethods = {
   create: User.create,
   findById: User.findById,
   findOne: User.findOne,
+  findOneAndUpdate: User.findOneAndUpdate,
 };
 const originalSendMail = transporter.sendMail;
 const originalUpload = cloudinary.uploader.upload;
@@ -59,6 +60,7 @@ function restoreMocks() {
   User.create = originalUserMethods.create;
   User.findById = originalUserMethods.findById;
   User.findOne = originalUserMethods.findOne;
+  User.findOneAndUpdate = originalUserMethods.findOneAndUpdate;
   transporter.sendMail = originalSendMail;
   cloudinary.uploader.upload = originalUpload;
   cloudinary.uploader.upload_stream = originalUploadStream;
@@ -153,6 +155,15 @@ function queryFor(value, onSelect = () => {}) {
       return promise.catch(reject);
     },
   };
+}
+
+function applyResetUpdate(user, update) {
+  Object.assign(user, update.$set);
+  for (const field of Object.keys(update.$unset || {})) user[field] = undefined;
+  for (const [field, increment] of Object.entries(update.$inc || {})) {
+    user[field] = (user[field] ?? 0) + increment;
+  }
+  return user;
 }
 
 function sha256(value) {
@@ -492,7 +503,14 @@ test("verify reset code explicitly selects the hidden hash and exchanges it for 
     resetPasswordExpiresAt: new Date(Date.now() + 60_000),
   });
   let selected = "";
+  let exchangeQuery;
+  let exchangeUpdate;
   User.findOne = () => queryFor(user, (projection) => { selected = projection; });
+  User.findOneAndUpdate = async (query, update) => {
+    exchangeQuery = query;
+    exchangeUpdate = update;
+    return applyResetUpdate(user, update);
+  };
 
   const res = makeRes();
   await auth.verifyResetCode(
@@ -504,11 +522,15 @@ test("verify reset code explicitly selects the hidden hash and exchanges it for 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.success, true);
   assert.match(res.body.token, /^[a-f0-9]{64}$/);
+  assert.equal(String(exchangeQuery._id), String(user._id));
+  assert.equal(exchangeQuery.resetPasswordToken, sha256(rawCode));
+  assert.ok(exchangeQuery.resetPasswordExpiresAt.$gt instanceof Date);
+  assert.equal(exchangeUpdate.$set.resetPasswordToken, sha256(res.body.token));
   assert.equal(user.resetPasswordToken, sha256(res.body.token));
   assert.notEqual(user.resetPasswordToken, res.body.token);
 });
 
-test("reset password explicitly selects the hidden token, consumes it, and exposes no User secrets", async () => {
+test("reset password atomically consumes the token and exposes no User secrets", async () => {
   restoreMocks();
   captureMail();
   const rawResetToken = "a".repeat(64);
@@ -519,16 +541,14 @@ test("reset password explicitly selects the hidden token, consumes it, and expos
     resetPasswordExpiresAt: new Date(Date.now() + 60_000),
     sessionVersion: 4,
   });
-  let saveCalls = 0;
-  user.save = async () => {
-    saveCalls += 1;
-    return user;
-  };
   let findQuery;
-  let selected = "";
-  User.findOne = (query) => {
+  let updateDoc;
+  let updateOptions;
+  User.findOneAndUpdate = async (query, update, options) => {
     findQuery = query;
-    return queryFor(user, (projection) => { selected = projection; });
+    updateDoc = update;
+    updateOptions = options;
+    return applyResetUpdate(user, update);
   };
 
   const res = makeRes();
@@ -538,23 +558,25 @@ test("reset password explicitly selects the hidden token, consumes it, and expos
   );
 
   assert.equal(findQuery.resetPasswordToken, expectedHash);
-  assert.match(selected, /resetPasswordToken/);
-  assert.match(selected, /sessionVersion/);
+  assert.ok(findQuery.resetPasswordExpiresAt.$gt instanceof Date);
+  assert.equal(updateOptions.new, true);
+  assert.equal(updateOptions.runValidators, true);
+  assert.notEqual(updateDoc.$set.password, "Replacement1!");
+  assert.equal(await user.comparePassword("Replacement1!"), true);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { success: true, message: "Password updated" });
   assert.equal(user.resetPasswordToken, undefined);
   assert.equal(user.resetPasswordExpiresAt, undefined);
   assert.equal(user.sessionVersion, 5);
-  assert.equal(saveCalls, 1);
   assert.equal(JSON.stringify(res.body).includes(expectedHash), false);
 });
 
 test("invalid or expired reset password attempts do not increment sessionVersion", async () => {
   restoreMocks();
-  let findCalls = 0;
-  User.findOne = () => {
-    findCalls += 1;
-    return queryFor(null);
+  let updateCalls = 0;
+  User.findOneAndUpdate = async () => {
+    updateCalls += 1;
+    return null;
   };
 
   const malformedRes = makeRes();
@@ -564,7 +586,7 @@ test("invalid or expired reset password attempts do not increment sessionVersion
   );
   assert.equal(malformedRes.statusCode, 400);
   assert.deepEqual(malformedRes.body, { error: "Invalid or expired reset token" });
-  assert.equal(findCalls, 0);
+  assert.equal(updateCalls, 0);
 
   const expiredRes = makeRes();
   await auth.resetPassword(
@@ -572,7 +594,7 @@ test("invalid or expired reset password attempts do not increment sessionVersion
     expiredRes,
   );
   assert.equal(expiredRes.statusCode, 400);
-  assert.equal(findCalls, 1);
+  assert.equal(updateCalls, 1);
 });
 
 test("reset password rejects a weak password before lookup, save, token consumption, or email", async () => {
@@ -587,10 +609,15 @@ test("reset password rejects a weak password before lookup, save, token consumpt
     sessionVersion: 5,
   });
   let findCalls = 0;
+  let updateCalls = 0;
   let saveCalls = 0;
   User.findOne = () => {
     findCalls += 1;
     return queryFor(user);
+  };
+  User.findOneAndUpdate = async () => {
+    updateCalls += 1;
+    return user;
   };
   user.save = async () => {
     saveCalls += 1;
@@ -609,6 +636,7 @@ test("reset password rejects a weak password before lookup, save, token consumpt
     error: "Password does not meet security requirements",
   });
   assert.equal(findCalls, 0);
+  assert.equal(updateCalls, 0);
   assert.equal(saveCalls, 0);
   assert.equal(user.resetPasswordToken, originalHash);
   assert.equal(user.resetPasswordExpiresAt, originalExpiry);
@@ -629,6 +657,7 @@ test("password login after reset issues the current sessionVersion", async () =>
   });
   user.comparePassword = async () => true;
   let loginSelected = "";
+  User.findOneAndUpdate = async (_query, update) => applyResetUpdate(user, update);
   User.findOne = (query) => queryFor(user, (projection) => {
     if (query.email) loginSelected = projection;
   });

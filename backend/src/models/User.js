@@ -25,6 +25,11 @@ export const serializePublicUser = (user) => {
   }, {});
 };
 
+export const hashUserPassword = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
 const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -66,8 +71,7 @@ const userSchema = new mongoose.Schema(
 // hash de password antes de guardar
 userSchema.pre("save", async function (next) {
   if (!this.password || !this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  this.password = await hashUserPassword(this.password);
   next();
 });
 

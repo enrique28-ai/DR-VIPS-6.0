@@ -1,5 +1,5 @@
 // controllers/auth.controller.js
-import User, { serializePublicUser } from "../models/User.js";
+import User, { hashUserPassword, serializePublicUser } from "../models/User.js";
 import ProfessionalAllowlist from "../models/ProfessionalAllowlist.js";
 import { google } from "googleapis";
 import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
@@ -358,30 +358,30 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    const hashed = crypto.createHash("sha256").update(tokenStr).digest("hex");
-    const user = await User.findOne({
-      resetPasswordToken: hashed,
-      resetPasswordExpiresAt: { $gt: new Date() }
-    }).select(
-      "+password +resetPasswordToken +resetPasswordExpiresAt " +
-      "+verificationToken +verificationTokenExpiresAt +sessionVersion"
+    const hashedToken = crypto.createHash("sha256").update(tokenStr).digest("hex");
+    const passwordHash = await hashUserPassword(password);
+    const user = await User.findOneAndUpdate(
+      {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpiresAt: { $gt: new Date() },
+      },
+      {
+        $set: {
+          password: passwordHash,
+          isVerified: true,
+        },
+        $unset: {
+          resetPasswordToken: 1,
+          resetPasswordExpiresAt: 1,
+          verificationToken: 1,
+          verificationTokenExpiresAt: 1,
+        },
+        $inc: { sessionVersion: 1 },
+      },
+      { new: true, runValidators: true }
     );
 
     if (!user) return res.status(400).json({ error: "Invalid or expired reset code" });
-
-    user.password = password;               // se hashea en pre('save') del modelo
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpiresAt = undefined;
-    user.sessionVersion = (user.sessionVersion ?? 0) + 1;
-
-    // B2: recibir el código prueba control del inbox → tratar como verificación de email
-    if (!user.isVerified) {
-      user.isVerified = true;
-      user.verificationToken = undefined;
-      user.verificationTokenExpiresAt = undefined;
-    }
-
-    await user.save();
 
     // Responde primero
     res.json({ success: true, message: "Password updated" });
@@ -404,6 +404,9 @@ export const verifyResetCode = async (req, res) => {
     const c = String(code || "").trim();
 
     if (!e || !c) return res.status(400).json({ error: "Invalid payload" });
+    if (!/^\d{6}$/.test(c)) {
+      return res.status(400).json({ error: "Invalid or expired code" });
+    }
 
     const user = await User.findOne({ email: e })
       .select("+resetPasswordToken +resetPasswordExpiresAt");
@@ -428,9 +431,23 @@ export const verifyResetCode = async (req, res) => {
     const rawToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min para cambiar password
-    await user.save();
+    const exchanged = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+        resetPasswordToken: hashedCode,
+        resetPasswordExpiresAt: { $gt: now },
+      },
+      {
+        $set: {
+          resetPasswordToken: hashedToken,
+          resetPasswordExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        },
+      }
+    );
+
+    if (!exchanged) {
+      return res.status(400).json({ error: "Invalid or expired code" });
+    }
 
     return res.json({ success: true, token: rawToken });
   } catch (err) {
