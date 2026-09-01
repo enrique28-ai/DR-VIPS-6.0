@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 import bcrypt from "bcryptjs";
 
 import User from "../../../models/User.js";
-import { transporter } from "../../../utils/gmail.js";
+import { transporter } from "../../../utils/emailTransport.js";
 
 const USER_ID = "64b000000000000000000002";
 const originalFindOne = User.findOne;

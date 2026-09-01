@@ -4,6 +4,7 @@ import { after, before, beforeEach, test } from "node:test";
 import { google } from "googleapis";
 
 const originalGoogleGmail = google.gmail;
+const originalEmailProvider = process.env.EMAIL_PROVIDER;
 const sentMessages = [];
 
 let transporter;
@@ -13,6 +14,7 @@ let sendVerificationEmail;
 let sendWelcomeEmail;
 
 before(async () => {
+  process.env.EMAIL_PROVIDER = "gmail";
   google.gmail = () => ({
     users: {
       messages: {
@@ -24,7 +26,7 @@ before(async () => {
     },
   });
 
-  ({ transporter } = await import("./gmail.js"));
+  ({ transporter } = await import("./emailTransport.js"));
   ({
     sendPasswordResetCodeEmail,
     sendResetSuccessEmail,
@@ -39,6 +41,8 @@ beforeEach(() => {
 
 after(() => {
   google.gmail = originalGoogleGmail;
+  if (originalEmailProvider === undefined) delete process.env.EMAIL_PROVIDER;
+  else process.env.EMAIL_PROVIDER = originalEmailProvider;
 });
 
 const decodeRaw = (message) => Buffer.from(

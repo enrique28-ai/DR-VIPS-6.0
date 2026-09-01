@@ -35,11 +35,10 @@ oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
 
 const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
-// Mantén el mismo "From" que ya usas en email.js
+// Remitente predeterminado para el transporte Gmail.
 export const fromAddress = `"${process.env.GMAIL_FROM_NAME || "DR-VIPS"}" <${process.env.GMAIL_USER}>`;
 
-// "transporter" compatible con transporter.sendMail({...})
-export const transporter = {
+export const gmailTransporter = {
   async sendMail({ from = fromAddress, to, subject, html, text }) {
     const recipient = normalizeSingleMailbox(to);
     if (!recipient) throw new Error("Invalid email recipient");
