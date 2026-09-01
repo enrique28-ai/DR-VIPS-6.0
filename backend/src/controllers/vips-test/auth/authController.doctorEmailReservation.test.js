@@ -9,6 +9,8 @@ import User from "../../../models/User.js";
 import { transporter } from "../../../utils/emailTransport.js";
 
 const USER_ID = "64b000000000000000000001";
+const originalProfessionalAllowlistEnforced =
+  process.env.PROFESSIONAL_ALLOWLIST_ENFORCED;
 
 const originalMethods = {
   patientFindOne: Patient.findOne,
@@ -36,6 +38,12 @@ function restoreMethods() {
   User.create = originalMethods.userCreate;
   User.findOne = originalMethods.userFindOne;
   transporter.sendMail = originalMethods.sendMail;
+  setAllowlistEnforcement(originalProfessionalAllowlistEnforced);
+}
+
+function setAllowlistEnforcement(value) {
+  if (value === undefined) delete process.env.PROFESSIONAL_ALLOWLIST_ENFORCED;
+  else process.env.PROFESSIONAL_ALLOWLIST_ENFORCED = value;
 }
 
 function makeReq(overrides = {}) {
@@ -91,6 +99,16 @@ function allowProfessionalDomain(domain = "clinic.example") {
     return {
       lean: async () => [{ domain }],
     };
+  };
+}
+
+function denyProfessionalEmail() {
+  ProfessionalAllowlist.find = () => ({ lean: async () => [] });
+}
+
+function guardProfessionalAllowlistLookup() {
+  ProfessionalAllowlist.find = () => {
+    throw new Error("ProfessionalAllowlist.find must not be called when enforcement is disabled");
   };
 }
 
@@ -190,6 +208,7 @@ test("password doctor registration rejects a normalized email already used by a 
 
 test("password patient registration remains allowed when Patient.email matches", async () => {
   restoreMethods();
+  setAllowlistEnforcement("false");
   guardPatientLookup();
   const { createCalls, mailCalls } = mockUserCreation();
 
@@ -243,6 +262,7 @@ test("Google doctor finalization rejects a case-normalized email already used by
 
 test("Google patient finalization remains allowed when Patient.email matches", async () => {
   restoreMethods();
+  setAllowlistEnforcement("false");
   guardPatientLookup();
   const { createCalls, mailCalls } = mockUserCreation();
 
@@ -263,9 +283,10 @@ test("Google patient finalization remains allowed when Patient.email matches", a
   assert.equal(mailCalls.length, 0);
 });
 
-test("professional allowlist rejection keeps precedence and does not query Patient", async () => {
+test("missing enforcement flag keeps password doctor allowlist rejection active", async () => {
   restoreMethods();
-  ProfessionalAllowlist.find = () => ({ lean: async () => [] });
+  setAllowlistEnforcement(undefined);
+  denyProfessionalEmail();
   guardPatientLookup();
   const { createCalls, mailCalls } = mockUserCreation();
 
@@ -291,9 +312,170 @@ test("professional allowlist rejection keeps precedence and does not query Patie
   assert.equal(res.cookies.length, 0);
 });
 
+test("enforcement flag true keeps password doctor allowlist rejection active", async () => {
+  restoreMethods();
+  setAllowlistEnforcement("true");
+  denyProfessionalEmail();
+  guardPatientLookup();
+  const { createCalls, mailCalls } = mockUserCreation();
+
+  const res = makeRes();
+  await auth.register(
+    makeReq({
+      body: {
+        name: "Doctor User",
+        email: "doctor@unapproved.example",
+        password: "Valid1!",
+        role: "doctor",
+      },
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 403);
+  assert.deepEqual(res.body, {
+    error: "Use your work email (allowed domain) or an approved email.",
+  });
+  assert.equal(createCalls.length, 0);
+  assert.equal(mailCalls.length, 0);
+  assert.equal(res.cookies.length, 0);
+});
+
+test("enforcement flag false allows password doctor registration outside the allowlist", async () => {
+  restoreMethods();
+  setAllowlistEnforcement("false");
+  guardProfessionalAllowlistLookup();
+  const patientCalls = mockPatientEmailLookup({
+    expectedEmail: "doctor@unapproved.example",
+    patient: null,
+  });
+  const { createCalls, mailCalls } = mockUserCreation();
+
+  const res = makeRes();
+  await auth.register(
+    makeReq({
+      body: {
+        name: "Doctor User",
+        email: "Doctor@Unapproved.Example",
+        password: "Valid1!",
+        role: "doctor",
+      },
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(createCalls.length, 1);
+  assert.equal(createCalls[0].email, "doctor@unapproved.example");
+  assert.equal(createCalls[0].role, "doctor");
+  assert.deepEqual(patientCalls, [{ email: "doctor@unapproved.example" }]);
+  assert.equal(mailCalls.length, 1);
+  assert.equal(res.cookies.length, 1);
+});
+
+test("enforcement flag false makes Google pending allow the doctor role", async () => {
+  restoreMethods();
+  setAllowlistEnforcement("false");
+  guardProfessionalAllowlistLookup();
+
+  const res = makeRes();
+  await auth.getGooglePending(
+    makeReq({ cookies: { g_pending: makePendingToken("doctor@unapproved.example") } }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.email, "doctor@unapproved.example");
+  assert.equal(res.body.allowDoctor, true);
+});
+
+test("enforcement flag false allows Google doctor finalization outside the allowlist", async () => {
+  restoreMethods();
+  setAllowlistEnforcement("false");
+  guardProfessionalAllowlistLookup();
+  const patientCalls = mockPatientEmailLookup({
+    expectedEmail: "doctor@unapproved.example",
+    patient: null,
+  });
+  const { createCalls, mailCalls } = mockUserCreation();
+
+  const res = makeRes();
+  await auth.googleFinalizeRole(
+    makeReq({
+      body: { role: "doctor" },
+      cookies: { g_pending: makePendingToken("Doctor@Unapproved.Example") },
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(createCalls.length, 1);
+  assert.equal(createCalls[0].email, "doctor@unapproved.example");
+  assert.equal(createCalls[0].role, "doctor");
+  assert.deepEqual(patientCalls, [{ email: "doctor@unapproved.example" }]);
+  assert.equal(mailCalls.length, 0);
+  assert.equal(res.cookies.length, 1);
+});
+
+test("disabled allowlist still rejects password doctor email reserved by a Patient", async () => {
+  restoreMethods();
+  setAllowlistEnforcement("false");
+  guardProfessionalAllowlistLookup();
+  const patientCalls = mockPatientEmailLookup({
+    expectedEmail: "reserved@unapproved.example",
+    patient: { _id: "patient-record-id" },
+  });
+  const { createCalls, mailCalls } = mockUserCreation();
+
+  const res = makeRes();
+  await auth.register(
+    makeReq({
+      body: {
+        name: "Doctor User",
+        email: "Reserved@Unapproved.Example",
+        password: "Valid1!",
+        role: "doctor",
+      },
+    }),
+    res,
+  );
+
+  assertReservedResponse(res);
+  assert.deepEqual(patientCalls, [{ email: "reserved@unapproved.example" }]);
+  assert.equal(createCalls.length, 0);
+  assert.equal(mailCalls.length, 0);
+});
+
+test("disabled allowlist still rejects Google doctor email reserved by a Patient", async () => {
+  restoreMethods();
+  setAllowlistEnforcement("false");
+  guardProfessionalAllowlistLookup();
+  const patientCalls = mockPatientEmailLookup({
+    expectedEmail: "reserved@unapproved.example",
+    patient: { _id: "patient-record-id" },
+  });
+  const { createCalls, mailCalls } = mockUserCreation();
+
+  const res = makeRes();
+  await auth.googleFinalizeRole(
+    makeReq({
+      body: { role: "doctor" },
+      cookies: { g_pending: makePendingToken("Reserved@Unapproved.Example") },
+    }),
+    res,
+  );
+
+  assertReservedResponse(res);
+  assert.deepEqual(patientCalls, [{ email: "reserved@unapproved.example" }]);
+  assert.equal(createCalls.length, 0);
+  assert.equal(mailCalls.length, 0);
+});
+
 test("Google professional allowlist rejection keeps precedence and does not query Patient", async () => {
   restoreMethods();
-  ProfessionalAllowlist.find = () => ({ lean: async () => [] });
+  setAllowlistEnforcement(undefined);
+  denyProfessionalEmail();
   guardPatientLookup();
   const { createCalls, mailCalls } = mockUserCreation();
 
