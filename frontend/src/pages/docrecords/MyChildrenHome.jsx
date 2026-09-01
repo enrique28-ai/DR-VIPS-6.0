@@ -87,7 +87,10 @@ function ChildAction({ disabled, icon: Icon, label, to }) {
 
 function ChildCard({ child, t }) {
   const snap = child?.snapshot || {};
-  const name = snap?.fullname?.value || t("myChildren.unknownChild");
+  const name =
+    snap?.fullnameWrapper?.value ||
+    snap?.fullname ||
+    t("myChildren.unknownChild");
   const age = snap?.age?.value;
   const childId = snap?.sources?.[0]?.id;
   const hasChildId = Boolean(childId);

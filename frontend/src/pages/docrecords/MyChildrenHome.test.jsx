@@ -37,7 +37,12 @@ const childRecord = (overrides = {}) => ({
   childKey: "child-key",
   pendingDecision: false,
   snapshot: {
-    fullname: { value: "Minor Patient" },
+    fullname: "Minor Patient",
+    fullnameWrapper: {
+      value: "Minor Patient",
+      conflict: false,
+      alternatives: ["Minor Patient"],
+    },
     age: { value: 10 },
     sources: [{ id: "child-profile-id" }],
   },
@@ -109,6 +114,45 @@ describe("MyChildrenHome", () => {
     expect(screen.getByText("Up to date")).toBeInTheDocument();
   });
 
+  test("prefers fullnameWrapper.value when it exists", () => {
+    renderChildrenHome({
+      data: [
+        childRecord({
+          snapshot: {
+            fullname: "Raw snapshot name",
+            fullnameWrapper: {
+              value: "Wrapped child name",
+              conflict: false,
+              alternatives: ["Wrapped child name"],
+            },
+            age: { value: 10 },
+            sources: [{ id: "child-profile-id" }],
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByRole("heading", { name: "Wrapped child name" })).toBeInTheDocument();
+    expect(screen.queryByText("Raw snapshot name")).not.toBeInTheDocument();
+  });
+
+  test("falls back to snapshot fullname string when fullnameWrapper.value is unavailable", () => {
+    renderChildrenHome({
+      data: [
+        childRecord({
+          snapshot: {
+            fullname: "Fallback Minor",
+            fullnameWrapper: { conflict: false, alternatives: [] },
+            age: { value: 10 },
+            sources: [{ id: "child-profile-id" }],
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByRole("heading", { name: "Fallback Minor" })).toBeInTheDocument();
+  });
+
   test("renders pending state for children awaiting decision", () => {
     renderChildrenHome({
       data: [childRecord({ pendingDecision: true })],
@@ -118,7 +162,7 @@ describe("MyChildrenHome", () => {
     expect(screen.queryByText("Up to date")).not.toBeInTheDocument();
   });
 
-  test("falls back to unknown child when fullname is missing", () => {
+  test("falls back to unknown child only when fullnameWrapper and fullname are missing", () => {
     renderChildrenHome({
       data: [
         childRecord({
@@ -131,6 +175,43 @@ describe("MyChildrenHome", () => {
     });
 
     expect(screen.getByText("Unknown child")).toBeInTheDocument();
+  });
+
+  test("keeps two children with different names clearly differentiated", () => {
+    renderChildrenHome({
+      data: [
+        childRecord({
+          childKey: "first-child",
+          snapshot: {
+            fullname: "First Minor",
+            fullnameWrapper: {
+              value: "First Minor",
+              conflict: false,
+              alternatives: ["First Minor"],
+            },
+            age: { value: 10 },
+            sources: [{ id: "first-child-id" }],
+          },
+        }),
+        childRecord({
+          childKey: "second-child",
+          snapshot: {
+            fullname: "Second Minor",
+            fullnameWrapper: {
+              value: "Second Minor",
+              conflict: false,
+              alternatives: ["Second Minor"],
+            },
+            age: { value: 8 },
+            sources: [{ id: "second-child-id" }],
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByRole("heading", { name: "First Minor" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Second Minor" })).toBeInTheDocument();
+    expect(screen.queryByText("Unknown child")).not.toBeInTheDocument();
   });
 
   test("renders active child health links from the first source id", () => {
@@ -151,7 +232,12 @@ describe("MyChildrenHome", () => {
       data: [
         childRecord({
           snapshot: {
-            fullname: { value: "Unlinked Minor" },
+            fullname: "Unlinked Minor",
+            fullnameWrapper: {
+              value: "Unlinked Minor",
+              conflict: false,
+              alternatives: ["Unlinked Minor"],
+            },
             age: { value: 8 },
             sources: [],
           },
