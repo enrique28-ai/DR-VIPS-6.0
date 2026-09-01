@@ -16,6 +16,7 @@ dnsPromises.resolve6 = async () => [];
 syncBuiltinESMExports();
 
 const { default: Patient } = await import("../../../models/Patient.js");
+const { default: User } = await import("../../../models/User.js");
 const {
   createPatient,
   createPatientAccessRequest,
@@ -183,6 +184,15 @@ test("createPatient preserves the explicit duplicate-email response", async (t) 
     },
     lean: async () => [],
   }));
+  t.mock.method(User, "findOne", (query) => {
+    assert.deepEqual(query, { email: "duplicate@example.com", role: "doctor" });
+    return {
+      select(projection) {
+        assert.equal(projection, "_id");
+        return { lean: async () => null };
+      },
+    };
+  });
   const duplicateError = Object.assign(new Error("raw duplicate detail"), {
     code: 11000,
     keyPattern: { email: 1 },

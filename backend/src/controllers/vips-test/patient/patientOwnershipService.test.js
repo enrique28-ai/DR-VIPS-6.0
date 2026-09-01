@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
 import Patient from "../../../models/Patient.js";
+import User from "../../../models/User.js";
 import {
   getGlobalPatientPreviewService,
   getPatientByIdService,
@@ -15,6 +16,9 @@ const originalPatientMethods = {
   findByIdAndUpdate: Patient.findByIdAndUpdate,
   findOne: Patient.findOne,
   findOneAndUpdate: Patient.findOneAndUpdate,
+};
+const originalUserMethods = {
+  findOne: User.findOne,
 };
 const GLOBAL_PATIENT_PREVIEW_FIELDS =
   "_id fullname email phone age gender country state city approvedAt updatedAt createdBy owners";
@@ -44,6 +48,7 @@ function restorePatientMethods() {
   Patient.findByIdAndUpdate = originalPatientMethods.findByIdAndUpdate;
   Patient.findOne = originalPatientMethods.findOne;
   Patient.findOneAndUpdate = originalPatientMethods.findOneAndUpdate;
+  User.findOne = originalUserMethods.findOne;
 }
 
 function makeDoctorA(overrides = {}) {
@@ -254,6 +259,11 @@ test("updatePatientService allows doctor in owners", async () => {
   const findOneCalls = mockPatientFindOneLean(current);
   const pendingFindCalls = mockPendingHealthDecisionFind();
   const updateCalls = [];
+
+  User.findOne = (query) => {
+    assert.deepEqual(query, { email: current.email, role: "doctor" });
+    return { select: () => ({ lean: async () => null }) };
+  };
 
   Patient.findOneAndUpdate = (query, updateDoc, options) => {
     updateCalls.push({ query, updateDoc, options });
