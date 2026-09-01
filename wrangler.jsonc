@@ -22,6 +22,9 @@
     "CAPTCHA_PROVIDER": "turnstile",
     "TURNSTILE_EXPECTED_HOSTNAMES": "dr-vips.com",
     "API_GOOGLE_REDIRECT_URI": "https://dr-vips.com/api/auth/google/callback",
+    "EMAIL_PROVIDER": "cloudflare",
+    "EMAIL_FROM_ADDRESS": "noreply@mail.dr-vips.com",
+    "EMAIL_FROM_NAME": "DR-VIPS",
     "APPT_REMINDERS_ENABLED": "false"
   },
   "assets": {

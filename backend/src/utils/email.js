@@ -1,5 +1,5 @@
 import { getEmailSubjects, getEmailTemplates } from "./emailTemplates.js";
-import { transporter, fromAddress } from "./gmail.js";
+import { transporter } from "./emailTransport.js";
 
 const escapeHtml = (value) => String(value ?? "").replace(
   /[&<>"']/g,
@@ -18,7 +18,6 @@ export const sendVerificationEmail = async (email, verificationToken, lang = "en
     const { VERIFICATION_EMAIL_TEMPLATE } = getEmailTemplates(lang);
 
     await transporter.sendMail({
-      from: fromAddress,
       to: email,
       subject: subjects.verify,
       html: VERIFICATION_EMAIL_TEMPLATE.replace("{verificationCode}", verificationToken),
@@ -34,7 +33,6 @@ export const sendWelcomeEmail = async (email, name, lang = "en") => {
     const { WELCOME_EMAIL_TEMPLATE } = getEmailTemplates(lang);
 
     await transporter.sendMail({
-      from: fromAddress,
       to: email,
       subject: subjects.welcome,
       html: WELCOME_EMAIL_TEMPLATE.replace("{name}", escapeHtml(name)),
@@ -50,7 +48,6 @@ export const sendPasswordResetCodeEmail = async (email, resetCode, lang = "en") 
     const { PASSWORD_RESET_CODE_TEMPLATE } = getEmailTemplates(lang);
 
     await transporter.sendMail({
-      from: fromAddress,
       to: email,
       subject: subjects.resetCode || subjects.resetReq,
       html: PASSWORD_RESET_CODE_TEMPLATE.replace("{resetCode}", resetCode),
@@ -66,7 +63,6 @@ export const sendResetSuccessEmail = async (email, lang = "en") => {
     const { PASSWORD_RESET_SUCCESS_TEMPLATE } = getEmailTemplates(lang);
 
     await transporter.sendMail({
-      from: fromAddress,
       to: email,
       subject: subjects.resetOk,
       html: PASSWORD_RESET_SUCCESS_TEMPLATE,

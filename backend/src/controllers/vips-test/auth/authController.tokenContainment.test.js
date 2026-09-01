@@ -7,7 +7,7 @@ import { google } from "googleapis";
 import jwt from "jsonwebtoken";
 
 import User, { serializePublicUser } from "../../../models/User.js";
-import { transporter } from "../../../utils/gmail.js";
+import { transporter } from "../../../utils/emailTransport.js";
 
 const PUBLIC_USER_FIELDS = new Set([
   "_id",
