@@ -23,6 +23,7 @@
     "TURNSTILE_EXPECTED_HOSTNAMES": "dr-vips.com",
     "API_GOOGLE_REDIRECT_URI": "https://dr-vips.com/api/auth/google/callback",
     "EMAIL_PROVIDER": "cloudflare",
+    "CLOUDFLARE_ACCOUNT_ID": "58320f763c6a20271d8b673fb60bc591",
     "EMAIL_FROM_ADDRESS": "noreply@mail.dr-vips.com",
     "EMAIL_FROM_NAME": "DR-VIPS",
     "APPT_REMINDERS_ENABLED": "false"

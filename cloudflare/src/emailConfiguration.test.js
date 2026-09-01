@@ -30,5 +30,6 @@ test("Wrangler contains only non-secret production email settings", async () => 
   assert.equal(wrangler.vars.EMAIL_FROM_ADDRESS, "noreply@mail.dr-vips.com");
   assert.equal(wrangler.vars.EMAIL_FROM_NAME, "DR-VIPS");
   assert.equal(Object.hasOwn(wrangler.vars, "CLOUDFLARE_EMAIL_API_TOKEN"), false);
-  assert.equal(Object.hasOwn(wrangler.vars, "CLOUDFLARE_ACCOUNT_ID"), false);
+  assert.equal(Object.hasOwn(wrangler.vars, "CLOUDFLARE_ACCOUNT_ID"), true);
+  assert.match(wrangler.vars.CLOUDFLARE_ACCOUNT_ID, /^[a-f0-9]{32}$/i);
 });
