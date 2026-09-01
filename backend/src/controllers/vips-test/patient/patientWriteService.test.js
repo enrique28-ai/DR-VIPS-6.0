@@ -163,14 +163,20 @@ function guardPendingPortalLookup() {
   Patient.find = () => {
     throw new Error("Patient.find should not be called for adult death-status auto-confirm");
   };
-  User.findOne = () => {
-    throw new Error("User.findOne should not be called for adult death-status auto-confirm");
+  User.findOne = (query) => {
+    if (query.role === "doctor") {
+      return { select: () => ({ lean: async () => null }) };
+    }
+    throw new Error("Patient pending-decision User.findOne should not be called for adult death-status auto-confirm");
   };
 }
 
 function guardPendingPortalUserLookup() {
-  User.findOne = () => {
-    throw new Error("User.findOne should not be called for adult death-status auto-confirm");
+  User.findOne = (query) => {
+    if (query.role === "doctor") {
+      return { select: () => ({ lean: async () => null }) };
+    }
+    throw new Error("Patient pending-decision User.findOne should not be called for adult death-status auto-confirm");
   };
 }
 
@@ -232,6 +238,15 @@ function mockNoPendingPortalDecision(current) {
   };
 
   User.findOne = (query) => {
+    if (query.role === "doctor") {
+      return {
+        select: (projection) => {
+          assert.equal(projection, "_id");
+          return { lean: async () => null };
+        },
+      };
+    }
+
     userFindCalls.push(query);
     return {
       select: (projection) => {
@@ -269,8 +284,14 @@ function mockNoPendingCreateEmailLookup(expectedEmail) {
     };
   };
 
-  User.findOne = () => {
-    throw new Error("User.findOne should not be called when there are no patient records");
+  User.findOne = (query) => {
+    assert.deepEqual(query, { email: expectedEmail, role: "doctor" });
+    return {
+      select: (projection) => {
+        assert.equal(projection, "_id");
+        return { lean: async () => null };
+      },
+    };
   };
 
   return patientFindCalls;
@@ -406,9 +427,18 @@ test("createPatientService blocks duplicate email on create", async () => {
 
   const user = { _id: "doctor-id" };
   const duplicate = { _id: "duplicate-patient-id" };
+  let doctorLookupCalls = 0;
   const findOneCalls = mockPatientFindOneSequence([
     { kind: "selectLean", value: duplicate },
   ]);
+
+  User.findOne = (query) => {
+    doctorLookupCalls += 1;
+    assert.deepEqual(query, { email: "new@example.com", role: "doctor" });
+    return {
+      select: () => ({ lean: async () => ({ _id: "doctor-user-id" }) }),
+    };
+  };
 
   Patient.create = async () => {
     throw new Error("Patient.create should not be called for duplicate email");
@@ -431,6 +461,7 @@ test("createPatientService blocks duplicate email on create", async () => {
 
     assert.equal(findOneCalls.length, 1);
     assert.deepEqual(findOneCalls[0], { email: "new@example.com" });
+    assert.equal(doctorLookupCalls, 0);
   } finally {
     restorePatientMethods();
   }
@@ -766,6 +797,10 @@ test("createPatientService blocks duplicate phoneDigits on create", async () => 
       };
     },
   });
+  User.findOne = (query) => {
+    assert.deepEqual(query, { email: "new@example.com", role: "doctor" });
+    return { select: () => ({ lean: async () => null }) };
+  };
   Patient.create = async () => {
     throw new Error("Patient.create should not be called for duplicate phone");
   };
@@ -1715,10 +1750,19 @@ test("updatePatientService blocks duplicate email on update when current patient
     createdBy: user._id,
   });
   const duplicate = { _id: "duplicate-patient-id" };
+  let doctorLookupCalls = 0;
   const findOneCalls = mockPatientFindOneSequence([
     { kind: "lean", value: current },
     { kind: "selectLean", value: duplicate, projection: "_id" },
   ]);
+
+  User.findOne = (query) => {
+    doctorLookupCalls += 1;
+    assert.deepEqual(query, { email: "new@example.com", role: "doctor" });
+    return {
+      select: () => ({ lean: async () => ({ _id: "doctor-user-id" }) }),
+    };
+  };
 
   try {
     await assert.rejects(
@@ -1743,6 +1787,7 @@ test("updatePatientService blocks duplicate email on update when current patient
       email: "new@example.com",
       _id: { $ne: current._id },
     });
+    assert.equal(doctorLookupCalls, 0);
   } finally {
     restorePatientMethods();
   }
@@ -2226,6 +2271,10 @@ test("updatePatientService does not treat unchanged full-form deceased adult pay
   };
   PatientHistory.create = async () => {
     throw new Error("PatientHistory.create should not be called when no changes are detected");
+  };
+  User.findOne = (query) => {
+    assert.deepEqual(query, { email: current.email, role: "doctor" });
+    return { select: () => ({ lean: async () => null }) };
   };
   User.findOneAndUpdate = async () => {
     throw new Error("User.findOneAndUpdate should not be called when no changes are detected");

@@ -162,6 +162,22 @@ const throwInvalidAnthropometrics = (message = "Invalid anthropometric payload")
   throw err;
 };
 
+const assertPatientEmailIsNotReserved = async (email) => {
+  const normalizedEmail = normLower(email);
+  if (!normalizedEmail) return;
+
+  const doctor = await User.findOne({ email: normalizedEmail, role: "doctor" })
+    .select("_id")
+    .lean();
+
+  if (doctor) {
+    const err = new Error("This email cannot be used for a patient profile.");
+    err.status = 409;
+    err.errorCode = "PATIENT_EMAIL_RESERVED";
+    throw err;
+  }
+};
+
 const childNameKeyFromMinorKey = (minorKey, parentEmail) => {
   const mk = normLower(minorKey);
   const prefix = `${normLower(parentEmail)}::`;
@@ -783,6 +799,8 @@ export const createPatientService = async ({ user, body }) => {
       err.errorCode = "PENDING_PORTAL";
       throw err;
     }
+
+    await assertPatientEmailIsNotReserved(normalizedEmail);
   }
 
   if (ph.digits) {
@@ -1495,6 +1513,14 @@ export const updatePatientService = async ({ user, patientId, body }) => {
   } else {
     if (typeof heightM !== "undefined") update.heightM = heightM;
     if (typeof weightKg !== "undefined") update.weightKg = weightKg;
+  }
+
+  const effectivePatientEmail = hasOwn(update, "email")
+    ? normLower(update.email)
+    : (hasOwn(unset, "email") ? "" : normLower(current.email));
+
+  if ((!isMinorNext || hasOwn(body, "email")) && effectivePatientEmail) {
+    await assertPatientEmailIsNotReserved(effectivePatientEmail);
   }
 
   let changesFound = false;

@@ -128,6 +128,22 @@ const gen6Code = () => crypto.randomInt(100000, 1000000).toString(); // 6 dígit
 const hashVerificationCode = (code) =>
   crypto.createHash("sha256").update(String(code)).digest("hex");
 
+const doctorEmailIsReservedByPatient = async (email) => {
+  const normalizedEmail = normalizeSingleMailbox(email);
+  if (!normalizedEmail) return false;
+
+  const patient = await Patient.findOne({ email: normalizedEmail })
+    .select("_id")
+    .lean();
+
+  return Boolean(patient);
+};
+
+const sendDoctorEmailReserved = (res) => res.status(409).json({
+  errorCode: "DOCTOR_EMAIL_RESERVED",
+  error: "This email cannot be used for a doctor account.",
+});
+
 
 // POST /api/auth/register
 export const register = async (req, res) => {
@@ -162,6 +178,10 @@ export const register = async (req, res) => {
         return res.status(409).json({ errorCode: "USE_GOOGLE" });
       }
       return res.status(409).json({ error: "User already exists" });
+    }
+
+    if (targetRole === "doctor" && await doctorEmailIsReservedByPatient(normalizedEmail)) {
+      return sendDoctorEmailReserved(res);
     }
 
     const verificationCode = gen6Code();
@@ -613,10 +633,14 @@ export const googleCallback = async (req, res) => {
        return res.status(400).json({ error: "Invalid role" });
      }
      const payload = jwt.verify(token, PENDING_SECRET);
-     const email = String(payload.email || "").toLowerCase();
+     const email = normalizeSingleMailbox(payload.email);
+     if (!email) return res.status(400).json({ error: "Finalize failed" });
      const hd    = String(payload.hd || "").toLowerCase();
      if (role === "doctor" && !(await isAllowedProfessional(email, hd))) {
        return res.status(403).json({ error: "Doctor role requires an authorized domain/email" });
+     }
+     if (role === "doctor" && await doctorEmailIsReservedByPatient(email)) {
+       return sendDoctorEmailReserved(res);
      }
      // Crear usuario ya verificado por Google
      const user = await User.create({
