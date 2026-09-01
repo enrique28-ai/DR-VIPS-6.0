@@ -18,6 +18,7 @@
     "NODE_ENV": "production",
     "PORT": "8080",
     "CLIENT_URL": "https://dr-vips.com",
+    "PROFESSIONAL_ALLOWLIST_ENFORCED": "false",
     "CAPTCHA_ENABLED": "true",
     "CAPTCHA_PROVIDER": "turnstile",
     "TURNSTILE_EXPECTED_HOSTNAMES": "dr-vips.com",

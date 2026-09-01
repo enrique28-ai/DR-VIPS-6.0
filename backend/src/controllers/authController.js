@@ -123,6 +123,10 @@ const isAllowedProfessional = async (email = "", hdClaim = "") => {
     (hd && domains.has(hd))
   );
 };
+
+const isProfessionalAllowlistEnforced = () =>
+  process.env.PROFESSIONAL_ALLOWLIST_ENFORCED !== "false";
+
 // Helpers para códigos/tokens
 const gen6Code = () => crypto.randomInt(100000, 1000000).toString(); // 6 dígitos (CSPRNG)
 const hashVerificationCode = (code) =>
@@ -167,7 +171,11 @@ export const register = async (req, res) => {
     }
 
     const targetRole = (role === "patient") ? "patient" : "doctor";
- if (targetRole === "doctor" && !(await isAllowedProfessional(normalizedEmail))) {
+ if (
+   targetRole === "doctor" &&
+   isProfessionalAllowlistEnforced() &&
+   !(await isAllowedProfessional(normalizedEmail))
+ ) {
    return res.status(403).json({ error: "Use your work email (allowed domain) or an approved email." });
  }
 
@@ -611,7 +619,8 @@ export const googleCallback = async (req, res) => {
      if (!token) return res.status(404).json({ error: "No pending" });
      const payload = jwt.verify(token, PENDING_SECRET);
      const email = String(payload.email || "").toLowerCase();
-     const allowDoctor = await isAllowedProfessional(email, payload.hd || "");
+     const allowDoctor = !isProfessionalAllowlistEnforced() ||
+       await isAllowedProfessional(email, payload.hd || "");
      return res.json({
        email,
        name: payload.name || "",
@@ -636,7 +645,11 @@ export const googleCallback = async (req, res) => {
      const email = normalizeSingleMailbox(payload.email);
      if (!email) return res.status(400).json({ error: "Finalize failed" });
      const hd    = String(payload.hd || "").toLowerCase();
-     if (role === "doctor" && !(await isAllowedProfessional(email, hd))) {
+     if (
+       role === "doctor" &&
+       isProfessionalAllowlistEnforced() &&
+       !(await isAllowedProfessional(email, hd))
+     ) {
        return res.status(403).json({ error: "Doctor role requires an authorized domain/email" });
      }
      if (role === "doctor" && await doctorEmailIsReservedByPatient(email)) {

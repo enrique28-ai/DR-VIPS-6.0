@@ -20,6 +20,10 @@ test("Worker passes email provider configuration and secret bindings to the Cont
 
   assert.match(source, /GOOGLE_CLIENT_ID: env\.GOOGLE_CLIENT_ID/);
   assert.match(source, /GMAIL_USER: env\.GMAIL_USER/);
+  assert.match(
+    source,
+    /PROFESSIONAL_ALLOWLIST_ENFORCED: env\.PROFESSIONAL_ALLOWLIST_ENFORCED/,
+  );
 });
 
 test("Wrangler contains only non-secret production email settings", async () => {
@@ -32,4 +36,5 @@ test("Wrangler contains only non-secret production email settings", async () => 
   assert.equal(Object.hasOwn(wrangler.vars, "CLOUDFLARE_EMAIL_API_TOKEN"), false);
   assert.equal(Object.hasOwn(wrangler.vars, "CLOUDFLARE_ACCOUNT_ID"), true);
   assert.match(wrangler.vars.CLOUDFLARE_ACCOUNT_ID, /^[a-f0-9]{32}$/i);
+  assert.equal(wrangler.vars.PROFESSIONAL_ALLOWLIST_ENFORCED, "false");
 });
