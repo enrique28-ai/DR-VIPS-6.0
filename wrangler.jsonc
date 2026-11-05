@@ -1,0 +1,53 @@
+﻿{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dr-vips-public-reference",
+  "main": "cloudflare/src/index.js",
+  "compatibility_date": "2026-07-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "PORT": "8080",
+    "CLIENT_URL": "https://dr-vips.example.invalid",
+    "PROFESSIONAL_ALLOWLIST_ENFORCED": "false",
+    "CAPTCHA_ENABLED": "true",
+    "CAPTCHA_PROVIDER": "turnstile",
+    "TURNSTILE_EXPECTED_HOSTNAMES": "dr-vips.example.invalid",
+    "API_GOOGLE_REDIRECT_URI": "https://dr-vips.example.invalid/api/auth/google/callback",
+    "EMAIL_PROVIDER": "cloudflare",
+    "EMAIL_FROM_ADDRESS": "noreply@dr-vips.example.invalid",
+    "EMAIL_FROM_NAME": "DR-VIPS",
+    "APPT_REMINDERS_ENABLED": "false"
+  },
+  "assets": {
+    "directory": "./frontend/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "containers": [
+    {
+      "class_name": "DrVipsApi",
+      "image": "./Dockerfile",
+      "instance_type": "lite",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DR_VIPS_API",
+        "class_name": "DrVipsApi"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DrVipsApi"]
+    }
+  ]
+}
