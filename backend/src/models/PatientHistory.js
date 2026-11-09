@@ -1,0 +1,42 @@
+import mongoose from "mongoose";
+
+const patientHistorySchema = new mongoose.Schema(
+  {
+    // Para agrupar historial aunque existan varias versiones/docs por doctor
+    patientEmail: { type: String, lowercase: true, trim: true, index: true },
+    patientKey: { type: String, lowercase: true, trim: true, index: true },
+
+    patientPhoneDigits: { type: String, trim: true, index: true },
+
+    // Auditoría
+    patientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient", index: true },
+    approvedFromProfile: { type: mongoose.Schema.Types.ObjectId, ref: "Patient" },
+    editedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+
+    oldParentEmail: { type: String, lowercase: true, trim: true },
+    newParentEmail: { type: String, lowercase: true, trim: true },
+    oldMinorKey: { type: String, lowercase: true, trim: true, index: true },
+    newMinorKey: { type: String, lowercase: true, trim: true, index: true },
+
+    // Guardamos EXACTAMENTE el mismo formato que ya usas en Patient.approvedSnapshot
+    approvedSnapshot: { type: mongoose.Schema.Types.Mixed }, // { set, unset }
+    approvedAt: { type: Date },
+    proposedSnapshot: { type: mongoose.Schema.Types.Mixed },
+    proposedAt: { type: Date },
+    eventAt: { type: Date },
+    eventType: {
+      type: String,
+      enum: ["approved", "deathStatus", "deathRecorded", "deathCorrected", "guardianReassigned", "rejected", "unresolvedAtDeath"],
+    },
+  },
+  { timestamps: true, versionKey: false }
+);
+
+patientHistorySchema.index({ patientEmail: 1, approvedAt: -1 });
+patientHistorySchema.index({ patientPhoneDigits: 1, approvedAt: -1 });
+patientHistorySchema.index({ patientKey: 1, approvedAt: -1 });
+patientHistorySchema.index({ approvedFromProfile: 1, approvedAt: -1 });
+
+
+const PatientHistory = mongoose.model("PatientHistory", patientHistorySchema);
+export default PatientHistory;

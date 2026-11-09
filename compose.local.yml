@@ -1,0 +1,32 @@
+name: dr-vips-local
+
+services:
+  mongo:
+    image: mongo:8.0.34-noble
+    command: ["mongod", "--replSet", "dr-vips-local", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --host
+        - 127.0.0.1
+        - --eval
+        - |
+          const status = db.hello();
+          if (!status.setName) {
+            rs.initiate({ _id: "dr-vips-local", members: [{ _id: 0, host: "localhost:27017" }] });
+            quit(1);
+          }
+          quit(status.setName === "dr-vips-local" && status.isWritablePrimary ? 0 : 1);
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 20
+
+volumes:
+  mongo-data:

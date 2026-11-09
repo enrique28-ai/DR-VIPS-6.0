@@ -1,0 +1,958 @@
+{
+  "common": {
+  "back": "Regresar",
+  "loading": "Cargando...",
+  "pageLoadError": "No se pudo cargar esta página. Recarga la página para intentarlo de nuevo.",
+  "reloadPage": "Recargar página",
+  "close": "Cerrar",
+  "view": "Ver",
+  "accept": "Aceptar",
+  "reject": "Rechazar",
+  "translate": "Traducir",
+  "clinicalDetails": "Detalles clínicos",
+  "selectLanguage": "Seleccionar idioma",
+  "selectDate": "Selecciona fecha"
+
+},
+"languageGate": {
+  "title": "Selecciona tu idioma",
+  "description": "Puedes cambiarlo después desde la interfaz, pero primero elige cómo quieres ver DR VIPS."
+},
+"myChildren": {
+  "title": "Mis hijos",
+  "subtitle": "Gestiona aprobaciones y diagnósticos de tus hijos menores.",
+  "empty": "No hay hijos menores vinculados a tu cuenta.",
+  "unknownChild": "Hijo",
+  "ageYears": "{{age}} años",
+  "pending": "Cambios pendientes requieren tu aprobación.",
+  "upToDate": "Actualizado.",
+  "healthInfo": "Info de Salud",
+  "healthState": "Estado de Salud",
+  "healthStateFor": "Estado de salud de {{name}}",
+  "tutorEmail": "Correo del tutor",
+  "approve": "Aprobar",
+  "reject": "Rechazar",
+  "back": "Volver",
+  "backToHealthState": "Volver al estado de salud del hijo",
+  "childNotFound": "Hijo no encontrado o ya no accesible.",
+  "noDiagnoses": "Aún no hay diagnósticos.",
+  "toasts": {
+    "approveOk": "Cambios aprobados.",
+    "approveFail": "Error al aprobar cambios.",
+    "rejectOk": "Cambios rechazados.",
+    "rejectFail": "Error al rechazar cambios.",
+    "loadFailed": "No se pudo cargar la información de tus hijos."
+  }
+},
+
+  "home": {
+    "title": "DR VIPS - Historias clínicas simplificadas",
+    "tagline": "Todo el mundo es VIP",
+    "description": {
+      "general": "Un espacio seguro y moderno para la gestión de información de salud. Los médicos optimizan sus consultas y los pacientes toman el control de su historial.",
+      "patient": "Consulte los diagnósticos de todos sus médicos en un lugar seguro. Filtros sencillos e historial claro.",
+      "doctor": "Gestione pacientes y diagnósticos en un panel de control limpio y seguro. Búsqueda rápida, ediciones rápidas, historial claro."
+    },
+    "cta": {
+      "checking": "Comprobando sesión...",
+      "patient": "Ir a Mi estado de salud",
+      "doctor": "Ir a Pacientes",
+      "signIn": "Iniciar sesión para continuar"
+    },
+    "noAccount": "¿No tiene cuenta?",
+    "createAccount": "Crear uno",
+    "workspace": {
+      "title": "Su espacio de trabajo médico",
+      "subtitle": "Pacientes - Diagnóstico - Historia"
+    }
+  },
+  "auth": {
+    "captcha": {
+      "pending": "Verificando tu conexión de forma segura...",
+      "interactive": "Completa la verificación de seguridad para continuar.",
+      "error": "La verificación de seguridad falló. Inténtalo de nuevo.",
+      "expired": "La verificación de seguridad ha caducado. Vuelve a verificar.",
+      "retry": "Reintentar verificación"
+    },
+    "login": {
+      "title": "Inicio de sesión",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "youremail@example.com",
+      "passwordLabel": "Contraseña",
+      "forgotLink": "¿Ha olvidado su contraseña?",
+      "button": "Inicio de sesión",
+      "divider": "o",
+      "google": "Iniciar sesión con Google",
+      "noAccount": "¿No tiene cuenta?",
+      "registerLink": "Regístrese en",
+      "errors": {
+        "captcha": "Por favor, complete el CAPTCHA."
+      }
+    },
+    "signup": {
+      "title": "Crear una cuenta",
+      "usernameLabel": "Nombre de usuario",
+      "usernamePlaceholder": "tu nombre",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Contraseña",
+      "passwordHint": "Mínimo 6 caracteres.",
+      "roleQuestion": "Soy un:",
+      "roleDoctor": "Médico / Personal",
+      "rolePatient": "Paciente",
+      "button": "Regístrese en",
+      "divider": "o",
+      "google": "Registrarse en Google",
+      "haveAccount": "¿Ya tiene una cuenta?",
+      "loginLink": "Conectarse",
+      "errors": {
+        "weakPassword": "La contraseña debe cumplir todos los requisitos.",
+        "captcha": "Por favor, complete el CAPTCHA."
+      }
+    },
+    "forgot": {
+      "title": "Contraseña olvidada",
+      "intro": "Introduce tu dirección de correo electrónico y te enviaremos un enlace de restablecimiento.",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "you@example.com",
+      "button": "Enviar enlace de reinicio",
+      "remember": "¿Lo recuerda?",
+      "backToLogin": "Volver al inicio de sesión",
+      "sentTitle1": "Si existe una cuenta para",
+      "resendPrompt": "¿No lo has entendido?",
+      "resendLink": "Reenviar correo electrónico",
+      "codeIntro": "Ingresa el código de 6 dígitos que enviamos a tu correo.",
+      "verifyBtn": "Continuar",
+      "sentTitle2": "en breve recibirás un código para restablecer tu contraseña."
+    },
+    "reset": {
+      "title": "Restablecer contraseña",
+      "newPasswordLabel": "Nueva contraseña",
+      "confirmPasswordLabel": "Confirmar nueva contraseña",
+      "button": "Establecer nueva contraseña",
+      "errors": {
+        "weakPassword": "La contraseña debe cumplir todos los requisitos.",
+        "mismatch": "Las contraseñas no coinciden"
+      }
+    },
+    "verify": {
+      "title": "Verifique su correo electrónico",
+      "intro": "Introduzca el código de 6 dígitos que le enviamos a su correo electrónico.",
+      "button": "Verificar correo electrónico",
+      "resend": "Vuelva a enviar"
+    },
+    "eligibility": {
+      "title": "Acceso restringido a los ámbitos sanitarios",
+      "p1": "Para utilizar este sistema, regístrese o inicie sesión con su correo electrónico del trabajo desde un dominio sanitario permitido, o con una dirección de correo electrónico autorizada.",
+      "p2": "Si su organización está autorizada, póngase en contacto con el servicio de asistencia para añadir su dominio."
+    },
+    "chooseRole": {
+      "title": "Elige tu papel",
+      "newAccount": "Nueva cuenta de Google",
+      "continuePatient": "Continuar como paciente",
+      "continueDoctor": "Continuar como Doctor",
+      "doctorNotAllowed": "Su correo electrónico/dominio no está autorizado para las cuentas de Doctor.",
+      "genericError": "Fallido"
+    },
+    "profile": {
+      "title": "Perfil",
+      "emailLabel": "Correo electrónico (sólo lectura)",
+      "nameLabel": "Nombre",
+      "photoLabel": "Foto de perfil",
+      "changePhoto": "Cambiar foto",
+      "useLink": "Utilizar enlace",
+      "useFile": "Utilizar archivo",
+      "remove": "Eliminar",
+      "avatarUrlLabel": "Avatar URL",
+      "saveButton": "Guardar",
+      "dangerTitle": "Zona de peligro",
+      "dangerPatient": "Al borrar su cuenta, se eliminará su perfil y el acceso a sus historiales en esta aplicación. Los historiales creados por sus médicos no se eliminan, pero ya no podrá verlos aquí.",
+      "dangerDoctor": "Al borrar su cuenta, se eliminará permanentemente su perfil y todos los registros que haya creado (pacientes y diagnósticos).",
+      "confirmPlaceholder": "Escribe \"BORRAR\" para confirmar",
+      "deleteButton": "Eliminar mi cuenta",
+      "deleteConfirmValue": "BORRAR",
+      "errors": {
+        "confirmDelete": "Escribe \"BORRAR\" para confirmar",
+        "maxSize": "Máximo 2 MB",
+        "invalidImage": "Selecciona una imagen JPEG, PNG, WebP o GIF válida.",
+        "invalidAvatarUrl": "Introduce una URL de imagen HTTP o HTTPS válida y sin credenciales.",
+        "avatarUrlUnavailable": "No se pudo cargar una imagen desde esa URL. Revisa el enlace e inténtalo de nuevo.",
+        "avatarTimeout": "La actualización de la foto tardó demasiado. Inténtalo de nuevo."
+      }
+    },
+    "toasts": {
+      "loginSuccess": "Bienvenido de nuevo",
+      "loginFailed": "Error de inicio de sesión",
+      "signupSuccess": "Cuenta creada. Compruebe su correo electrónico",
+      "signupFailed": "Error de registro",
+      "accessRestricted": "Acceso restringido a dominios/correos sanitarios.",
+      "userExists": "El usuario ya existe",
+      "logout": "Desconectado",
+      "logoutUnconfirmed": "Sesión cerrada localmente. No se pudo confirmar el cierre con el servidor.",
+      "emailVerified": "Correo electrónico verificado",
+      "verificationFailed": "Verificación fallida",
+      "codeResent": "Código de verificación reenviado",
+      "codeResendFailed": "No se ha podido reenviar el código",
+      "forgotSent": "Si el correo electrónico existe, enviamos un enlace de restablecimiento",
+      "forgotFailed": "Error al enviar correo electrónico",
+      "passwordUpdated": "Contraseña actualizada",
+      "resetFailed": "Error de reinicio",
+      "profileUpdated": "Perfil actualizado",
+      "updateFailed": "Actualización fallida",
+      "accountDeleted": "Cuenta eliminada",
+      "deleteFailed": "Eliminación fallida",
+      "photoUpdated": "Foto actualizada",
+      "uploadFailed": "Error de carga",
+      "importFailed": "Error de importación",
+      "googleFailed": "Error al iniciar sesión en Google",
+      "rateLimitedShort": "Demasiadas solicitudes. Vuelva a intentarlo más tarde.",
+      "rateLimitedWithTime": "Demasiadas solicitudes. Vuelva a intentarlo en",
+      "useGoogle": "Esta cuenta usa Google. Inicia sesión con Google.",
+      "usePassword": "Esta cuenta fue creada con contraseña. Inicia sesión con correo y contraseña.",
+      "googleMismatch": "Este correo está vinculado a otro Google. Usa el método original."
+    }
+  },
+  "navbar": {
+    "whoCanAccess": "¿Quién puede acceder?",
+    "login": "Inicio de sesión",
+    "register": "Regístrese en",
+    "myHealthInfo": "Mi información de salud",
+    "hi": "Hola,",
+    "verifyEmail": "Verificar correo electrónico",
+    "myHealthState": "Mi estado de salud",
+    "profile": "Perfil",
+    "patients": "Pacientes",
+    "logout": "Cierre de sesión",
+    "myChildren": "Mis hijos",
+    "home": "Inicio",
+    "mainNavigation": "Navegación principal",
+    "accessRequests": "Solicitudes de acceso"
+  },
+  "accessRequests": {
+    "title": "Solicitudes de acceso",
+    "description": "Revisa las solicitudes de médicos que desean acceder a un expediente médico que puedes administrar.",
+    "pendingRequests": "Solicitudes de acceso pendientes",
+    "loading": "Cargando solicitudes de acceso...",
+    "pending": "Pendiente",
+    "doctor": "Médico",
+    "medicalRecord": "Expediente médico",
+    "approvalConsequence": "Al aprobar, permites que {{doctor}} acceda a este expediente médico de {{patient}}.",
+    "requestedAt": "Solicitado el",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "approving": "Aprobando...",
+    "rejecting": "Rechazando...",
+    "emptyTitle": "No hay solicitudes pendientes",
+    "emptyDescription": "No tienes solicitudes de acceso de médicos por revisar.",
+    "loadFailed": "No se pudieron cargar las solicitudes de acceso",
+    "loadFailedDescription": "Intenta de nuevo para consultar las solicitudes pendientes.",
+    "retry": "Intentar de nuevo",
+    "approveSuccess": "Solicitud de acceso aprobada.",
+    "approveFailed": "No se pudo aprobar la solicitud de acceso.",
+    "rejectSuccess": "Solicitud de acceso rechazada.",
+    "rejectFailed": "No se pudo rechazar la solicitud de acceso.",
+    "noLongerAvailable": "Esta solicitud de acceso ya no está disponible.",
+    "unknownDoctor": "Médico no disponible",
+    "emailUnavailable": "Correo no disponible",
+    "recordUnavailable": "Expediente médico no disponible",
+    "dateUnavailable": "Fecha no disponible"
+  },
+  "password": {
+    "strengthLabel": "Seguridad de la contraseña",
+    "levels": {
+      "veryWeak": "Muy débil",
+      "weak": "Débil",
+      "fair": "Aceptable",
+      "good": "Bien",
+      "strong": "Fuerte"
+    },
+    "rules": {
+      "minLen": "Al menos 6 caracteres",
+      "hasCase": "Mayúsculas y minúsculas",
+      "hasNumber": "Al menos un número",
+      "hasSpecial": "Carácter especial"
+    }
+  },
+  "patients": {
+    "title": "Pacientes",
+    "empty": {
+      "title": "Aún no hay pacientes",
+      "description": "Empieza por crear tu primer paciente para gestionar historiales y diagnósticos.",
+      "cta": "Añadir paciente"
+    },
+    "list": {
+      "searchPlaceholder": "Buscar por nombre, correo electrónico o teléfono...",
+      "subtitleDefault": "Mostrando {{count}} pacientes - Página {{page}} de {{pages}}",
+      "subtitleFilters": "{{summary}} — {{count}} encontrados · Página {{page}} de {{pages}}",
+      "filters": {
+        "more": "Más filtros",
+        "clear": "Limpiar",
+        "ageCategory": "Categoría de edad",
+        "status": "Estado",
+        "bloodType": "Tipo de sangre",
+        "country": "País",
+        "countryOfResidence": "País de residencia",
+        "weight": "Peso",
+        "gender": "Género",
+        "organDonor": "Donante de órganos",
+        "bloodDonor": "Donante de sangre",
+        "diseases": "Enfermedades",
+        "allergies": "Alergias",
+        "medications": "Medicamentos",
+        "options": {
+          "all": "Todos",
+          "yes": "Sí",
+          "no": "No",
+          "alive": "Vivo",
+          "deceased": "Fallecido",
+          "underweight": "Bajo peso",
+          "healthy": "Saludable",
+          "overweight": "Sobrepeso",
+          "male": "Hombre",
+          "female": "Mujer"
+        }
+      },
+      "noMatch": {
+        "title": "No hay pacientes compatibles",
+        "description": "Pruebe a ajustar los filtros de búsqueda, categoría de edad, grupo sanguíneo, sexo o donante.",
+        "clear": "Limpiar filtros"
+      },
+      "pagination": {
+        "prev": "Anterior",
+        "next": "Siguiente",
+        "label": "Página {{page}} de {{pages}}"
+      },
+      "ageCategories": {
+        "child": "Niño",
+        "teenager": "Adolescente",
+        "adult": "Adultos",
+        "senior": "Senior"
+      }
+    },
+    "card": {
+      "age": "Edad",
+      "country": "País",
+      "blood": "Sangre",
+      "email": "Correo electrónico",
+      "phone": "Teléfono",
+      "gender": "Género",
+      "genderMale": "Hombre",
+      "genderFemale": "Mujer",
+      "status": "Estado",
+      "statusDeceased": "Fallecido",
+      "causeOfDeath": "Causa de la muerte",
+      "viewDiagnoses": "Ver diagnósticos",
+      "edit": "Editar paciente",
+      "delete": "Borrar paciente",
+      "confirmDelete": "¿Borrar a este paciente? Esto no se puede deshacer.",
+      "pending": "Aprobacion Pendiente",
+      "pendingHint": "Los cambios requieren la aprobación del paciente"
+    },
+    "create": {
+      "title": "Crear paciente",
+      "back": "Volver a Pacientes",
+      "fullname": "Nombre y apellidos",
+      "email": "Correo electrónico",
+      "phone": "Teléfono",
+      "phoneCountry": "País del teléfono",
+      "age": "Edad",
+      "bloodType": "Tipo de sangre",
+      "country": "País",
+      "state": "Estado/Provincia",
+      "city": "Ciudad",
+      "residence": "Residencia",
+      "residenceCountry": "País de residencia",
+      "residenceState": "Estado/Provincia de residencia",
+      "residenceCity": "Ciudad de residencia",
+      "placeOfResidence": "Lugar de residencia",
+      "placeOfBirth": "Lugar de nacimiento",
+      "birthCountry": "País de nacimiento",
+      "birthState": "Estado/Provincia de nacimiento",
+      "birthCity": "Ciudad de nacimiento",
+      "hasDiseases": "¿Tiene enfermedades?",
+      "diseasesPlaceholder": "Hipertensión, diabetes",
+      "hasAllergies": "¿Tiene alergias?",
+      "allergiesPlaceholder": "Cacahuetes, Penicilina",
+      "hasMedications": "¿Toma medicamentos?",
+      "medicationsPlaceholder": "Metformina, Atorvastatina",
+      "gender": "Género",
+      "organDonor": "Donante de órganos",
+      "bloodDonor": "Donante de sangre",
+      "measurementSystem": "Sistema de medición",
+      "systemMetric": "Internacional (m/kg)",
+      "systemImperial": "Inglés (ft/lb)",
+      "heightLabel": "Altura",
+      "heightFeetLabel": "Pies",
+      "heightInchesLabel": "Pulgadas",
+      "weightLabel": "Peso",
+      "requiredMark": "*",
+      "yes": "Sí",
+      "no": "No",
+      "invalidEmail": "Formato de correo electrónico no válido.",
+      "ageOutOfRange": "La edad debe estar comprendida entre {{min}} y {{max}}.",
+      "heightWeightTooHigh": "Por favor, mantenga la altura ≤ {{maxH}} {{hUnit}} y el peso ≤ {{maxW}} {{wUnit}}.",
+      "heightFeetInchesInvalid": "Introduzca la altura con pies enteros y pulgadas de 0 a 11.",
+      "phoneInvalidAdult": "Introduzca un número de teléfono válido para el país del teléfono seleccionado.",
+      "phoneInvalidMinor": "El teléfono es opcional para menores, pero debe ser válido para el país del teléfono seleccionado si se proporciona.",
+      "diseasesRequired": "Introduzca al menos una enfermedad o seleccione \"No\".",
+      "allergiesRequired": "Introduzca al menos una alergia o seleccione \"No\".",
+      "medicationsRequired": "Introduzca al menos un medicamento o seleccione \"No\".",
+      "countryRequired": "El país es obligatorio.",
+      "stateRequired": "Se requiere Estado/Provincia.",
+      "cityRequired": "La ciudad es obligatoria.",
+      "submit": "Cree",
+      "submitting": "Crear...",
+      "phoneAreaDigitsPlaceholder": "Número nacional de teléfono",
+      "selectCountryFirst": "Seleccione primero un país",
+      "phoneDigitsCounter": "Dígitos introducidos",
+      "phoneCountryAndNumberRequired": "Seleccione un país del teléfono e introduzca un número de teléfono para continuar.",
+      "phoneSelectCountryToValidate": "Seleccione un país del teléfono para validar este número.",
+      "phoneRequiredAdult": "El teléfono es obligatorio para adultos.",
+      "selectPhoneCountryOption": "Seleccione un país del teléfono…",
+      "selectCountryOption": "Seleccione un país…",
+      "selectStateOption": "Seleccione un estado…",
+      "selectCityOption": "Seleccione una ciudad…",
+      "fullnamePlaceholder": "Juan Pérez",
+      "emailExample": "usuario@dominio.com",
+      "birthplaceRequired": "El país, estado/provincia y ciudad de nacimiento son obligatorios.",
+      "birthplaceCompleteRequired": "Proporcione país, estado/provincia y ciudad de nacimiento juntos.",
+      "hasChildren": "¿Tiene hijos?",
+      "childrenCount": "Cantidad de hijos",
+      "childName": "Nombre del hijo",
+      "childNamePlaceholder": "Nombre completo",
+      "parentEmail": "Correo del padre/tutor",
+      "parentEmailPlaceholder": "padre@dominio.com",
+      "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
+      "childrenCountRequired": "Indica la cantidad de hijos.",
+      "childrenNamesRequired": "Escribe el nombre de cada hijo.",
+      "birthDate": "Fecha de nacimiento",
+      "birthDatePlaceholder": "YYYY-MM-DD",
+      "computedAge": "Edad calculada"
+
+
+    },
+    "edit": {
+      "title": "Editar Paciente",
+      "back": "Volver",
+      "backToPatients": "Volver a los pacientes",
+      "cancel": "Cancelar",
+      "save": "Guardar cambios",
+      "birthplaceClearUnsupported": "No se permite borrar un lugar de nacimiento existente en esta actualización.",
+      "birthplaceImmutable": "El lugar de nacimiento no puede modificarse una vez registrado.",
+      "saving": "Guardando...",
+      "notFoundTitle": "Paciente no encontrado",
+      "notFoundText": "Puede que se haya borrado o que no tengas acceso.",
+      "status": "Estado",
+      "alive": "Vivo",
+      "deceased": "Fallecido",
+      "causeOfDeath": "Causa de la muerte",
+      "invalidEmail": "Formato de correo electrónico no válido.",
+      "ageOutOfRange": "La edad debe estar comprendida entre {{min}} y {{max}}.",
+      "heightWeightPositive": "La altura y el peso deben ser superiores a 0.",
+      "heightWeightTooHigh": "Por favor, mantenga la altura ≤ {{maxH}} {{hUnit}} y el peso ≤ {{maxW}} {{wUnit}}.",
+      "causeRequired": "Por favor, introduzca una causa de muerte.",
+      "countryRequired": "Seleccione un país.",
+      "emailImmutable": "El correo electrónico no puede ser modificado una vez registrado.",
+      "dateOfDeath": "Fecha de defunción",
+      "dateOfDeathPlaceholder": "YYYY-MM-DD",
+      "childrenNamesImmutable": "Los nombres de hijos existentes no se pueden editar.",
+      "childrenNamesDuplicate": "Los nombres de los hijos deben ser únicos."
+
+    },
+    "detail": {
+      "back": "Volver a Pacientes",
+      "history": "Historial",
+      "loading": "Cargando paciente...",
+      "notFoundTitle": "Paciente no encontrado",
+      "notFoundText": "Puede que se haya borrado o que no tengas acceso.",
+      "category": "Categoría",
+      "email": "Correo electrónico",
+      "phone": "Teléfono",
+      "height": "Altura",
+      "weight": "Peso",
+      "notSpecified": "No especificado",
+      "pendingApproval": "Aprobación Pendiente",
+      "bmi": "IMC",
+        "bmiCategories": {
+            "underweight": "Bajo peso",
+            "normal": "Saludable",
+            "overweight": "Sobrepeso"
+          },
+      "bmiCategoryParen": "({{category}})",
+      "causeOfDeath": "Causa de la muerte",
+      "diseases": "Enfermedades",
+      "allergies": "Alergias",
+      "medications": "Medicamentos",
+      "created": "Creado",
+      "updated": "Actualizado",
+      "edit": "Editar",
+      "viewDiagnoses": "Ver diagnósticos",
+      "backButton": "Volver",
+      "delete": "Borrar",
+      "children": "Hijos",
+      "reassignGuardian": "Reasignar tutor",
+      "newGuardianEmail": "Correo del nuevo tutor",
+      "newGuardianEmailPlaceholder": "nuevo.tutor@ejemplo.com"
+    },
+    "history": {
+      "title": "Historial del Paciente",
+      "empty": "No se encontraron versiones en el historial.",
+      "editedBy": "Editado por",
+      "recordedBy": "Registrado por",
+      "location": "Lugar de residencia",
+      "none": "Ninguno",
+      "deceasedLabel": "Fallecido",
+      "notRecorded": "Sin registrar",
+      "cleared": "Sin valor en esta versión",
+      "childrenCount": "Número de hijos",
+      "proposedAt": "Propuesto el {{date}}",
+      "loadFailed": "No se pudo cargar el historial del paciente.",
+      "translationFailed": "No se pudo traducir esta versión.",
+      "events": {
+        "approved": "Ficha aprobada",
+        "deathStatus": "Fallecimiento registrado o corregido",
+        "deathRecorded": "Fallecimiento registrado",
+        "deathCorrected": "Fallecimiento corregido",
+        "guardianReassigned": "Tutor reasignado",
+        "rejected": "Propuesta rechazada",
+        "unresolvedAtDeath": "Sin resolver al momento del fallecimiento"
+      },
+      "systemUnknown": "Sistema / Desconocido"
+    },
+    "searchGlobal": {
+    "title": "Agregar Paciente",
+    "subtitle": "Busca en la base de datos global para importar un paciente existente, o crea uno nuevo.",
+    "placeholder": "Buscar por nombre, correo o teléfono...",
+    "searchBtn": "Buscar Globalmente",
+    "notFound": "¿No lo encuentras?",
+    "createNew": "Crear nuevo paciente",
+    "searching": "Buscando en la base de datos global...",
+    "error": "Error al buscar pacientes.",
+    "resultsTitle": "Resultados de Búsqueda Global",
+    "noResults": "No se encontraron pacientes.",
+    "suggestCreate": "Si el paciente no está en el sistema, por favor crea un registro nuevo.",
+    "minChars": "Escribe al menos 3 caracteres para buscar."
+  },
+  "identification": {
+    "title": "Buscar Paciente Existente",
+    "description": "Ingresa el nombre completo exacto y el correo proporcionados por el paciente. Para un menor, usa el correo de su padre, madre o tutor actual. El acceso requiere la aprobación del paciente o tutor.",
+    "patientType": "Tipo de paciente",
+    "adult": "Paciente adulto",
+    "minor": "Paciente menor de edad",
+    "fullname": "Nombre Completo",
+    "email": "Correo Electrónico",
+    "guardianEmail": "Correo Electrónico del Padre, Madre o Tutor Actual",
+    "submit": "Solicitar Acceso",
+    "sending": "Enviando Solicitud...",
+    "confirmation": "Si se encuentra un paciente que coincida, la solicitud de acceso estará disponible para que el paciente o su tutor autorizado la revise.",
+    "validationError": "Selecciona el tipo de paciente e ingresa un nombre completo y un correo electrónico válido.",
+    "error": "No se pudo enviar la solicitud. Inténtalo de nuevo."
+  },
+  "global": {
+    "viewToImport": "Ver y Solicitar Acceso",
+    "previewMode": "Modo Vista Previa Global",
+    "previewDesc": "Este paciente existe en la base de datos global. Solicita acceso al paciente o guardián antes de ver su historial médico o editar detalles.",
+    "importBtn": "Solicitar Acceso",
+    "importing": "Enviando Solicitud...",
+    "requestPending": "Solicitud Pendiente",
+    "alreadyOwned": "Ya tienes a este paciente en tu lista.",
+    "goToDetail": "Ir al Detalle del Paciente"
+  },
+    "toasts": {
+      "loadFailed": "Error al cargar pacientes",
+      "loadOneFailed": "Error al cargar paciente",
+      "createSuccess": "Paciente creado",
+      "createFailed": "Fallo al crear paciente",
+      "updateSuccess": "Paciente actualizado",
+      "updateFailed": "No se ha podido actualizar el paciente",
+      "deleteSuccess": "Paciente eliminado",
+      "deleteFailed": "Error al borrar paciente",
+      "approveHealthInfoSuccess": "Su información se aplicó a todos sus médicos.",
+      "approveHealthInfoFailed": "No hemos podido aprobar su información.",
+      "conflictPendingPortal": "Este paciente tiene un perfil pendiente en el portal. Resuélvalo primero.",
+      "conflictEmailReserved": "Este correo electrónico pertenece a una cuenta de médico y no puede utilizarse para registrar un paciente.",
+      "conflictGeneric": "La información del paciente entra en conflicto con un registro existente. Revísala e inténtalo de nuevo.",
+      "conflictEmailExists": "Ya existe un paciente con este correo. No puedes crear otro registro con el mismo email.",
+      "conflictPhoneExists": "Ya existe un paciente con este teléfono.",
+      "rejectHealthInfoSuccess": "Conservamos su información anterior.",
+      "rejectHealthInfoFailed": "No podíamos rechazar esta información.",
+      "importSuccess": "Solicitud de acceso enviada.",
+      "importFailed": "No se pudo solicitar acceso.",
+      "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar.",
+      "guardianReassignSuccess": "Tutor reasignado correctamente.",
+      "guardianReassignFailed": "No se pudo reasignar el tutor."
+    },
+    "errors": {
+      "parentEmailRequired": "Para crear un menor de edad, el correo de padre/madre es obligatorio.",
+      "parentNotFound": "Acceso denegado: No se encontró un padre/madre registrado con ese correo.",
+      "parentNotAdult": "Acceso denegado: El registro del padre/madre debe corresponder a un adulto.",
+      "minorNotListed": "Acceso denegado: El nombre del menor no aparece en la lista de hijos del padre/madre.",
+      "minorCannotDeclareChildren": "Un menor de edad no puede registrar hijos.",
+      "childNameAlreadyExists": "Ya existe un hijo con este nombre para este padre o tutor.",
+      "minorFullnameImmutable": "El nombre del menor no puede cambiarse directamente.",
+      "parentEmailNotAllowed": "El correo de padre/madre solo se permite para menores.",
+      "childrenCountRequired": "Indica la cantidad de hijos.",
+      "childrenCountInvalid": "La cantidad de hijos debe ser un número válido.",
+      "childrenCountMismatch": "La cantidad de nombres no coincide con la cantidad de hijos.",
+      "birthDateRequired": "La fecha de nacimiento es obligatoria.",
+      "invalidBirthDate": "La fecha de nacimiento no es válida.",
+      "birthDateInFuture": "La fecha de nacimiento no puede estar en el futuro.",
+      "dateOfDeathRequired": "La fecha de defunción es obligatoria si el paciente está fallecido.",
+      "invalidDateOfDeath": "La fecha de defunción no es válida.",
+      "dateOfDeathInFuture": "La fecha de defunción no puede estar en el futuro.",
+      "dateOfDeathBeforeBirthDate": "La fecha de defunción no puede ser anterior a la fecha de nacimiento.",
+      "sendIsDeceasedWithDateOfDeath": "Debes enviar isDeceased junto con dateOfDeath.",
+      "pendingGuardianDecision": "Este menor tiene una decisión de tutor pendiente. Espera a que el tutor apruebe o rechace antes de editar.",
+      "patientDeceasedReadonly": "No se pueden editar pacientes fallecidos a menos que se cambien nuevamente a vivos.",
+      "deathStatusUpdateOnly": "El estado de fallecimiento debe actualizarse por separado.",
+      "guardianUnavailable": "El tutor no está disponible. Asigna un nuevo tutor antes de editar a este menor.",
+      "guardianReassignmentNotMinor": "La reasignacion de tutor solo esta disponible para menores vivos.",
+      "currentGuardianNotUnavailable": "El tutor actual debe existir y estar fallecido antes de reasignar.",
+      "newGuardianNotFound": "No se encontro el nuevo tutor.",
+      "newGuardianNotAdult": "El nuevo tutor debe ser adulto.",
+      "newGuardianDeceased": "El nuevo tutor debe estar vivo.",
+      "newGuardianNotApproved": "El perfil del nuevo tutor debe estar aprobado.",
+      "minorNotListedUnderNewGuardian": "El menor no esta listado bajo el nuevo tutor.",
+      "guardianReassignmentNoChanges": "El correo del nuevo tutor debe ser diferente al correo del tutor actual."
+    }
+  },
+
+  "diagnoses": {
+  "list": {
+    "title": "Diagnósticos",
+    "patientTitle": "Diagnósticos de {{name}}",
+    "searchPlaceholder": "Buscar por nombre de diagnóstico...",
+    "subtitleDefault": "Mostrando {{count}} diagnósticos · Página {{page}} de {{pages}}",
+    "subtitleFilters": "{{summary}} — {{count}} encontrados · Página {{page}} de {{pages}}",
+    "filters": {
+      "more": "Más filtros",
+      "clear": "Limpiar",
+      "date": "En la fecha",
+      "medicines": "Medicinas",
+      "treatments": "Tratamientos",
+      "operations": "Operaciones",
+      "today": "Hoy",
+      "backToPatient": "Volver al paciente",
+      "options": {
+        "all": "Todos",
+        "yes": "Sí",
+        "no": "No"
+      }
+    },
+    "noMatch": {
+      "title": "No hay diagnósticos que coincidan",
+      "description": "Pruebe a ajustar su búsqueda o los filtros de fecha y tratamiento.",
+      "clear": "Limpiar filtros"
+    },
+    "pagination": {
+      "prev": "Anterior",
+      "next": "Siguiente",
+      "label": "Página {{page}} de {{pages}}"
+    }
+  },
+  "empty": {
+    "title": "Aún no hay diagnósticos",
+    "description": "Cree el primer diagnóstico para este paciente para iniciar su historial."
+  },
+  "card": {
+     "newOptimistic": "Nuevo diagnóstico (pendiente de sincronizar)",
+    "updated": "Actualizado",
+    "edit": "Editar",
+    "delete": "Borrar",
+    "confirmDelete": "¿Borrar este diagnóstico? Esto no se puede deshacer."
+  },
+  "detail": {
+    "pageTitle": "Detalles del diagnóstico",
+    "notFoundTitle": "Diagnóstico no encontrado",
+    "notFound": "Diagnóstico no encontrado",
+    "backToList": "Volver a diagnósticos",
+    "description": "Descripción",
+    "medicines": "Medicinas",
+    "treatments": "Tratamientos",
+    "operations": "Operaciones",
+    "created": "Creado",
+    "updated": "Actualizado",
+    "edit": "Editar",
+    "back": "Volver",
+    "delete": "Borrar",
+    "untitled": "Sin título",
+    "history": "Historial"
+  },
+  "history": {
+  "title": "Historial del Diagnóstico",
+  "empty": "No se encontraron versiones en el historial.",
+  "editedBy": "Editado por",
+  "createdBy": "Creado por",
+  "created": "Creado",
+  "updated": "Actualizado",
+  "diagnosisCreatedAt": "Creación del diagnóstico",
+  "diagnosisUpdatedAt": "Última actualización del diagnóstico",
+  "notRecorded": "Sin registrar",
+  "cleared": "Vaciado en esta versión",
+  "snapshotUnavailable": "El contenido de esta versión no está disponible.",
+  "translated": "Traducido",
+  "translationFailed": "No se pudo traducir esta versión del diagnóstico.",
+  "retry": "Intentar de nuevo",
+  "none": "Ninguno",
+  "systemUnknown": "Sistema / Desconocido"
+},
+  "form": {
+    "titleLabel": "Título",
+    "titlePlaceholder": "p. ej., Hipertensión",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "Notas…",
+    "requiresMeds": "¿Requiere medicinas?",
+    "requiresTx": "¿Requiere tratamiento?",
+    "requiresOps": "¿Requiere operación?",
+    "medsLabel": "Medicinas (separadas por comas)",
+    "txLabel": "Tratamientos (separados por comas)",
+    "opsLabel": "Operaciones (separadas por comas)",
+    "medsPlaceholder": "Metformina, Atorvastatina",
+    "txPlaceholder": "Fisioterapia, Plan de dieta",
+    "opsPlaceholder": "Apendicectomía, Cirugía de cataratas",
+    "yes": "Sí",
+    "no": "No",
+    "errors": {
+      "titleRequired": "El título del diagnóstico es obligatorio.",
+      "descriptionRequired": "La descripción es obligatoria.",
+      "medsRequired": "Introduzca al menos una medicina o seleccione \"No\".",
+      "txRequired": "Introduzca al menos un tratamiento o seleccione \"No\".",
+      "opsRequired": "Introduzca al menos una operación o seleccione \"No\"."
+    }
+  },
+  "create": {
+    "title": "Crear diagnóstico",
+    "back": "Volver a diagnósticos",
+    "submit": "Crear",
+    "creating": "Creando...",
+    "cta": "Crear diagnóstico"
+  },
+  "edit": {
+    "title": "Editar diagnóstico",
+    "back": "Volver",
+    "cancel": "Cancelar",
+    "save": "Guardar cambios",
+    "saving": "Guardando..."
+  },
+  "toasts": {
+  "loadFailed": "Error al cargar diagnósticos",
+  "loadOneFailed": "Error al cargar diagnóstico",
+  "createSuccess": "Diagnóstico creado",
+  "createFailed": "Error al crear diagnóstico",
+  "updateSuccess": "Diagnóstico actualizado",
+  "updateFailed": "Error al actualizar diagnóstico",
+  "deleteSuccess": "Diagnóstico eliminado",
+  "deleteFailed": "Error al eliminar diagnóstico",
+  "loadMineFailed": "Error al cargar sus diagnósticos",
+  "loadHistoryFailed": "Error al cargar historial del diagnóstico",
+  "noChanges": "No detecté cambios. Modifica al menos un campo antes de guardar.",
+  "patientDeceased": "No se pueden crear ni editar diagnósticos para un paciente fallecido."
+}
+
+},
+"myHealthState": {
+  "list": {
+    "searchPlaceholder": "Buscar por nombre de diagnóstico, nombre o correo del doctor...",
+    "empty": {
+      "title": "Aún no hay registros de salud",
+      "description": "Cuando tus doctores registren diagnósticos, aparecerán aquí."
+    }
+  },
+   "detail": {
+    "backToState": "Volver a Mi estado de salud",
+    "createdBy": "Creado por",
+    "unknownDoctor": "Médico desconocido"
+  }
+},
+"myHealthInfo": {
+  "loading": "Cargando su información de salud...",
+   "changes": {
+      "previouslyApproved": "Aprobado previamente",
+      "removedComparedToApproved": "Eliminado en comparación con la versión aprobada",
+      "addedComparedToApproved": "Agregado comparado con la versión aprobada",
+      "thisWasAdded": "Esto se agregó",
+      "thisWasRemoved": "Esto se eliminó",
+      "unitsChanged": "Unidades cambiadas: {{from}} → {{to}}"
+    },
+  "error": {
+    "title": "No pudimos cargar sus datos.",
+    "description": "Inténtelo de nuevo en unos momentos. Si el problema continúa, contacte a su médico.",
+    "back": "Regresar"
+
+  },
+  "empty": {
+    "title": "Aún no hay información de salud",
+    "description": "Ninguno de sus médicos ha registrado todavía un perfil personal para usted. Una vez que un médico cree o actualice su información, podrá revisarla y aprobarla aquí.",
+    "backToState": "Volver a mis diagnósticos"
+  },
+  "header": {
+    "pendingReview": "Revisión pendiente",
+    "unresolvedAtDeath": "Sin resolver al momento del fallecimiento",
+    "unresolvedDescription": "La actualización propuesta quedó sin aprobar antes del fallecimiento. Puedes consultarla en el historial.",
+    "description": "Así es como sus médicos han registrado su información personal.",
+    "allUpToDate": "Toda su información está actualizada. No hay nada pendiente por aprobar.",
+    "lastUpdate": "Última solicitud de actualización:",
+    "backToState": "Volver a mis diagnósticos",
+    "updatedBy": "Realizado por:",
+    "doctor": "Doctor",
+    "email": "Correo"
+  },
+  "history": {
+      "title": "Mi historial de salud",
+      "empty": "Aún no hay historial disponible.",
+      "proposedBy": "Propuesto por",
+      "button": "Historial",
+      "systemUnknown": "Sistema / Desconocido"
+    },
+  "sections": {
+    "basic": {
+      "title": "Información básica",
+      "description": "Nombre, edad, datos de contacto y preferencias de donación.",
+      "fullname": "Nombre y apellidos",
+      "age": "Edad",
+      "ageWithYears": "{{age}} años",
+      "approvedChildrenCount": "Número de hijos aprobado",
+      "proposedChildrenCount": "Total propuesto: {{count}}",
+      "proposedChildrenChange": "Cambio propuesto: {{approved}} → {{proposed}}",
+      "childrenCountPending": "Pendiente de revisión. Si apruebas el cambio, se confirma el total propuesto. Si lo rechazas, se conserva la declaración aprobada.",
+      "childrenCountUnresolved": "El total propuesto quedó sin aprobar. La declaración aprobada sigue vigente.",
+      "gender": "Género",
+      "bloodType": "Tipo de sangre",
+      "location": "Lugar de residencia",
+      "phone": "Teléfono",
+      "organDonor": "Donante de órganos",
+      "bloodDonor": "Donante de sangre",
+      "status": "Estado",
+      "causeOfDeath": "Causa de la muerte"
+    },
+    "anthropometrics": {
+      "title": "Altura, peso e IMC",
+      "description": "Sólo se muestran los valores más recientes. Al aprobar, estos valores se aplicarán a todos sus médicos.",
+      "height": "Altura",
+      "weight": "Peso",
+      "bmi": "IMC"
+    },
+    "conditions": {
+      "title": "Padecimientos y alergias",
+      "description": "Mostramos la actualización más reciente registrada por su médico. Si hay cambios pendientes, también mostramos la versión aprobada previamente para que pueda comparar antes de aprobar.",
+      "diseases": "Enfermedades",
+      "allergies": "Alergias",
+      "medications": "Medicamentos"
+    },
+    "medications": {
+      "title": "Medicamentos",
+      "description": "Estos son los medicamentos que aparecen en los registros de sus médicos.",
+      "medications": "Medicamentos"
+    }
+  },
+  "common": {
+    "notSpecified": "No especificado",
+    "notCalculated": "No calculado",
+    "metric": "Métrico (m, kg)",
+    "imperial": "Imperial (ft, lb)",
+    "unknownDate": "Fecha desconocida",
+    "noneRecorded": "No hay registros.",
+    "previouslyRecorded": "Valores registrados anteriormente para {{label}}:",
+    "previouslyRecordedGeneric": "Valores registrados anteriormente:",
+    "previouslyRecordedLocations": "Residencias registradas anteriormente:",
+    "previouslyRecordedBirthplaces": "Lugares de nacimiento registrados anteriormente:",
+    "alive": "Vivo",
+    "deceased": "Fallecido",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "actions": {
+    "approveIntro": "Si todo en esta página es correcto, apruebe esta versión para que todos sus médicos usen la misma información. Si algo es incorrecto, rechácela y conservaremos sus datos anteriores.",
+    "approve": "Aprobar y compartir con todos los médicos",
+    "reject": "Rechazar esta versión",
+    "approving": "Aprobando...",
+    "rejecting": "Rechazando...",
+    "clearTranslation": "Limpiar traducción"
+  }
+},
+"calendar": {
+  "title": "Calendario de Citas",
+  "menu": "Calendario",
+  "newAppointment": "Nueva cita",
+  "scheduleBtn": "Agendar Cita",
+  "scheduling": "Agendando...",
+  "selectPatient": "Seleccionar Paciente (solo vivos)",
+  "choosePatient": "-- Elegir Paciente --",
+  "dateTime": "Fecha y Hora",
+   "start": "Inicio",
+  "end": "Fin",
+  "duration": "Duración",
+  "reason": "Motivo",
+  "reasonPlaceholder": "Ej. Consulta general, Seguimiento...",
+  "legendPending": "Pendiente",
+  "legendAccepted": "Aceptada",
+  "doctorPrefix": "Dr:",
+  "patientPrefix": "P:",
+  "unknown": "Desconocido",
+  "pendingHint": "Pendiente de aceptación. Solo el paciente puede aceptar.",
+  "confirmAccept": "¿Aceptar cita con Dr. {{name}}?",
+  "confirmReject": "¿Rechazar esta cita?",
+  "confirmCancel": "¿Cancelar/eliminar esta cita?",
+   "intervals": {
+    "15min": "15 min",
+    "30min": "30 min",
+    "45min": "45 min",
+    "1h": "1 h",
+    "1_5h": "1.5 h",
+    "2h": "2 h"
+  },
+  "validation": {
+    "missingFields": "Seleccione un paciente y una fecha",
+    "invalidRange": "Seleccione un rango de tiempo válido",
+    "overlap": "¡Ese horario ya está ocupado por otra cita!"
+  },
+  "errors": {
+    "patientDeceased": "No se pueden gestionar citas de un paciente fallecido.",
+    "guardianUnavailable": "El tutor no está disponible. Asigna un nuevo tutor antes de programar citas para este menor."
+  },
+  "toasts": {
+    "loadFailed": "No se pudieron cargar las citas",
+    "createSuccess": "Cita creada",
+    "createFailed": "No se pudo crear la cita",
+    "acceptSuccess": "Cita aceptada",
+    "acceptFailed": "No se pudo aceptar la cita",
+    "deleteSuccess": "Cita cancelada",
+    "deleteFailed": "No se pudo cancelar la cita"
+  },
+  "rbc": {
+    "today": "Hoy",
+    "previous": "Atrás",
+    "next": "Siguiente",
+    "month": "Mes",
+    "week": "Semana",
+    "day": "Día",
+    "agenda": "Agenda",
+    "date": "Fecha",
+    "time": "Hora",
+    "event": "Evento",
+    "noEventsInRange": "No hay citas en este rango."
+  },
+   "modal": {
+    "pendingTitle": "Solicitud de Cita",
+    "pendingDesc": "¿Desea aceptar o rechazar esta cita con el Dr. {{doctorName}}?",
+    "cancelTitle": "Cancelar Cita",
+    "cancelDesc": "¿Está seguro de que desea cancelar esta cita?",
+    "cancelReqTitle": "Cancelar Solicitud",
+    "cancelReqDesc": "¿Desea cancelar esta solicitud pendiente?",
+    "date": "Fecha",
+    "time": "Hora",
+    "patient": "Paciente",
+    "doctor": "Doctor",
+    "cancelBtn": "Cancelar Cita"
+  },
+
+  "defaultReason": "Consulta general"
+},
+"notifications": {
+  "title": "Notificaciones",
+  "empty": "No tienes notificaciones.",
+  "markAllRead": "Marcar todo leído"
+}
+
+
+}

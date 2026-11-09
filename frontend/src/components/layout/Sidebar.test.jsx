@@ -1,0 +1,275 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import Sidebar from "./Sidebar.jsx";
+import { preventSameLocationNavigation } from "./navigationConfig.js";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key) =>
+      ({
+        "navbar.home": "Home",
+        "navbar.patients": "Patients",
+        "navbar.myHealthState": "My health state",
+        "navbar.myHealthInfo": "My health info",
+        "navbar.myChildren": "My children",
+        "navbar.accessRequests": "Access Requests",
+        "navbar.profile": "Profile",
+        "navbar.mainNavigation": "Main navigation",
+        "navbar.logout": "Logout",
+        "calendar.menu": "Calendar",
+      })[key] ?? key,
+  }),
+}));
+
+const defaultUser = {
+  name: "Doctor Person",
+  email: "doctor@example.com",
+  avatar: "https://example.com/doctor.png",
+};
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location" data-key={location.key}>{location.pathname}{location.search}{location.hash}</span>;
+}
+
+const renderSidebar = (
+  role,
+  initialPath = "/",
+  {
+    open = true,
+    user = defaultUser,
+    logout = vi.fn().mockResolvedValue(undefined),
+  } = {},
+) =>
+  render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route
+          path="*"
+          element={
+            <>
+              <Sidebar open={open} role={role} user={user} logout={logout} />
+              <LocationProbe />
+            </>
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+const getLink = (name) => screen.getByRole("link", { name });
+
+describe("Sidebar", () => {
+  test("five current Patients clicks and keyboard activation preserve the location key", () => {
+    renderSidebar("doctor", "/patients");
+    const location = screen.getByTestId("location");
+    const key = location.dataset.key;
+    const patients = getLink("Patients");
+    for (let i = 0; i < 5; i++) fireEvent.click(patients);
+    expect(location).toHaveAttribute("data-key", key);
+
+    patients.focus();
+    fireEvent.click(patients, { detail: 0 }); // Native keyboard activation dispatches a click.
+    expect(patients).toHaveFocus();
+    expect(location).toHaveAttribute("data-key", key);
+  });
+
+  test.each(["/calendar", "/patients/fixture", "/patients?page=2", "/patients#records"])(
+    "Patients navigates normally from %s", (initialPath) => {
+      renderSidebar("doctor", initialPath);
+      const location = screen.getByTestId("location");
+      const key = location.dataset.key;
+      fireEvent.click(getLink("Patients"));
+      expect(location.textContent).toBe("/patients");
+      expect(location.dataset.key).not.toBe(key);
+    },
+  );
+
+  test.each([
+    ["Ctrl", { ctrlKey: true }], ["Cmd", { metaKey: true }], ["Shift", { shiftKey: true }],
+    ["Alt", { altKey: true }], ["middle", { button: 1 }], ["right", { button: 2 }],
+  ])("preserves native %s activation of the current link", (_kind, options) => {
+    renderSidebar("doctor", "/patients");
+    const nativeClick = vi.fn((event) => {
+      expect(event.defaultPrevented).toBe(false);
+      event.preventDefault(); // Keep jsdom from trying to navigate the document.
+    });
+    document.addEventListener("click", nativeClick, { once: true });
+    fireEvent.click(getLink("Patients"), options);
+    expect(nativeClick).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([{ target: "_blank" }, { download: "patients.txt" }])(
+    "leaves current destination anchors with native link behavior alone (%j)", (props) => {
+      const location = { pathname: "/patients", search: "", hash: "" };
+      render(<a href="/patients" {...props} onClick={(event) => preventSameLocationNavigation(event, location)}>Native link</a>);
+      const nativeClick = vi.fn((event) => {
+        expect(event.defaultPrevented).toBe(false);
+        event.preventDefault();
+      });
+      document.addEventListener("click", nativeClick, { once: true });
+      fireEvent.click(getLink("Native link"));
+      expect(nativeClick).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test("doctor navigation shows Home, Patients, Calendar, Profile and omits patient-only links", () => {
+    renderSidebar("doctor");
+
+    expect(getLink("Home")).toBeInTheDocument();
+    expect(getLink("Patients")).toBeInTheDocument();
+    expect(getLink("Calendar")).toBeInTheDocument();
+    expect(getLink("Profile")).toBeInTheDocument();
+
+    expect(screen.queryByRole("link", { name: "My health state" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "My health info" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "My children" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Access Requests" })).not.toBeInTheDocument();
+  });
+
+  test("open=false renders no desktop Sidebar", () => {
+    const { container } = renderSidebar("doctor", "/", { open: false });
+
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  test("patient navigation shows Home, My Health State, My Health Info, My Children, Calendar, Profile and omits Patients", () => {
+    renderSidebar("patient");
+
+    expect(getLink("Home")).toBeInTheDocument();
+    expect(getLink("My health state")).toBeInTheDocument();
+    expect(getLink("My health info")).toBeInTheDocument();
+    expect(getLink("My children")).toBeInTheDocument();
+    expect(getLink("Access Requests")).toHaveAttribute(
+      "href",
+      "/docrecords/access-requests",
+    );
+    expect(getLink("Calendar")).toBeInTheDocument();
+    expect(getLink("Profile")).toBeInTheDocument();
+
+    expect(screen.queryByRole("link", { name: "Patients" })).not.toBeInTheDocument();
+  });
+
+  test('Home is active only when pathname is exactly "/"', () => {
+    renderSidebar("doctor", "/");
+
+    const home = getLink("Home");
+    expect(home).toHaveAttribute("aria-current", "page");
+  });
+
+  test('"/patients" does not mark Home active', () => {
+    renderSidebar("doctor", "/patients");
+
+    const home = getLink("Home");
+    expect(home).not.toHaveAttribute("aria-current", "page");
+
+    const patients = getLink("Patients");
+    expect(patients).toHaveAttribute("aria-current", "page");
+  });
+
+  test('"/patients/123/edit" marks Patients active', () => {
+    renderSidebar("doctor", "/patients/123/edit");
+
+    const patients = getLink("Patients");
+    expect(patients).toHaveAttribute("aria-current", "page");
+  });
+
+  test('"/diagnosis/patient/123/456" marks Patients active', () => {
+    renderSidebar("doctor", "/diagnosis/patient/123/456");
+
+    const patients = getLink("Patients");
+    expect(patients).toHaveAttribute("aria-current", "page");
+  });
+
+  test('"/docrecords/myhealthstate/diagnosis-id" marks My Health State active for patient', () => {
+    renderSidebar("patient", "/docrecords/myhealthstate/diagnosis-id");
+
+    const healthState = getLink("My health state");
+    expect(healthState).toHaveAttribute("aria-current", "page");
+  });
+
+  test('nested My Children route marks My Children active for patient', () => {
+    renderSidebar(
+      "patient",
+      "/docrecords/mychildren/child-id/health-state/diagnosis-id",
+    );
+
+    const myChildren = getLink("My children");
+    expect(myChildren).toHaveAttribute("aria-current", "page");
+  });
+
+  test('the exact access request route marks Access Requests active for patient', () => {
+    renderSidebar("patient", "/docrecords/access-requests");
+
+    expect(getLink("Access Requests")).toHaveAttribute("aria-current", "page");
+  });
+
+  test('a different nested path does not mark Access Requests active', () => {
+    renderSidebar("patient", "/docrecords/access-requests/history");
+
+    expect(getLink("Access Requests")).not.toHaveAttribute("aria-current", "page");
+  });
+
+  test("unsupported role renders no sidebar navigation", () => {
+    renderSidebar("admin");
+
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  test("nav has accessible aria-label", () => {
+    renderSidebar("doctor");
+
+    const nav = screen.getByRole("navigation");
+    expect(nav).toHaveAccessibleName("Main navigation");
+  });
+
+  test("renders the verified account footer at the bottom with identity and Logout", () => {
+    const { container } = renderSidebar("doctor");
+    const aside = container.querySelector("aside");
+    const nav = within(aside).getByRole("navigation");
+
+    expect(aside).toHaveClass("flex-col", "lg:flex");
+    expect(aside).toHaveAttribute("id", "desktop-navigation-sidebar");
+    expect(aside).toHaveClass("sticky", "top-16", "h-[calc(100vh-4rem)]");
+    expect(aside).toHaveClass("border-l");
+    expect(aside).not.toHaveClass("border-r");
+    expect(nav).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+    expect(
+      within(aside).getByRole("img", { name: "Doctor Person avatar" }),
+    ).toHaveAttribute("src", defaultUser.avatar);
+    expect(within(aside).getByText("Doctor Person")).toBeInTheDocument();
+    expect(within(aside).getByText("doctor@example.com")).toBeInTheDocument();
+    expect(within(aside).getByRole("button", { name: "Logout" })).toBeInTheDocument();
+    expect(within(nav).getAllByRole("link", { name: "Profile" })).toHaveLength(1);
+    expect(aside.lastElementChild).toContainElement(
+      within(aside).getByRole("button", { name: "Logout" }),
+    );
+  });
+
+  test("selecting a route keeps the controlled Sidebar rendered", () => {
+    const { container } = renderSidebar("patient");
+
+    fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/calendar");
+    expect(container.querySelector("#desktop-navigation-sidebar")).not.toBeNull();
+  });
+
+  test("Logout from the desktop Sidebar awaits logout and navigates to login", async () => {
+    const logout = vi.fn().mockResolvedValue(undefined);
+    renderSidebar("patient", "/profile", { logout });
+
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/login"),
+    );
+  });
+});

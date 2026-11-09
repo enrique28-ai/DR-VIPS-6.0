@@ -1,0 +1,50 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Env & secretos
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Node
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Builds / artefactos
+dist/
+frontend/dist/
+backend/dist/
+
+# Coverage / caches
+coverage/
+.nyc_output/
+.eslintcache
+
+# Temporales
+.tmp/
+.temp/
+
+#Claude
+CLAUDE.md
+# Cloudflare local
+.dev.vars
+.dev.vars.*
+.wrangler/
+
+# Private planning, key material and local medical uploads
+/docs/PRODUCT_PLAN.md
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+/uploads/
+/backend/uploads/

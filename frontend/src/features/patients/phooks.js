@@ -1,0 +1,681 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSessionMutation as useMutation } from "../../lib/useSessionMutation.js";
+import api from "../../lib/axios.js";
+import { toast } from "react-hot-toast";
+import i18n from "../../i18n";
+import { isHealthInfoAccessError, matchesChildProfile } from "./healthInfoReview.js";
+
+
+const patientErrorKey = (code) => {
+  const map = {
+    PATIENT_EMAIL_RESERVED: "patients.toasts.conflictEmailReserved",
+    PATIENT_EMAIL_EXISTS: "patients.toasts.conflictEmailExists",
+    PATIENT_PHONE_EXISTS: "patients.toasts.conflictPhoneExists",
+    PENDING_PORTAL: "patients.toasts.conflictPendingPortal",
+
+    // Minors / Parents
+    PARENT_EMAIL_REQUIRED: "patients.errors.parentEmailRequired",
+    PARENT_NOT_FOUND: "patients.errors.parentNotFound",
+    PARENT_NOT_ADULT: "patients.errors.parentNotAdult",
+    MINOR_NOT_LISTED: "patients.errors.minorNotListed",
+    MINOR_CANNOT_DECLARE_CHILDREN: "patients.errors.minorCannotDeclareChildren",
+    MINOR_FULLNAME_IMMUTABLE: "patients.errors.minorFullnameImmutable",
+    PARENT_EMAIL_NOT_ALLOWED: "patients.errors.parentEmailNotAllowed",
+    CHILD_NAME_ALREADY_EXISTS: "patients.errors.childNameAlreadyExists",
+
+    // Children (Adults)
+    CHILDREN_COUNT_REQUIRED: "patients.errors.childrenCountRequired",
+    CHILDREN_COUNT_INVALID: "patients.errors.childrenCountInvalid",
+    CHILDREN_COUNT_MISMATCH: "patients.errors.childrenCountMismatch",
+    PENDING_GUARDIAN_DECISION: "patients.errors.pendingGuardianDecision",
+    PATIENT_DECEASED_READONLY: "patients.errors.patientDeceasedReadonly",
+    DEATH_STATUS_UPDATE_ONLY: "patients.errors.deathStatusUpdateOnly",
+    BIRTHPLACE_IMMUTABLE: "patients.edit.birthplaceImmutable",
+    GUARDIAN_UNAVAILABLE: "patients.errors.guardianUnavailable",
+    GUARDIAN_REASSIGNMENT_NOT_MINOR: "patients.errors.guardianReassignmentNotMinor",
+    CURRENT_GUARDIAN_NOT_UNAVAILABLE: "patients.errors.currentGuardianNotUnavailable",
+    NEW_GUARDIAN_NOT_FOUND: "patients.errors.newGuardianNotFound",
+    NEW_GUARDIAN_NOT_ADULT: "patients.errors.newGuardianNotAdult",
+    NEW_GUARDIAN_DECEASED: "patients.errors.newGuardianDeceased",
+    NEW_GUARDIAN_NOT_APPROVED: "patients.errors.newGuardianNotApproved",
+    MINOR_NOT_LISTED_UNDER_NEW_GUARDIAN: "patients.errors.minorNotListedUnderNewGuardian",
+    GUARDIAN_REASSIGNMENT_NO_CHANGES: "patients.errors.guardianReassignmentNoChanges",
+  };
+  return typeof code === "string" && Object.hasOwn(map, code) ? map[code] : null;
+};
+
+const hasDeathStatusPayload = (payload) =>
+  Boolean(
+    payload &&
+      ("isDeceased" in payload ||
+        "dateOfDeath" in payload ||
+        "causeOfDeath" in payload)
+  );
+
+// Build a stable params object (omit "All"/empty so cache keys are clean)
+export const buildPatientParams = ({ q = "", category = "All", bloodtype = "All", gender = "All", organDonor = "All", bloodDonor = "All",
+   bmiCategory = "All", status = "All", country = "All", hasDiseases = "All", hasAllergies = "All", hasMedications = "All", page = 1 }) => ({
+  q: q?.trim() || undefined,
+  category: category !== "All" ? category : undefined,
+  bloodtype: bloodtype !== "All" ? bloodtype : undefined,
+  gender: gender !== "All" ? gender.toLowerCase() : undefined, // → male|female
+  organDonor: organDonor === "Yes" ? true : organDonor === "No" ? false : undefined,
+  bloodDonor: bloodDonor === "Yes" ? true : bloodDonor === "No" ? false : undefined,
+  bmiCategory: (["Underweight","Healthy","Overweight"].includes(bmiCategory) ? bmiCategory.toLowerCase() : undefined),
+  deceased: status === "Deceased" ? true : status === "Alive" ? false : undefined,
+  country: country !== "All" ? country : undefined,
+  hasDiseases: hasDiseases === "Yes" ? true : hasDiseases === "No" ? false : undefined,
+  hasAllergies: hasAllergies === "Yes" ? true : hasAllergies === "No" ? false : undefined,
+  hasMedications: hasMedications === "Yes" ? true : hasMedications === "No" ? false : undefined,
+  page,
+});
+
+// Query: list
+export function usePatients(params, options = {}) {
+  return useQuery({
+    queryKey: ["patients", params],
+    queryFn: async () => (await api.get("/patients", { params })).data, // { items,total,page,pages }
+    enabled: options.enabled ?? true,
+    keepPreviousData: true,
+    placeholderData: (prev) => prev,         // conserva la data anterior mientras llega la nueva
+    notifyOnChangeProps: ["data", "isFetching"],
+    staleTime: 30_000,                       // evita refetches seguidos y parpadeos
+    refetchOnWindowFocus: false,             // no revalidar al cambiar de pestaña
+    refetchOnReconnect: false,
+    onError: (e) =>{
+      if (e?.response?.status !== 429) toast.error(i18n.t("patients.toasts.loadFailed"));
+    }
+  });
+}
+
+// Query: one
+export function usePatient(id) {
+  return useQuery({
+    queryKey: ["patient", id],
+    queryFn: async () => (await api.get(`/patients/${id}`)).data,
+    enabled: !!id,
+    retry: false,
+    onError: (e) => {
+    const s = e?.response?.status;
+    if (s !== 404 && s !== 429) toast.error(i18n.t("patients.toasts.loadOneFailed"));
+  },
+  });
+}
+
+// Mutations
+export function useCreatePatient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => api.post("/patients", payload).then(r => r.data),
+    onSuccess: (created) => {
+      toast.success(i18n.t("patients.toasts.createSuccess"));
+     // opcional: cachea el detalle
+     qc.setQueryData(["patient", created._id], created);
+
+     // siembra el nuevo paciente en las listas relevantes (sin filtros, page 1)
+     const snaps = qc.getQueriesData({ queryKey: ["patients"] });
+     snaps.forEach(([key, data]) => {
+       const params = key?.[1] || {};
+       const isDefault =
+         !params.q && !params.category && !params.bloodtype && (params.page ?? 1) === 1;
+       if (!isDefault) return;
+
+       const prevItems = data?.items ?? [];
+       if (prevItems.some(p => p._id === created._id)) return;
+       const next = { ...(data || {}), items: [created, ...prevItems] };
+       qc.setQueryData(key, next);
+     });
+
+     // revalida en background (suave, sin parpadeo)
+     setTimeout(() => {
+       qc.invalidateQueries({ queryKey: ["patients"] });
+     }, 100);
+   },
+    onError: (e) => {
+      const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
+
+      if (status === 409) {
+        toast.error(i18n.t(patientErrorKey(code) || "patients.toasts.conflictGeneric"));
+        return;
+      }
+
+       const key = patientErrorKey(code);
+  if ((status === 400 || status === 403) && key) {
+    toast.error(i18n.t(key));
+    return;
+  }
+
+      if (status !== 429) {
+        toast.error(i18n.t("patients.toasts.createFailed"));
+      }
+  },
+
+  });
+}
+
+export function useUpdatePatient(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => api.put(`/patients/${id}`, payload).then(r => r.data),
+     onMutate: async (payload) => {
+      // 1) Detalle
+      const prevDetail = qc.getQueryData(["patient", id]);
+      qc.setQueryData(["patient", id], (old) =>
+        old
+          ? {
+              ...old,
+              ...(payload.isDeceased !== undefined ? { isDeceased: !!payload.isDeceased } : {}),
+              ...(payload.causeOfDeath !== undefined ? { causeOfDeath: payload.causeOfDeath } : {}),
+            }
+          : old
+      );
+
+      // 2) Listas
+      const snaps = qc.getQueriesData({ queryKey: ["patients"] });
+      const rollbacks = snaps.map(([key, data]) => {
+        if (!data?.items) return () => {};
+        const params = key?.[1] || {};
+        const wants = params.deceased; // true=Deceased, false=Alive, undefined=All
+        const items = data.items.slice();
+        const idx = items.findIndex((x) => x._id === id);
+        if (idx === -1) return () => {};
+
+        const nextIsDeceased =
+          payload.isDeceased != null ? !!payload.isDeceased : !!items[idx].isDeceased;
+        const nextCause =
+          payload.causeOfDeath != null ? payload.causeOfDeath : items[idx].causeOfDeath;
+
+        let nextItems;
+        if (wants === true && !nextIsDeceased)      nextItems = items.filter((x) => x._id !== id);
+        else if (wants === false && nextIsDeceased) nextItems = items.filter((x) => x._id !== id);
+        else {
+          nextItems = items;
+          nextItems[idx] = { ...items[idx], isDeceased: nextIsDeceased, causeOfDeath: nextCause };
+        }
+        const prev = data;
+        qc.setQueryData(key, { ...data, items: nextItems });
+        return () => qc.setQueryData(key, prev);
+      });
+
+      // rollback
+      return () => {
+        qc.setQueryData(["patient", id], prevDetail);
+        rollbacks.forEach((rb) => rb());
+      };
+    },
+    onError: (e, _vars, rollback) => {
+      rollback?.();
+
+      const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
+      const backendMsg = e?.response?.data?.error;
+
+  // ✅ No permitir "guardar" si no hubo cambios reales
+  if (status === 400 && code === "NO_CHANGES") {
+    toast.error(
+      i18n.t("patients.toasts.noChanges") ||
+        backendMsg ||
+        "No changes detected. Please modify at least one field before saving."
+    );
+    return;
+  }
+
+      const key = patientErrorKey(code);
+      if ((status === 400 || status === 403 || status === 409) && key) {
+        toast.error(i18n.t(key));
+        return;
+      }
+
+      if (status === 409) {
+        toast.error(i18n.t("patients.toasts.conflictGeneric"));
+        return;
+      }
+
+      if (status !== 429) {
+        toast.error(i18n.t("patients.toasts.updateFailed"));
+      }
+    },
+
+    onSuccess: (updated, payload) => {
+      toast.success(i18n.t("patients.toasts.updateSuccess"));
+      // asegura caches con la versión del server
+      qc.setQueryData(["patient", id], updated);
+      const snaps = qc.getQueriesData({ queryKey: ["patients"] });
+      snaps.forEach(([key, data]) => {
+        if (!data?.items) return;
+        const params = key?.[1] || {};
+        const wants = params.deceased;
+        const idx = data.items.findIndex((x) => x._id === updated._id);
+        if (idx === -1) return;
+        let items = data.items.slice();
+        if (wants === true && !updated.isDeceased)      items = items.filter(x => x._id !== updated._id);
+        else if (wants === false && updated.isDeceased) items = items.filter(x => x._id !== updated._id);
+        else items[idx] = updated;
+        qc.setQueryData(key, { ...data, items });
+      });
+      if (hasDeathStatusPayload(payload)) {
+        qc.invalidateQueries({ queryKey: ["appointments"] });
+        qc.invalidateQueries({ queryKey: ["patient-history"] });
+        qc.invalidateQueries({ queryKey: ["child-history"] });
+      }
+      // Revalida suave, en segundo plano
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["patients"], refetchType: "inactive" });
+      }, 150);
+    },
+   });
+ }
+
+export function useReassignGuardian(id) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ newParentEmail }) =>
+      (await api.patch(`/patients/${id}/guardian`, { newParentEmail })).data,
+    onSuccess: (data) => {
+      const updated = data?.patient;
+      const patientId = updated?._id || id;
+
+      if (updated?._id) {
+        qc.setQueryData(["patient", updated._id], updated);
+      }
+
+      qc.invalidateQueries({ queryKey: ["patients"] });
+      qc.invalidateQueries({ queryKey: ["patient", patientId] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["my-children-health-info"] });
+      qc.invalidateQueries({ queryKey: ["child-history"] });
+
+      toast.success(i18n.t("patients.toasts.guardianReassignSuccess"));
+    },
+    onError: (e) => {
+      const status = e?.response?.status;
+      const code = e?.response?.data?.errorCode;
+      const key = patientErrorKey(code);
+
+      if ((status === 400 || status === 403 || status === 404 || status === 409) && key) {
+        toast.error(i18n.t(key));
+        return;
+      }
+
+      if (status !== 429) {
+        toast.error(i18n.t("patients.toasts.guardianReassignFailed"));
+      }
+    },
+  });
+}
+
+
+/*export function useDeletePatient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/patients/${id}`), // 204
+    // optimistic remove from any cached list
+    onMutate: async (id) => {
+      const snaps = qc.getQueriesData({ queryKey: ["patients"] });
+      const rollbacks = snaps.map(([key, data]) => {
+        if (!data?.items) return () => {};
+        const prev = data;
+        const next = { ...data, items: data.items.filter(x => x._id !== id) };
+        qc.setQueryData(key, next);
+        return () => qc.setQueryData(key, prev);
+      });
+      return () => rollbacks.forEach(rb => rb());
+    },
+    onError: (e, _id, rollback) =>{
+      rollback?.();
+      if (e?.response?.status !== 429) toast.error(i18n.t("patients.toasts.deleteFailed"));
+    },
+    onSuccess: (_res, id) => {
+      toast.success(i18n.t("patients.toasts.deleteSuccess"));
+     // limpia el detalle si estaba en caché; la lista ya quedó sin el item (optimista)
+     qc.removeQueries({ queryKey: ["patient", id] });
+     // ✅ Revalida listas para confirmar con el servidor
+     qc.invalidateQueries({ queryKey: ["patients"] });
+     //setTimeout(() => qc.invalidateQueries({ queryKey: ["patients"] }), 300);
+   },
+  });
+}*/
+
+// === Patient portal: aggregated health info for the logged-in patient ===
+export function useMyHealthInfo() {
+  return useQuery({
+    queryKey: ["myHealthInfo"],
+    queryFn: async ({ signal }) => {
+      const res = await api.get("/patients/me/health-info", { signal });
+      return res.data; // { hasRecords, snapshot }
+    },
+    retry: false,
+  });
+}
+
+const myPatientAccessRequestsKey = ["my-patient-access-requests"];
+
+export function useMyPatientAccessRequests() {
+  return useQuery({
+    queryKey: myPatientAccessRequestsKey,
+    queryFn: async () => {
+      try {
+        return (await api.get("/patients/me/access-requests")).data;
+      } catch (error) {
+        if (error?.response?.status !== 429) {
+          toast.error(i18n.t("accessRequests.loadFailed"));
+        }
+        throw error;
+      }
+    },
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
+function useDecidePatientAccessRequest(action) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId) =>
+      (await api.post(`/patients/me/access-requests/${requestId}/${action}`)).data,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: myPatientAccessRequestsKey });
+      toast.success(i18n.t(`accessRequests.${action}Success`));
+    },
+    onError: async (error) => {
+      const status = error?.response?.status;
+
+      if (status === 404 || status === 409) {
+        await qc.invalidateQueries({ queryKey: myPatientAccessRequestsKey });
+        toast.error(i18n.t("accessRequests.noLongerAvailable"));
+        return;
+      }
+
+      if (status !== 429) {
+        toast.error(i18n.t(`accessRequests.${action}Failed`));
+      }
+    },
+  });
+}
+
+export function useApprovePatientAccessRequest() {
+  return useDecidePatientAccessRequest("approve");
+}
+
+export function useRejectPatientAccessRequest() {
+  return useDecidePatientAccessRequest("reject");
+}
+
+async function submitAdultProfileDecision(action, decision) {
+  const { profileId, expectedUpdatedAt } = typeof decision === "string" ? { profileId: decision } : decision;
+  const path = `/patients/me/health-info/${action}/${profileId}`;
+  const response = expectedUpdatedAt ? await api.post(path, { expectedUpdatedAt }) : await api.post(path);
+  return response.data;
+}
+
+function refreshAdultReviewOnConflict(queryClient, error) {
+  const code = error?.response?.data?.errorCode;
+  if (code === "PATIENT_DECEASED_READ_ONLY" || code === "PATIENT_REVIEW_CHANGED") {
+    queryClient.invalidateQueries({ queryKey: ["myHealthInfo"] });
+    queryClient.invalidateQueries({ queryKey: ["my-history"] });
+  }
+}
+
+export function useApprovePatientProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (decision) => submitAdultProfileDecision("approve", decision),
+    onSuccess: (data) => {
+      void qc.cancelQueries({ queryKey: ["myHealthInfo"], exact: true });
+      qc.setQueryData(["myHealthInfo"], data);
+      qc.invalidateQueries({ queryKey: ["my-history"] });
+       toast.success(i18n.t("patients.toasts.approveHealthInfoSuccess"));
+    },
+    onError: (error) => {
+      refreshAdultReviewOnConflict(qc, error);
+       toast.error(i18n.t("patients.toasts.approveHealthInfoFailed"));
+    },
+  });
+}
+
+export function useRejectPatientProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (decision) => submitAdultProfileDecision("reject", decision),
+    onSuccess: (data) => {
+      void qc.cancelQueries({ queryKey: ["myHealthInfo"], exact: true });
+      qc.setQueryData(["myHealthInfo"], data);
+      qc.invalidateQueries({ queryKey: ["my-history"] });
+
+      // SI YA NO HAY REGISTROS EN EL PORTAL (caso 1):
+  if (data?.hasRecords === false) {
+    // Dejamos TODAS las queries ["my-diagnoses", *] con lista vacía
+    qc.setQueriesData(
+      { queryKey: ["my-diagnoses"], exact: false },
+      (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: [],
+          total: 0,
+          page: 1,
+          pages: 1,
+        };
+      }
+    );
+  }
+
+  // En todos los casos: limpiamos detalles e invalidamos para que revaliden suave
+      qc.removeQueries({ queryKey: ["my-diagnosis"], exact: false });   // detalles
+      qc.invalidateQueries({ queryKey: ["my-diagnoses"], exact: false }); // listas
+       toast.success(i18n.t("patients.toasts.rejectHealthInfoSuccess"));
+    },
+    onError: (error) => {
+      refreshAdultReviewOnConflict(qc, error);
+      toast.error(i18n.t("patients.toasts.rejectHealthInfoFailed"));
+    },
+  });
+}
+
+// Identification is sent only on submission, never as a query/cache key or URL.
+export function useRequestPatientAccess() {
+  return useMutation({
+    mutationFn: async ({ mode, fullname, email }) =>
+      (await api.post("/patients/access-requests", { mode, fullname, email })).data,
+  });
+}
+
+// ✅ History (Doctor): /patients/:id/history
+export function usePatientHistory(id, options = {}) {
+  const enabled = options.enabled ?? true;
+
+  return useQuery({
+    queryKey: ["patient-history", id],
+    enabled: enabled && !!id,
+    queryFn: async ({ signal }) => (await api.get(`/patients/${id}/history`, { signal })).data,
+    retry: false,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+    onError: (e) => {
+      console.error("usePatientHistory error:", e);
+    },
+  });
+}
+
+// ✅ History (Patient): /patients/me/history
+export function useMyHistory(options = {}) {
+  const enabled = options.enabled ?? true;
+
+  return useQuery({
+    queryKey: ["my-history"],
+    enabled,
+    queryFn: async ({ signal }) => (await api.get("/patients/me/history", { signal })).data,
+    retry: false,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+    onError: (e) => {
+      console.error("useMyHistory error:", e);
+    },
+  });
+}
+
+export function useTranslatePatient() {
+  return useMutation({
+    mutationFn: async ({ id, lang }) =>
+      (await api.get(`/patients/${id}`, { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
+// ✅ Traduce SOLO 1 item del historial (barato)
+export function useTranslatePatientHistorySnapshot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ variant, patientId, historyId, lang }) => {
+      const url =
+        variant === "doctor"
+          ? `/patients/${patientId}/history/${historyId}`
+          : variant === "child"
+          ? `/patients/me/children/${patientId}/history/${historyId}`
+          : `/patients/me/history/${historyId}`;
+
+      return (await api.get(url, { params: { lang } })).data;
+    },
+    onError: (error, { variant, patientId }) => {
+      if (isHealthInfoAccessError(error)) {
+        const queryKey = variant === "doctor" ? ["patient-history", patientId]
+          : variant === "child" ? ["child-history", patientId] : ["my-history"];
+        qc.invalidateQueries({ queryKey });
+      }
+      toast.error(i18n.t("patients.history.translationFailed"));
+    },
+  });
+}
+export function useTranslateMyHealthInfo() {
+  return useMutation({
+    mutationFn: async ({ lang }) =>
+      (await api.get("/patients/me/health-info", { params: { lang } })).data,
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
+const childrenHealthInfoKey = ["my-children-health-info"];
+
+export function useTranslateMyChildrenHealthInfo() {
+  const qc = useQueryClient();
+  const getCachedChild = (profileId) => qc.getQueryData([...childrenHealthInfoKey, undefined])
+    ?.find((record) => matchesChildProfile(record, profileId));
+
+  return useMutation({
+    mutationFn: async ({ lang }) =>
+      (await api.get("/patients/me/children/health-info", { params: { lang } })).data,
+    onMutate: ({ profileId }) => getCachedChild(profileId),
+    onSettled: (records, error, { profileId }, source) => {
+      if (!source || source !== getCachedChild(profileId)) return;
+      const unavailable = error
+        ? isHealthInfoAccessError(error)
+        : !records?.some((record) => record.hasRecords && matchesChildProfile(record, profileId));
+      if (unavailable) return refreshChildHealthInfo(qc, profileId, true);
+    },
+    onError: () => toast.error("Translation failed"),
+  });
+}
+
+
+// === PARENT/TUTOR: CHILDREN HEALTH INFO (MINORS) ===
+export function useMyChildrenHealthInfo(lang) {
+  return useQuery({
+    queryKey: [...childrenHealthInfoKey, lang],
+    queryFn: async ({ signal }) => {
+      const q = lang ? `?lang=${lang}` : "";
+      return (await api.get(`/patients/me/children/health-info${q}`, { signal })).data;
+    },
+    retry: false,
+    refetchOnWindowFocus: false,
+    onError: (e) => {
+      if (e?.response?.status !== 429) toast.error(i18n.t("myChildren.toasts.loadFailed"));
+    },
+  });
+}
+
+function refreshChildHealthInfo(qc, profileId, accessEnded) {
+  const childLists = { queryKey: childrenHealthInfoKey };
+  const childProfileIds = new Set([profileId]);
+  void qc.cancelQueries(childLists);
+  // The decision response is not a guardian list entry. Drop only the old
+  // target from each cached language until the guardian read confirms its state.
+  qc.setQueriesData(childLists, (records) => records?.filter((record) => {
+    if (!matchesChildProfile(record, profileId)) return true;
+    childProfileIds.add(record.profileId);
+    record.snapshot?.sources?.forEach(({ id }) => childProfileIds.add(id));
+    return false;
+  }));
+  if (accessEnded) {
+    qc.removeQueries({ predicate: ({ queryKey: [kind, id] }) =>
+      childProfileIds.has(id) && ["child-history", "child-diagnoses", "child-diagnosis", "child-diagnosis-history"].includes(kind),
+    });
+  }
+  return qc.invalidateQueries(childLists);
+}
+
+// Nota: aquí el parámetro debe ser un Patient _id (profileId), no childKey.
+const childDecisionProfileId = (decision) => typeof decision === "string" ? decision : decision.profileId;
+
+async function submitChildProfileDecision(action, decision) {
+  const profileId = childDecisionProfileId(decision);
+  const expectedUpdatedAt = typeof decision === "string" ? undefined : decision.expectedUpdatedAt;
+  const path = `/patients/me/children/health-info/${action}/${profileId}`;
+  return (expectedUpdatedAt ? await api.post(path, { expectedUpdatedAt }) : await api.post(path)).data;
+}
+
+export function useApproveChildProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (decision) => submitChildProfileDecision("approve", decision),
+    onSuccess: (data, decision) => {
+      const profileId = childDecisionProfileId(decision);
+      const refresh = refreshChildHealthInfo(qc, profileId, data?.hasRecords === false);
+      qc.invalidateQueries({ queryKey: ["child-history"] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success(i18n.t("myChildren.toasts.approveOk"));
+      return refresh;
+    },
+    onError: (error, decision) => {
+      toast.error(i18n.t("myChildren.toasts.approveFail"));
+      if (isHealthInfoAccessError(error)) return refreshChildHealthInfo(qc, childDecisionProfileId(decision), true);
+      if (error?.response?.status === 409) return qc.invalidateQueries({ queryKey: childrenHealthInfoKey });
+    },
+  });
+}
+
+export function useRejectChildProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (decision) => submitChildProfileDecision("reject", decision),
+    onSuccess: (data, decision) => {
+      const profileId = childDecisionProfileId(decision);
+      const refresh = refreshChildHealthInfo(qc, profileId, data?.hasRecords === false);
+      qc.invalidateQueries({ queryKey: ["child-history"] });
+      toast.success(i18n.t("myChildren.toasts.rejectOk"));
+      return refresh;
+    },
+    onError: (error, decision) => {
+      toast.error(i18n.t("myChildren.toasts.rejectFail"));
+      if (isHealthInfoAccessError(error)) return refreshChildHealthInfo(qc, childDecisionProfileId(decision), true);
+      if (error?.response?.status === 409) return qc.invalidateQueries({ queryKey: childrenHealthInfoKey });
+    },
+  });
+}
+
+// Nota: childId aquí también es un Patient _id (cualquier doc del grupo sirve)
+export function useChildHistory(childId, options = {}) {
+  return useQuery({
+    queryKey: ["child-history", childId],
+    enabled: !!childId && (options.enabled ?? true),
+    queryFn: async ({ signal }) => (await api.get(`/patients/me/children/${childId}/history`, { signal })).data,
+    retry: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+    ...(options || {}),
+  });
+}
